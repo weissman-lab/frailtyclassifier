@@ -1,0 +1,17 @@
+version: "3.7"
+services:
+  jupyter:
+    build:
+      context: .
+      dockerfile: dockerfile
+    image: jupyter
+    expose:
+    - "8888"
+    ports:
+    - "8888:8888"
+    volumes:
+    - ./:/tmp
+    - /Users/crandrew/Box/PredictiveHealthcare/Grants_Research/GW_PAIR_frailty_classifier/example:/example #set your working directory, and its analog on the container
+    working_dir: /tmp
+    entrypoint: [/sbin/tini, --]
+    command: [jupyter, notebook, --notebook-dir=/example,  --ip=0.0.0.0, --port=8888, --no-browser, --allow-root]
