@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="" />
+    <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_02_summary_stats_population.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_summary_stats_population.py" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -30,7 +35,7 @@
     </option>
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/example" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectId" id="1SiBhJmMfWn6mWqKcIIwBQuvMLY" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
@@ -122,7 +127,11 @@
       <workItem from="1573141502544" duration="41000" />
       <workItem from="1573141564166" duration="14631000" />
       <workItem from="1573223544408" duration="16147000" />
-      <workItem from="1573248107776" duration="4100000" />
+      <workItem from="1573248107776" duration="4518000" />
+      <workItem from="1573305235709" duration="995000" />
+      <workItem from="1573306817157" duration="2752000" />
+      <workItem from="1573349196156" duration="7030000" />
+      <workItem from="1573487373801" duration="14446000" />
     </task>
     <servers />
   </component>

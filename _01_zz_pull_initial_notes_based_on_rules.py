@@ -15,6 +15,10 @@ import multiprocessing
 import os
 import json
 import gc
+import time
+import re
+import numpy as np
+import random
 
 datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/"
 # preferences
@@ -48,7 +52,7 @@ def get_dx_within_window(i, window = 1):
            "date": znotes.ENTRY_TIME[znotes.PAT_ENC_CSN_ID == i]}
     timediff = (inp["date"].iloc[0] - inp["df"].ENTRY_TIME).dt.total_seconds() / 60 / 60 / 25 / 365
     dx_one_year = inp["df"].loc[(timediff > 0) & (timediff < window)].CODE.unique()
-    outdict = {"PAT_ENC_CSN_ID" : int(inp["df"].PAT_ENC_CSN_ID.iloc[0]),
+    outdict = {"PAT_ENC_CSN_ID" : i,
                "DX" : ','.join(dx_one_year)}
     with open(f'{datadir}/output/_i{i}data.json', 'w') as fp:
         json.dump(outdict, fp)
@@ -57,10 +61,111 @@ def get_dx_within_window(i, window = 1):
     del dx_one_year
     del outdict
     gc.collect()
+    return None
 
 # make a list of CSNs to feed to the get_dx_within_window function
+
 lgen = znotes.PAT_ENC_CSN_ID[znotes.PAT_ID.isin(UID_dx)].tolist()
+donefiles = pd.Series(os.listdir(f'{datadir}/output/')).replace("_i", "", regex = True)\
+    .replace("data.json", "", regex = True)
+lser = pd.Series(lgen)
+tbd = lser[~lser.isin(donefiles)].tolist()
 
-pool = multiprocessing.Pool()
-pool.map(get_dx_within_window, lgen)
+# run the function.  It takes about 6 Gigs per core, so not using very many processes on my laptop
+pool = multiprocessing.Pool(processes=4)
+start = time.time()
+pool.map(get_dx_within_window, tbd, chunksize= len(tbd) // 4)
+print(time.time() - start)
+pool.close()
 
+# load the json files and compute the number of dx as the number of commas, plus one, in deach dict
+TBD = os.listdir(f'{datadir}/output/')
+nTBD = len(TBD)
+csnlist = [None] * nTBD
+dxcount = [None] * nTBD
+dxvec = [None] * nTBD
+start = time.time()
+for i in range(nTBD):
+    with open(f'{datadir}/output/{TBD[i]}') as x:
+        dx = json.loads(x.read())
+    csnlist[i] = dx['PAT_ENC_CSN_ID']
+    dxcount[i] = len(re.findall(',', dx['DX']))
+    dxvec[i] = dx['DX']
+print(time.time() - start)
+
+# merge them together
+tomerge = pd.DataFrame({'PAT_ENC_CSN_ID': csnlist,
+                        'dxcount': dxcount,
+                        'dxvec': dxvec})
+# plt.hist(np.log10(tomerge.dxcount[tomerge.dxcount >0]))
+# plt.show()
+znotes = znotes.merge(tomerge, how = "inner", on = "PAT_ENC_CSN_ID")
+znotes.head()
+
+# now go through the notes according to GW's rules for the initial purposive sample
+low_prob_words = ['gym', 'exercise', 'breathing', 'appetite', 'eating', 'getting around', 'functional status', 'PO intake', 'getting around', 'walking', 'running', 'independent']
+high_prob_words = ['PO intake', 'weight loss', 'appetite', 'frail', 'frailty', 'weakness', 'feels weak', 'unsteady', 'recent fall', 'getting around', 'severe dyspnea', 'functional impairment', 'difficulty walking', 'difficulty breathing', 'getting in the way', 'exercise']
+
+low_prob_regex = '|'.join(low_prob_words)
+high_prob_regex = '|'.join(high_prob_words)
+
+notes = pd.read_csv(f'{datadir}note_text.csv', index_col=False)
+# confirm that the csn's match with those of znotes
+notes = notes.loc[notes.PAT_ENC_CSN_ID.isin(znotes.PAT_ENC_CSN_ID)]
+print(np.where(notes.PAT_ENC_CSN_ID.values != znotes.PAT_ENC_CSN_ID.values)[0].shape)
+
+# append the hp and lp columns
+lp = notes.NOTE_TEXT.str.contains(low_prob_regex)
+hp = notes.NOTE_TEXT.str.contains(high_prob_regex)
+znotes['highprob'] = hp.values
+znotes['lowprob'] = lp.values
+
+# save metadata
+znotes.to_csv(f'{datadir}notes_metadata_2018.csv')
+
+# randomly select 50 from each
+lowprob_notes = znotes.PAT_ENC_CSN_ID[(znotes.dxcount <= 5) & (znotes.lowprob == True) & (znotes.highprob == False)\
+                                        & (znotes.ENTRY_TIME.dt.year == 2018)]
+highprob_notes = znotes.PAT_ENC_CSN_ID[(znotes.dxcount >= 15) & (znotes.lowprob == False) & (znotes.highprob == True)\
+                                        & (znotes.ENTRY_TIME.dt.year == 2018)]
+other_notes = znotes.PAT_ENC_CSN_ID[(znotes.lowprob == False) & (znotes.highprob == False)\
+                                        & (znotes.ENTRY_TIME.dt.year == 2018)]
+
+np.random.seed(8675309)
+lp_samp = lowprob_notes.sample(50)
+hp_samp = highprob_notes.sample(50)
+other_samp = other_notes.sample(50)
+
+for i in range(50):
+    # name to save it to
+    fn = f'note_lp_{lp_samp.iloc[i]}.txt'
+    # the file
+    f = open(f'{datadir}notes_output/{fn}', "w")
+    # the combined text to put into the file
+    metadata = znotes[znotes.PAT_ENC_CSN_ID == lp_samp.iloc[i]]
+    to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
+        /n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == lp_samp.iloc[i]].tolist()[0]}'
+    f.write(to_write)
+    f.close()
+
+    # name to save it to
+    fn = f'note_hp_{hp_samp.iloc[i]}.txt'
+    # the file
+    f = open(f'{datadir}notes_output/{fn}', "w")
+    # the combined text to put into the file
+    metadata = znotes[znotes.PAT_ENC_CSN_ID == hp_samp.iloc[i]]
+    to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
+        /n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == hp_samp.iloc[i]].tolist()[0]}'
+    f.write(to_write)
+    f.close()
+
+    # name to save it to
+    fn = f'note_other_{other_samp.iloc[i]}.txt'
+    # the file
+    f = open(f'{datadir}notes_output/{fn}', "w")
+    # the combined text to put into the file
+    metadata = znotes[znotes.PAT_ENC_CSN_ID == other_samp.iloc[i]]
+    to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
+        /n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == other_samp.iloc[i]].tolist()[0]}'
+    f.write(to_write)
+    f.close()
