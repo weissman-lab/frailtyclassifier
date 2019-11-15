@@ -10,15 +10,12 @@ before building other stuff later.
 '''
 
 import pandas as pd
-import matplotlib.pyplot as plt
 import multiprocessing
 import os
 import json
-import gc
 import time
 import re
 import numpy as np
-import random
 
 datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/"
 # preferences
@@ -116,8 +113,6 @@ hp = notes.NOTE_TEXT.str.contains(high_prob_regex)
 znotes['highprob'] = hp.values
 znotes['lowprob'] = lp.values
 
-znotes.lowprob.value_counts()
-
 # save metadata
 znotes.to_csv(f'{datadir}notes_metadata_2018.csv')
 
@@ -142,7 +137,7 @@ for i in range(50):
     # the combined text to put into the file
     metadata = znotes[znotes.PAT_ENC_CSN_ID == lp_samp.iloc[i]]
     to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
-        \n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == lp_samp.iloc[i]].tolist()[0]}'
+        \n\n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == lp_samp.iloc[i]].tolist()[0]}'
     f.write(to_write)
     f.close()
 
@@ -153,7 +148,7 @@ for i in range(50):
     # the combined text to put into the file
     metadata = znotes[znotes.PAT_ENC_CSN_ID == hp_samp.iloc[i]]
     to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
-        \n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == hp_samp.iloc[i]].tolist()[0]}'
+        \n\n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == hp_samp.iloc[i]].tolist()[0]}'
     f.write(to_write)
     f.close()
 
@@ -164,6 +159,6 @@ for i in range(50):
     # the combined text to put into the file
     metadata = znotes[znotes.PAT_ENC_CSN_ID == other_samp.iloc[i]]
     to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
-        \n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == other_samp.iloc[i]].tolist()[0]}'
+        \n\n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == other_samp.iloc[i]].tolist()[0]}'
     f.write(to_write)
     f.close()

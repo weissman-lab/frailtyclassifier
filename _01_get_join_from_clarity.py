@@ -14,9 +14,7 @@ import os
 from _99_project_module import get_clarity_conn, get_from_clarity_then_save, combine_all_notes
 import re
 import time
-import matplotlib.pyplot as plt
 import sys
-import numpy as np
 
 # preferences
 pd.options.display.max_rows = 4000
