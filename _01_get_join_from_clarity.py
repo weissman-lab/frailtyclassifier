@@ -6,6 +6,11 @@ This script pulls and processes the data.  There are several database queries to
 3. All outpatient notes associated with those patients
 Rather than pulling from clarity each time, this script will first check whether the data is available locally.
 If it is, it will use a local copy of the data, unless the function is explicitly told to use the query.
+
+If data ever needs to be re-pulled, the following changes should be made:
+1. Only pull records from specific specialties:  Internal Medicine, Pulmonary, Family Practice, and Gerontology
+2. only get notes from CSNs where the lung diagnosis predates the specific note.
+As of Nov 13 2019, this is fixed post-hoc.  But the queries could have been a lot faster had this been done upfront.m
 '''
 
 # libraries and imports
@@ -40,7 +45,7 @@ else:
 
 # subset them to the correct set of diagnostic codes
 # these are lung-related diagnosis codes supplied by GW
-chronic_regex = '^(J44\.[0,1,9]|J43\.[0,1,2,8,9]|J41\.[0,1,8]|J42|J84\.10|D86|J84|M34\.81|M23)'
+chronic_regex = '^(J44\.[0,1,9]|J43\.[0,1,2,8,9]|J41\.[0,1,8]|J42|J84\.10|D86|J84|M34\.81|J99\.[0,1])'
 diagnosis_df = diagnosis_df[diagnosis_df['CODE'].str.contains(chronic_regex)]
 
 # now take all patients with those MRNs, and get all of their outpatient visits
@@ -52,6 +57,7 @@ if "op_encounters_df.json.bz2" in os.listdir(datadir): # this is the final outpu
     op_encounters_df = pd.read_json("{0}op_encounters_df.json.bz2".format(datadir))
 else: # this gets the intermediate output from clarity
     unique_PIDs = diagnosis_df.PAT_ID.unique().tolist()
+    unique_PIDs.sort()
     base_query = open("_8_patient_query.sql").read()
     res = []
     batchsize = 5000

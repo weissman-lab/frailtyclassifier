@@ -47,24 +47,26 @@ UID_dx = list(set(list(dx_groups.groups.keys())))
 # write a function that takes a data frame and a date, and returns last-12-month morbidities
 # it takes a dict with elements "date" and "df".
 # date is the end of the 12-month window, and "df" are all the diagnoses for that particular patient
+# it returns nothing if that patient didn't have one of the relevant lung diseases in that time
+chronic_regex = '^(J44\.[0,1,9]|J43\.[0,1,2,8,9]|J41\.[0,1,8]|J42|J84\.10|D86|J84|M34\.81|J99\.[0,1])'
 def get_dx_within_window(i, window = 1):
     inp = {"df": dx_groups.get_group(znotes.PAT_ID[znotes.PAT_ENC_CSN_ID == i].iloc[0]).drop_duplicates(),
            "date": znotes.ENTRY_TIME[znotes.PAT_ENC_CSN_ID == i]}
-    timediff = (inp["date"].iloc[0] - inp["df"].ENTRY_TIME).dt.total_seconds() / 60 / 60 / 25 / 365
-    dx_one_year = inp["df"].loc[(timediff > 0) & (timediff < window)].CODE.unique()
-    outdict = {"PAT_ENC_CSN_ID" : i,
-               "DX" : ','.join(dx_one_year)}
-    with open(f'{datadir}/output/_i{i}data.json', 'w') as fp:
-        json.dump(outdict, fp)
-    del inp
-    del timediff
-    del dx_one_year
-    del outdict
-    gc.collect()
-    return None
+    timediff = (inp["date"].iloc[0] - inp["df"].ENTRY_TIME).dt.total_seconds() / 60 / 60 / 24 / 365
+    dx_one_year = inp["df"][(timediff > 0) & (timediff < window)].CODE
+    if any(dx_one_year.str.contains(chronic_regex)):
+        outdict = {"PAT_ENC_CSN_ID" : i,
+                   "DX" : ','.join(dx_one_year.sort_values().unique())}
+        with open(f'{datadir}/output/_i{i}data.json', 'w') as fp:
+            json.dump(outdict, fp)
+    # del inp
+    # del timediff
+    # del dx_one_year
+    # del outdict
+    # gc.collect()
+    # return None
 
 # make a list of CSNs to feed to the get_dx_within_window function
-
 lgen = znotes.PAT_ENC_CSN_ID[znotes.PAT_ID.isin(UID_dx)].tolist()
 donefiles = pd.Series(os.listdir(f'{datadir}/output/')).replace("_i", "", regex = True)\
     .replace("data.json", "", regex = True)
@@ -104,7 +106,7 @@ znotes.head()
 
 # now go through the notes according to GW's rules for the initial purposive sample
 low_prob_words = ['gym', 'exercise', 'breathing', 'appetite', 'eating', 'getting around', 'functional status', 'PO intake', 'getting around', 'walking', 'running', 'independent']
-high_prob_words = ['PO intake', 'weight loss', 'appetite', 'frail', 'frailty', 'weakness', 'feels weak', 'unsteady', 'recent fall', 'getting around', 'severe dyspnea', 'functional impairment', 'difficulty walking', 'difficulty breathing', 'getting in the way', 'exercise']
+high_prob_words = ['PO intake', 'weight loss', 'appetite', 'frail', 'frailty', 'weakness', 'feels weak', 'unsteady', 'recent fall', 'getting around', 'severe dyspnea', 'functional impairment', 'difficulty walking', 'difficulty breathing', 'getting in the way', 'exercise', 'Breathless', 'short of breath', 'wheezing', 'delirium', 'dementia', 'incontinence', 'do not resuscitate', 'walker', 'wheelchair', 'malnutrition', 'boost']
 
 low_prob_regex = '|'.join(low_prob_words)
 high_prob_regex = '|'.join(high_prob_words)
@@ -119,6 +121,8 @@ lp = notes.NOTE_TEXT.str.contains(low_prob_regex)
 hp = notes.NOTE_TEXT.str.contains(high_prob_regex)
 znotes['highprob'] = hp.values
 znotes['lowprob'] = lp.values
+
+znotes.lowprob.value_counts()
 
 # save metadata
 znotes.to_csv(f'{datadir}notes_metadata_2018.csv')
@@ -144,7 +148,7 @@ for i in range(50):
     # the combined text to put into the file
     metadata = znotes[znotes.PAT_ENC_CSN_ID == lp_samp.iloc[i]]
     to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
-        /n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == lp_samp.iloc[i]].tolist()[0]}'
+        \n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == lp_samp.iloc[i]].tolist()[0]}'
     f.write(to_write)
     f.close()
 
@@ -155,7 +159,7 @@ for i in range(50):
     # the combined text to put into the file
     metadata = znotes[znotes.PAT_ENC_CSN_ID == hp_samp.iloc[i]]
     to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
-        /n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == hp_samp.iloc[i]].tolist()[0]}'
+        \n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == hp_samp.iloc[i]].tolist()[0]}'
     f.write(to_write)
     f.close()
 
@@ -166,6 +170,6 @@ for i in range(50):
     # the combined text to put into the file
     metadata = znotes[znotes.PAT_ENC_CSN_ID == other_samp.iloc[i]]
     to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient = "records"))}</ANNOTATION_METADATA>\
-        /n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == other_samp.iloc[i]].tolist()[0]}'
+        \n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == other_samp.iloc[i]].tolist()[0]}'
     f.write(to_write)
     f.close()

@@ -2,10 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_01_get_join_from_clarity.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_get_join_from_clarity.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_02_summary_stats_population.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_summary_stats_population.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_8_diagnosis_query.sql" beforeDir="false" afterPath="$PROJECT_DIR$/_8_diagnosis_query.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_8_patient_query.sql" beforeDir="false" afterPath="$PROJECT_DIR$/_8_patient_query.sql" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -40,6 +42,7 @@
   <component name="ProjectId" id="1SiBhJmMfWn6mWqKcIIwBQuvMLY" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="PropertiesComponent">
+    <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="com.intellij.ide.scratch.LRUPopupBuilder$1/New Scratch File" value="TSQL&#10;Python" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
@@ -131,7 +134,7 @@
       <workItem from="1573305235709" duration="995000" />
       <workItem from="1573306817157" duration="2752000" />
       <workItem from="1573349196156" duration="7030000" />
-      <workItem from="1573487373801" duration="14446000" />
+      <workItem from="1573487373801" duration="33650000" />
     </task>
     <servers />
   </component>

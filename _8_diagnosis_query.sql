@@ -14,7 +14,7 @@ FROM PAT_ENC_DX as PED
   INNER JOIN EDG_CURRENT_ICD10 as icd10 on icd10.DX_ID = CE.DX_ID
   INNER JOIN IDENTITY_ID as mrn ON mrn.PAT_ID = e.PAT_ID AND mrn.IDENTITY_TYPE_ID = 100
 WHERE icd10.CODE is not null and e.ENTRY_TIME > '2017-01-01' AND
-  (icd10.CODE like '%J44%' OR icd10.CODE like '%J43%' OR icd10.CODE like '%J41%' OR icd10.CODE like '%J42%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%D86%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%M34%' OR icd10.CODE like '%M23%')
+  (icd10.CODE like '%J44%' OR icd10.CODE like '%J43%' OR icd10.CODE like '%J41%' OR icd10.CODE like '%J42%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%D86%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%M34%' OR icd10.CODE like '%J99%')
 
 UNION
 
@@ -36,7 +36,7 @@ FROM HSP_ACCT_DX_LIST AS PED
   left join IDENTITY_ID AS mrn ON mrn.PAT_ID = e.PAT_ID AND mrn.IDENTITY_TYPE_ID = 100
 WHERE
   icd10.CODE is not null and e.ENTRY_TIME > '2017-01-01' AND
-  (icd10.CODE like '%J44%' OR icd10.CODE like '%J43%' OR icd10.CODE like '%J41%' OR icd10.CODE like '%J42%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%D86%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%M34%' OR icd10.CODE like '%M23%')
+  (icd10.CODE like '%J44%' OR icd10.CODE like '%J43%' OR icd10.CODE like '%J41%' OR icd10.CODE like '%J42%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%D86%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%M34%' OR icd10.CODE like '%J99%')
 
 UNION
 
@@ -60,4 +60,4 @@ left join IDENTITY_ID AS mrn ON mrn.PAT_ID = e.PAT_ID AND mrn.IDENTITY_TYPE_ID =
 
 WHERE
   icd10.CODE is not null and e.ENTRY_TIME > '2017-01-01' AND
-  (icd10.CODE like '%J44%' OR icd10.CODE like '%J43%' OR icd10.CODE like '%J41%' OR icd10.CODE like '%J42%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%D86%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%M34%' OR icd10.CODE like '%M23%')
+  (icd10.CODE like '%J44%' OR icd10.CODE like '%J43%' OR icd10.CODE like '%J41%' OR icd10.CODE like '%J42%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%D86%' OR icd10.CODE like '%J84%' OR icd10.CODE like '%M34%' OR icd10.CODE like '%J99%')
