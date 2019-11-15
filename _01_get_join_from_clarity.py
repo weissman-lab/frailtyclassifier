@@ -6,11 +6,6 @@ This script pulls and processes the data.  There are several database queries to
 3. All outpatient notes associated with those patients
 Rather than pulling from clarity each time, this script will first check whether the data is available locally.
 If it is, it will use a local copy of the data, unless the function is explicitly told to use the query.
-
-If data ever needs to be re-pulled, the following changes should be made:
-1. Only pull records from specific specialties:  Internal Medicine, Pulmonary, Family Practice, and Gerontology
-2. only get notes from CSNs where the lung diagnosis predates the specific note.
-As of Nov 13 2019, this is fixed post-hoc.  But the queries could have been a lot faster had this been done upfront.m
 '''
 
 # libraries and imports
@@ -80,7 +75,7 @@ else: # this gets the intermediate output from clarity
     # Keep the ones with at least three visits within the past 12 months
     # so, first sort by MRN and then by date.  then you can proceed linearly.
     op_encounters_df = op_encounters_df.sort_values(["PAT_ID", "ENTRY_TIME"])
-    # three conditions:
+    # two conditions:
     same_patient_conditon = (op_encounters_df.PAT_ID.shift(periods=2) == op_encounters_df.PAT_ID).astype(int)
     time_conditon = ((op_encounters_df.ENTRY_TIME - op_encounters_df.ENTRY_TIME.shift(periods=2)). \
                      dt.total_seconds() / 60 / 60 / 24 / 365 < 1).astype(int)

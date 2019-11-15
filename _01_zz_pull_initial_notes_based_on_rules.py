@@ -59,12 +59,6 @@ def get_dx_within_window(i, window = 1):
                    "DX" : ','.join(dx_one_year.sort_values().unique())}
         with open(f'{datadir}/output/_i{i}data.json', 'w') as fp:
             json.dump(outdict, fp)
-    # del inp
-    # del timediff
-    # del dx_one_year
-    # del outdict
-    # gc.collect()
-    # return None
 
 # make a list of CSNs to feed to the get_dx_within_window function
 lgen = znotes.PAT_ENC_CSN_ID[znotes.PAT_ID.isin(UID_dx)].tolist()

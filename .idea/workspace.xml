@@ -5,9 +5,6 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_01_get_join_from_clarity.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_get_join_from_clarity.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_02_summary_stats_population.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_summary_stats_population.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_8_diagnosis_query.sql" beforeDir="false" afterPath="$PROJECT_DIR$/_8_diagnosis_query.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_8_patient_query.sql" beforeDir="false" afterPath="$PROJECT_DIR$/_8_patient_query.sql" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -134,7 +131,7 @@
       <workItem from="1573305235709" duration="995000" />
       <workItem from="1573306817157" duration="2752000" />
       <workItem from="1573349196156" duration="7030000" />
-      <workItem from="1573487373801" duration="33650000" />
+      <workItem from="1573487373801" duration="34002000" />
     </task>
     <servers />
   </component>
