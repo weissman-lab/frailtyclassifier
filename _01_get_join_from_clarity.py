@@ -24,7 +24,7 @@ pd.options.display.max_columns = 4000
 clar_conn = get_clarity_conn("/Users/crandrew/Documents/clarity_creds_ACD.yaml")
 
 # set a global data dir for PHI
-datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/"
+datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/"
 
 # get the diagnoses data frame.  look first in the data directory.
 if "diagnosis_df.json.bz2" in os.listdir(datadir):
@@ -35,6 +35,8 @@ else:
         clar_conn=clar_conn,
         save_path="{0}diagnosis_df.json.bz2".format(datadir)
     )
+
+
 
 # subset them to the correct set of diagnostic codes
 # these are lung-related diagnosis codes supplied by GW

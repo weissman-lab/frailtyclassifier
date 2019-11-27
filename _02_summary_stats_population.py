@@ -26,7 +26,7 @@ import re
 import geopandas as gpd
 import os
 
-datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/"
+datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/"
 figdir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/"
 gisdir = "/Users/crandrew/shapefiles/"
 

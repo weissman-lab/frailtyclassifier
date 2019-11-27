@@ -17,7 +17,7 @@ import time
 import re
 import numpy as np
 
-datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/"
+datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/"
 # preferences
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000

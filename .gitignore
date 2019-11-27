@@ -1,0 +1,6 @@
+
+# ignore folders with large files
+/data
+/output
+/.DS_store
+/old_misc

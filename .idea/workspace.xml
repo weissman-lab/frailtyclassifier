@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="" />
+    <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_01_get_join_from_clarity.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_get_join_from_clarity.py" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -39,7 +42,7 @@
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="com.intellij.ide.scratch.LRUPopupBuilder$1/New Scratch File" value="TSQL&#10;Python" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="project.propVCSSupport.Mappings" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -129,6 +132,9 @@
       <workItem from="1573349196156" duration="7030000" />
       <workItem from="1573487373801" duration="34824000" />
       <workItem from="1573836344704" duration="4173000" />
+      <workItem from="1574369034971" duration="1748000" />
+      <workItem from="1574432893978" duration="1531000" />
+      <workItem from="1574445751793" duration="2000" />
     </task>
     <servers />
   </component>

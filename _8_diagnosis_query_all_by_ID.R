@@ -7,7 +7,7 @@ library(foreach)
 library(doParallel)
 library(readr)
 registerDoParallel(detectCores())
-datadir <- "/Users/crandrew/projects/GW_PAIR_frailty_classifier/"
+datadir <- "/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/"
 
 znotes <- read_csv(paste0(datadir, "znotes.csv"))
 znotes$X1 <- NULL
