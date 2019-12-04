@@ -40,6 +40,9 @@ znotes['ENTRY_TIME'] = pd.to_datetime(znotes['ENTRY_TIME'])
 znotes = znotes[znotes['ENTRY_TIME'].dt.year >= 2018]
 znotes.head()
 
+dvec = (znotes.ENTRY_TIME.dt.year-2018)*12 + znotes.ENTRY_TIME.dt.month
+plt.hist(dvec)
+plt.show()
 # group the encounters by patient
 gb_high = znotes[(znotes.highprob == True) & \
                (znotes.lowprob == False) & \

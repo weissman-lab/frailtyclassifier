@@ -4,3 +4,7 @@
 /output
 /.DS_store
 /old_misc
+/figures
+
+# editor cruft
+*~

@@ -3,7 +3,8 @@
   <component name="ChangeListManager">
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_01_get_join_from_clarity.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_get_join_from_clarity.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_02_summary_stats_population.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_summary_stats_population.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -135,6 +136,7 @@
       <workItem from="1574369034971" duration="1748000" />
       <workItem from="1574432893978" duration="1531000" />
       <workItem from="1574445751793" duration="2000" />
+      <workItem from="1575404986558" duration="4504000" />
     </task>
     <servers />
   </component>
