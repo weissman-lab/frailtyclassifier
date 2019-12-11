@@ -57,11 +57,12 @@ def get_dx_within_window(i, window=1):
            "date": znotes.ENTRY_TIME[znotes.PAT_ENC_CSN_ID == i]}
     timediff = (inp["date"].iloc[0] - inp["df"].ENTRY_TIME).dt.total_seconds() / 60 / 60 / 24 / 365
     dx_one_year = inp["df"][(timediff > 0) & (timediff < window)].CODE
-    if np.sum(dx_one_year.str.contains(chronic_regex))>1:
+    if np.sum(dx_one_year.str.contains(chronic_regex)) > 1:
         outdict = {"PAT_ENC_CSN_ID": i,
                    "DX": ','.join(dx_one_year.sort_values().unique())}
         with open(f'{outdir}dx_dicts/_i{i}data.json', 'w') as fp:
             json.dump(outdict, fp)
+
 
 # make a list of CSNs to feed to the get_dx_within_window function
 lgen = znotes.PAT_ENC_CSN_ID[znotes.PAT_ID.isin(UID_dx)].tolist()
@@ -128,7 +129,7 @@ znotes['lowprob'] = lp.values
 znotes.to_csv(f'{datadir}notes_metadata_2018.csv')
 
 # compute number of unique patients per month with notes
-ms18 = znotes.ENTRY_TIME.dt.year*12 - 2018*12 + znotes.ENTRY_TIME.dt.month
+ms18 = znotes.ENTRY_TIME.dt.year * 12 - 2018 * 12 + znotes.ENTRY_TIME.dt.month
 npm = []
 for i in ms18.unique():
     mz = znotes.loc[ms18 == i]
@@ -138,7 +139,7 @@ plt.clf()
 f = plt.figure()
 plt.plot(ms18.unique(), npm)
 axes = plt.gca()
-axes.set_ylim([0,max(npm)])
+axes.set_ylim([0, max(npm)])
 plt.xlabel("Months since Jan 2018")
 plt.ylabel("Number of unique patients with 2x lung dx in 12 months")
 plt.figure(figsize=(8, 8))
@@ -190,4 +191,32 @@ for i in range(50):
     to_write = f'<ANNOTATION_METADATA>{str(metadata.to_dict(orient="records"))}</ANNOTATION_METADATA>\
         \n\n{notes.NOTE_TEXT[notes.PAT_ENC_CSN_ID == other_samp.iloc[i]].tolist()[0]}'
     f.write(to_write)
+    f.close()
+
+# adding december 11, 2019:
+# taking initial notes and joining MWEs
+
+from flashtext import KeywordProcessor
+import pickle
+
+mwe_dict = pickle.load(open("/Users/crandrew/projects/pwe/output/mwe_dict.pkl", 'rb'))
+macer = KeywordProcessor()
+macer.add_keywords_from_dict(mwe_dict)
+
+
+def identify_mwes(s, macer):
+    return macer.replace_keywords(s)
+
+tbd = os.listdir(f'{outdir}notes_output')
+for i in list(range(len(tbd))):
+    # load the file
+    txt = open(f'{outdir}notes_output/{tbd[i]}').read()
+    # strip the annotation metadata
+    txt_stripped = txt.split("</ANNOTATION_METADATA>")[1]
+    # join the mwes
+    txt_mwes_joined = identify_mwes(txt_stripped, macer)
+    # write them
+    fn = re.sub("note_", "note_initial_v2_", tbd[i])
+    f = open(f'{outdir}notes_output/{fn}', "w")
+    f.write(txt_mwes_joined)
     f.close()
