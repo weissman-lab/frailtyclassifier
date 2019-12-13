@@ -78,7 +78,7 @@ pool.map(get_dx_within_window, tbd, chunksize=len(tbd) // 4)
 print(time.time() - start)
 pool.close()
 
-# load the json files and compute the number of dx as the number of commas, plus one, in deach dict
+# load the json files and compute the number of dx as the number of commas, plus one, in each dict
 TBD = os.listdir(f'{outdir}dx_dicts/')
 nTBD = len(TBD)
 csnlist = [None] * nTBD

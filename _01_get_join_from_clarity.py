@@ -36,8 +36,6 @@ else:
         save_path="{0}diagnosis_df.json.bz2".format(datadir)
     )
 
-
-
 # subset them to the correct set of diagnostic codes
 # these are lung-related diagnosis codes supplied by GW
 chronic_regex = '^(J44\.[0,1,9]|J43\.[0,1,2,8,9]|J41\.[0,1,8]|J42|J84\.10|D86|J84|M34\.81|J99\.[0,1])'

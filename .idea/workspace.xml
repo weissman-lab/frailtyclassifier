@@ -2,11 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/annotation/open_review_2019-12-04_1616.zip" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_01_zz_pull_initial_notes_based_on_rules.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_pull_initial_notes_based_on_rules.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_02_summary_stats_population.py" beforeDir="false" afterPath="$PROJECT_DIR$/_04_summary_stats_population.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_8_diagnosis_query_all_by_ID.R" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/_01_get_join_from_clarity.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_get_join_from_clarity.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_02_pull_initial_notes_based_on_rules.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_pull_initial_notes_based_on_rules.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_03_notes_preporocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/_03_notes_preporocessing.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -145,7 +144,11 @@
       <workItem from="1574432893978" duration="1531000" />
       <workItem from="1574445751793" duration="2000" />
       <workItem from="1575404986558" duration="4882000" />
-      <workItem from="1576009358598" duration="4520000" />
+      <workItem from="1576009358598" duration="4815000" />
+      <workItem from="1576095607421" duration="325000" />
+      <workItem from="1576096830333" duration="251000" />
+      <workItem from="1576097148300" duration="11000" />
+      <workItem from="1576247723719" duration="16910000" />
     </task>
     <servers />
   </component>
@@ -166,9 +169,17 @@
     </option>
   </component>
   <component name="WindowStateProjectService">
-    <state x="945" y="334" key="search.everywhere.popup" timestamp="1576076496957">
+    <state x="789" y="342" key="SettingsEditor" timestamp="1576096852300">
       <screen x="0" y="23" width="2560" height="1360" />
     </state>
-    <state x="945" y="334" key="search.everywhere.popup/0.23.2560.1360@0.23.2560.1360" timestamp="1576076496957" />
+    <state x="789" y="342" key="SettingsEditor/0.23.2560.1360@0.23.2560.1360" timestamp="1576096852300" />
+    <state x="959" y="535" key="com.intellij.ide.util.TipDialog" timestamp="1576097155565">
+      <screen x="0" y="23" width="2560" height="1360" />
+    </state>
+    <state x="959" y="535" key="com.intellij.ide.util.TipDialog/0.23.2560.1360@0.23.2560.1360" timestamp="1576097155565" />
+    <state x="945" y="334" key="search.everywhere.popup" timestamp="1576253148386">
+      <screen x="0" y="23" width="2560" height="1360" />
+    </state>
+    <state x="945" y="334" key="search.everywhere.popup/0.23.2560.1360@0.23.2560.1360" timestamp="1576253148386" />
   </component>
 </project>
