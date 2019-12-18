@@ -4,7 +4,6 @@
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_01_get_join_from_clarity.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_get_join_from_clarity.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_02_pull_initial_notes_based_on_rules.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_pull_initial_notes_based_on_rules.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_03_notes_preporocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/_03_notes_preporocessing.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -30,12 +29,14 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Python Script" />
+        <option value="Jupyter Notebook" />
       </list>
     </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="JupyterTrust" id="5603345c-6969-4e39-88a2-f931dde92ac5" />
   <component name="ProjectId" id="1SiBhJmMfWn6mWqKcIIwBQuvMLY" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true">
     <ConfirmationsSetting value="1" id="Add" />
@@ -148,7 +149,10 @@
       <workItem from="1576095607421" duration="325000" />
       <workItem from="1576096830333" duration="251000" />
       <workItem from="1576097148300" duration="11000" />
-      <workItem from="1576247723719" duration="16910000" />
+      <workItem from="1576247723719" duration="17516000" />
+      <workItem from="1576506154579" duration="350000" />
+      <workItem from="1576590022984" duration="5315000" />
+      <workItem from="1576679902484" duration="2470000" />
     </task>
     <servers />
   </component>
@@ -169,14 +173,30 @@
     </option>
   </component>
   <component name="WindowStateProjectService">
+    <state width="2518" height="239" key="GridCell.Tab.0.bottom" timestamp="1576679893896">
+      <screen x="0" y="23" width="2560" height="1360" />
+    </state>
+    <state width="2518" height="239" key="GridCell.Tab.0.bottom/0.23.2560.1360@0.23.2560.1360" timestamp="1576679893896" />
+    <state width="2518" height="239" key="GridCell.Tab.0.center" timestamp="1576679893895">
+      <screen x="0" y="23" width="2560" height="1360" />
+    </state>
+    <state width="2518" height="239" key="GridCell.Tab.0.center/0.23.2560.1360@0.23.2560.1360" timestamp="1576679893895" />
+    <state width="2518" height="239" key="GridCell.Tab.0.left" timestamp="1576679893895">
+      <screen x="0" y="23" width="2560" height="1360" />
+    </state>
+    <state width="2518" height="239" key="GridCell.Tab.0.left/0.23.2560.1360@0.23.2560.1360" timestamp="1576679893895" />
+    <state width="2518" height="239" key="GridCell.Tab.0.right" timestamp="1576679893896">
+      <screen x="0" y="23" width="2560" height="1360" />
+    </state>
+    <state width="2518" height="239" key="GridCell.Tab.0.right/0.23.2560.1360@0.23.2560.1360" timestamp="1576679893896" />
     <state x="789" y="342" key="SettingsEditor" timestamp="1576096852300">
       <screen x="0" y="23" width="2560" height="1360" />
     </state>
     <state x="789" y="342" key="SettingsEditor/0.23.2560.1360@0.23.2560.1360" timestamp="1576096852300" />
-    <state x="959" y="535" key="com.intellij.ide.util.TipDialog" timestamp="1576097155565">
+    <state x="959" y="535" key="com.intellij.ide.util.TipDialog" timestamp="1576506162546">
       <screen x="0" y="23" width="2560" height="1360" />
     </state>
-    <state x="959" y="535" key="com.intellij.ide.util.TipDialog/0.23.2560.1360@0.23.2560.1360" timestamp="1576097155565" />
+    <state x="959" y="535" key="com.intellij.ide.util.TipDialog/0.23.2560.1360@0.23.2560.1360" timestamp="1576506162546" />
     <state x="945" y="334" key="search.everywhere.popup" timestamp="1576253148386">
       <screen x="0" y="23" width="2560" height="1360" />
     </state>

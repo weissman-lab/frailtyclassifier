@@ -1,3 +1,4 @@
+
 '''
 This script duplicates much of what was in the previous script, but with a few additions:
 - joining multi-word expressions
@@ -74,12 +75,6 @@ f.savefig(f'{figdir}pat_per_month.pdf')
 '''
 armed with the running list of patient IDs, go through the note text, month by month, and concatenate all notes from 
 that patient.  join MWEs while at it.
-the output should have the following columns:
-- patient ID
-- all fixed variables
-- a delimited list of all of the variables that vary with time, from oldest to newest
-- the note text itself, joined by some delimiter, with a string indicating date
-- statistics about the note.  number of words, unique words, etc.
 '''
 mwe_dict = pickle.load(open("/Users/crandrew/projects/pwe/output/mwe_dict.pkl", 'rb'))
 macer = KeywordProcessor()
@@ -135,7 +130,6 @@ for k in dictlist[1].keys():
 conc_notes_df = pd.DataFrame(d)
 conc_notes_df.to_pickle(f'{outdir}conc_notes_df.pkl')
 
-conc_notes_df.head()
 conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
         conc_notes_df.LATEST_TIME.dt.year - min(conc_notes_df.LATEST_TIME.dt.year)) * 12
 months = list(set(conc_notes_df.month))
@@ -188,3 +182,9 @@ for i in samp:
     fi = f"random_m{conc_notes_df.month.iloc[i]}_{conc_notes_df.PAT_ID.iloc[i]}.txt"
     with open(f'{outdir}/notes_output/random_pull/{fi}', "w") as f:
         f.write(conc_notes_df.combined_notes.iloc[i])
+
+
+
+
+
+

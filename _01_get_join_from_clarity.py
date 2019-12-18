@@ -85,10 +85,19 @@ else: # this gets the intermediate output from clarity
     op_encounters_df.to_json("{0}op_encounters_df.json.bz2".format(datadir))
 
 
+# get the transplant cases.  you'll filter the combined notes based on them, below
+txp_query = open("_8_transplant_query.sql").read()
+txp_df = get_from_clarity_then_save(
+    query=txp_query,
+    clar_conn=clar_conn,
+    save_path=f'{datadir}txp_df.json.bz2'
+)
+unique_pat_id = combined_notes_df.PAT_ID.unique()
+
 # Now get the notes.  They'll be batched again.
 if "combined_notes_df.json.bz2" in os.listdir(datadir): # this is the final output
     combined_notes_df = pd.read_json("{0}combined_notes_df.json.bz2".format(datadir))
-elif "notes_df.json.bz2" in os.listdir(datadir): # this is the final output
+elif "notes_df.json.bz2" in os.listdir(datadir):
     notes_df = pd.read_json("{0}notes_df.json.bz2".format(datadir))
     notes_df['PAT_ENC_CSN_ID'] = notes_df['PAT_ENC_CSN_ID'].astype(int)
     combined_notes_df = combine_all_notes(notes_df, op_encounters_df)
@@ -122,6 +131,12 @@ else:
     del res
     notes_df['PAT_ENC_CSN_ID'] = notes_df['PAT_ENC_CSN_ID'].astype(int)
     combined_notes_df = combine_all_notes(notes_df, op_encounters_df)
+    # now exclude the transplant cases
+    # merge the txp df by patent ID
+    merged = combined_notes_df[["PAT_ENC_CSN_ID", "PAT_ID", "ENTRY_TIME"]].merge(txp_df, on="PAT_ID", how="inner")
+    # now go through and lose all CSNs that happened after the surgery
+    CSNs_to_drop = merged[merged.ENTRY_TIME < merged.TX_SURG_DT].PAT_ENC_CSN_ID
+    combined_notes_df = combined_notes_df[~combined_notes_df.PAT_ENC_CSN_ID.isin(CSNs_to_drop)]
     combined_notes_df.to_json("{0}combined_notes_df.json.bz2".format(datadir))
     del notes_df
 
@@ -159,6 +174,9 @@ else:
     all_dx_df = pd.concat(res, ignore_index=True)
     all_dx_df.to_json("{0}all_dx_df.json.bz2".format(datadir))
     del res
+
+
+
 
 # Finally, separate the notes into a CSV that is just notes and CSNs, and another that has all of the metadata.
 # this should allow me to filter on the metadata, while calling only the parts of the notes taht I need at a particular
