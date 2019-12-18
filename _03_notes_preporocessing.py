@@ -128,13 +128,14 @@ d = {}
 for k in dictlist[1].keys():
     d[k] = tuple(d[k] for d in ds)
 conc_notes_df = pd.DataFrame(d)
+# remove multple newlines
+conc_notes_df.combined_notes = conc_notes_df.combined_notes.apply(lambda x: re.sub("\n\n+", "\n\n", xx))
 conc_notes_df.to_pickle(f'{outdir}conc_notes_df.pkl')
 
 conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
         conc_notes_df.LATEST_TIME.dt.year - min(conc_notes_df.LATEST_TIME.dt.year)) * 12
 months = list(set(conc_notes_df.month))
 months.sort()
-
 
 def plotfun(var, yaxt, q=False):
     f = plt.figure()
