@@ -1,4 +1,5 @@
 
+
 '''
 This script duplicates much of what was in the previous script, but with a few additions:
 - joining multi-word expressions
@@ -71,6 +72,9 @@ plt.ylabel("Number of notes")
 # plt.show()
 plt.figure(figsize=(8, 8))
 f.savefig(f'{figdir}pat_per_month.pdf')
+
+# make a figure that is number of unique patients with at least two encounters over the past 12 months, by month
+
 
 '''
 armed with the running list of patient IDs, go through the note text, month by month, and concatenate all notes from 

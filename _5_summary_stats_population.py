@@ -1,5 +1,84 @@
 
 '''
+Make a figure that is number of unique patients with 2 encounters in the past 12 months
+'''
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
+import numpy as np
+# preferences
+pd.options.display.max_rows = 4000
+pd.options.display.max_columns = 4000
+
+enc_df = pd.read_json(f'{os.getcwd()}/data/op_encounters_df.json.bz2')
+dx_df = pd.read_json(f'{os.getcwd()}/data/diagnosis_df.json.bz2')
+
+figdir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/"
+
+def plotfun(rolling = True, df = "dx"):
+    if df == "dx":
+        d = dx_df
+    else:
+        d = enc_df
+    d['month'] = d.ENTRY_TIME.dt.month + \
+                      (d.ENTRY_TIME.dt.year - 2017) * 12
+    if rolling == True:
+        pat_by_month = [d[(d.month <= i) & (d.month >= (i - 12))].PAT_ID.nunique() for i in
+                        range(13, 35)]
+        rlab = "rolling"
+        tit = "Unique patients over past 12 months, by month"
+    else:
+        pat_by_month = [d[d.month == i].PAT_ID.nunique() for i in range(13, 35)]
+        rlab = "notrolling"
+        tit = "Unique patients by month"
+    months = list(range(13, 35))
+    fig = plt.figure()
+    if rolling == False:
+        axes = plt.gca()
+        axes.set_ylim([4000, 7500])
+    plt.plot(months, pat_by_month, "o")
+    plt.plot(months, pat_by_month)
+    plt.xticks([13, 19, 25, 31], ('Jan 2018', 'Jul 2018', 'Jan 2019', 'Jul 2019'))
+    plt.title(tit)
+    plt.ylabel("N unique patients")
+    plt.figure(figsize=(6, 6))
+    fig.savefig(f"{figdir}pat_by_month_{rlab}_{df}.pdf", bbox_inches='tight')
+
+plotfun()
+plotfun(df = "enc")
+plotfun(rolling=False)
+plotfun(rolling=False, df = "enc")
+
+enc_df = pd.read_json(f'{os.getcwd()}/data/op_encounters_df.json.bz2')
+enc_df.head()
+enc_df['month'] = enc_df.ENTRY_TIME.dt.month + \
+                    (enc_df.ENTRY_TIME.dt.year - 2017)*12
+pat_by_month = [enc_df[(enc_df.month <= i) & (enc_df.month >= (i-12))].PAT_ID.nunique() for i in range(13, 36)]
+months = list(range(13, 36))
+
+plt.plot(months, pat_by_month, "o")
+plt.plot(months, pat_by_month)
+plt.xticks([13, 19 ,25, 31], ('Jan 2018', 'Jul 2018', 'Jan 2019', 'Jul 2019'))
+plt.title("N unique patients with COPD|ILD encounter in previous 12 months")
+plt.ylabel("N unique patients")
+plt.show()
+
+pat_by_month = [enc_df[enc_df.month == i].PAT_ID.nunique() for i in range(13, 36)]
+
+
+xticks(np.arange(5), ('Tom', 'Dick', 'Harry', 'Sally', 'Sue'))
+
+enc_df = pd.read_json(f'{os.getcwd()}/data/diagnosis_df.json.bz2')
+enc_df.head()
+enc_df['month'] = enc_df.ENTRY_TIME.dt.month + \
+                    (enc_df.ENTRY_TIME.dt.year - 2017)*12
+i = 13
+
+pat_by_month = [enc_df[(enc_df.month <= i) & (enc_df.month >= (i-12))].PAT_ID.nunique() for i in range(13, 36)]
+plt.plot(pat_by_month)
+plt.show()
+
+'''
 This script pulls summary stats on the population of interest -- people with a diagnosis of chronic lung disease in the
 past year, and specifically their out-patient notes.
 We'll compare them in terms of

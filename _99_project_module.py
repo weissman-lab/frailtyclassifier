@@ -98,3 +98,7 @@ def combine_all_notes(df, cohort):
     f = combine_notes(d)
     del d
     return f
+
+def make_sql_string(lst):
+    out = "('" + "','".join(lst) + "')"
+    return out

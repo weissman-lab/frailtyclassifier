@@ -2,8 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_03_notes_preporocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/_03_notes_preporocessing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_04_summary_stats_population.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/_99_project_module.py" beforeDir="false" afterPath="$PROJECT_DIR$/_99_project_module.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -27,8 +30,8 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="Python Script" />
         <option value="Jupyter Notebook" />
+        <option value="Python Script" />
       </list>
     </option>
   </component>
@@ -152,7 +155,12 @@
       <workItem from="1576506154579" duration="350000" />
       <workItem from="1576590022984" duration="5315000" />
       <workItem from="1576679902484" duration="2547000" />
-      <workItem from="1576698873406" duration="1112000" />
+      <workItem from="1576698873406" duration="5534000" />
+      <workItem from="1576768419614" duration="2421000" />
+      <workItem from="1576780563245" duration="806000" />
+      <workItem from="1576781982698" duration="6520000" />
+      <workItem from="1576851420101" duration="270000" />
+      <workItem from="1576852230754" duration="16669000" />
     </task>
     <servers />
   </component>
@@ -189,14 +197,15 @@
       <screen x="0" y="23" width="2560" height="1360" />
     </state>
     <state width="2518" height="239" key="GridCell.Tab.0.right/0.23.2560.1360@0.23.2560.1360" timestamp="1576679893896" />
-    <state x="789" y="342" key="SettingsEditor" timestamp="1576096852300">
+    <state x="789" y="342" key="SettingsEditor" timestamp="1576852656969">
       <screen x="0" y="23" width="2560" height="1360" />
     </state>
-    <state x="789" y="342" key="SettingsEditor/0.23.2560.1360@0.23.2560.1360" timestamp="1576096852300" />
-    <state x="959" y="535" key="com.intellij.ide.util.TipDialog" timestamp="1576506162546">
+    <state x="789" y="342" key="SettingsEditor/0.23.2560.1360@0.23.2560.1360" timestamp="1576852656969" />
+    <state x="959" y="535" key="com.intellij.ide.util.TipDialog" timestamp="1576852541206">
       <screen x="0" y="23" width="2560" height="1360" />
     </state>
-    <state x="959" y="535" key="com.intellij.ide.util.TipDialog/0.23.2560.1360@0.23.2560.1360" timestamp="1576506162546" />
+    <state x="719" y="399" key="com.intellij.ide.util.TipDialog/0.23.1920.1000@0.23.1920.1000" timestamp="1576768422715" />
+    <state x="959" y="535" key="com.intellij.ide.util.TipDialog/0.23.2560.1360@0.23.2560.1360" timestamp="1576852541206" />
     <state x="945" y="334" key="search.everywhere.popup" timestamp="1576253148386">
       <screen x="0" y="23" width="2560" height="1360" />
     </state>

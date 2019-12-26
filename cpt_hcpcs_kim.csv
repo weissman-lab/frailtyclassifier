@@ -1,0 +1,99 @@
+﻿type,code,name,prev,coef
+-,-,Intercept,-,0.10288
+ICD9 Dx,001-009,Intestinal infectious diseases,0.012,0.00582
+ICD9 Dx,030-041,Other bacterial diseases,0.031,0.01188
+ICD9 Dx,110-118,Mycoses,0.147,0.00831
+ICD9 Dx,190-199,Malignant neoplasm of other and unspecified sites,0.022,0.00797
+ICD9 Dx,210-229,Benign neoplasms,0.166,-0.00513
+ICD9 Dx,235-238,Neoplasms of uncertain behavior,0.111,-0.00061
+ICD9 Dx,240-246,Disorders of thyroid gland,0.223,0.00439
+ICD9 Dx,250-259,Diseases of other endocrine glands,0.312,0.01078
+ICD9 Dx,270-279,Other metabolic and immunity disorders,0.709,-0.00564
+ICD9 Dx,285,Other and unspecified anemias,0.189,0.0085
+ICD9 Dx,287,Purpura and other hemorrhagic conditions,0.017,-0.00804
+ICD9 Dx,288,Diseases of white blood cells,0.028,-0.0068
+ICD9 Dx,290-294,Organic psychotic conditions,0.052,0.04745
+ICD9 Dx,295-299,Other psychoses,0.036,0.02112
+ICD9 Dx,300-316,"Neurotic Disorders, Personality Disorders, And Other Nonpsychotic Mental Disorders",0.154,0.01353
+ICD9 Dx,330-338,Hereditary and degenerative diseases of the central nervous system,0.086,0.04031
+ICD9 Dx,340-349,Other disorders of the central nervous system ,0.045,0.0041
+ICD9 Dx,350-359,Disorders of the peripheral nervous system,0.102,0.00338
+ICD9 Dx,360-379,Disorders of the eye and adnexa,0.597,-0.00061
+ICD9 Dx,401-405,Hypertensive disease,0.752,0.0174
+ICD9 Dx,410-414,Ischemic heart disease,0.31,0.0192
+ICD9 Dx,420-429,Other forms of heart disease,0.375,0.01989
+ICD9 Dx,430-438,Cerebrovascular disease,0.172,0.01552
+ICD9 Dx,440-448,"Diseases of arteries, arterioles, and capillaries",0.181,0.00106
+ICD9 Dx,451-459,"Diseases of veins and lymphatics, and other diseases of circulatory system",0.154,0.01234
+ICD9 Dx,470-478,Other diseases of the upper respiratory tract,0.143,-0.0052
+ICD9 Dx,480-487,Pneumonia and influenza,0.066,0.01185
+ICD9 Dx,490-496,Chronic obstructive pulmonary disease and allied conditions,0.235,0.01295
+ICD9 Dx,520-529,"Diseases of oral cavity, salivary glands, and jaws ",0.022,0.00261
+ICD9 Dx,530-537,"Diseases of esophagus, stomach, and duodenum",0.227,0.0005
+ICD9 Dx,550-553,Hernia of abdominal cavity,0.065,0.00388
+ICD9 Dx,580-589,"Nephritis, nephrotic syndrome, and nephrosis ",0.084,0.01047
+ICD9 Dx,590-599,Other diseases of urinary system,0.289,0.01062
+ICD9 Dx,600-608,Diseases of male genital organs,0.164,-0.02131
+ICD9 Dx,680-686,Infections of skin and subcutaneous tissue ,0.095,0.00561
+ICD9 Dx,690-698,Other inflammatory conditions of skin and subcutaneous tissue,0.14,-0.00053
+ICD9 Dx,710-719,Arthropathies and related disorders,0.482,0.01408
+ICD9 Dx,720-724,Dorsopathies,0.316,0.00984
+ICD9 Dx,725-729,"Rheumatism, excluding the back",0.37,0.00021
+ICD9 Dx,730-739,"Osteopathies, chondropathies, and acquired musculoskeletal deformities ",0.327,0.00389
+ICD9 Dx,753,Congenital anomalies in urinary system,0.012,-0.00836
+ICD9 Dx,754-756,Congenital anomalies in musculoskeletal system,0.013,0.00073
+ICD9 Dx,780-789,Symptoms,0.757,0.00593
+ICD9 Dx,790-796,Nonspecific abnormal findings,0.339,-0.00231
+ICD9 Dx,797-799,Ill-defined and unknown causes of morbidity and mortality,0.046,0.01119
+ICD9 Dx,890-897,Open wound of lower limb,0.017,0.02042
+ICD9 Dx,920-924,Contusion with intact skin surface,0.058,0.01074
+ICD9 Dx,990-995,Other and unspecified effects of external causes,0.044,-0.00142
+ICD9 Dx,V01-V09,Persons with potential health hazards related to communicable diseases,0.606,-0.00189
+ICD9 Dx,V40-V49,Persons with a condition influencing their health status,0.329,0.00191
+ICD9 Dx,V50-V59,Persons encountering health services for specific procedures and aftercare,0.428,0.00118
+ICD9 Dx,V70-V82,Persons without reported diagnosis encountered during examination and investigation of individuals and populations,0.521,-0.01208
+CPT-4,99214,Office/other outpatient visit – established patient,0.712,0.00149
+CPT-4,99222,Hospital care – initial,0.064,0.0017
+CPT-4,99242,Office consultation,0.055,-0.00094
+CPT-4,99245,Office consultation,0.069,0.00169
+CPT-4,99308,Nursing facility care – subsequent,0.016,0.01389
+CPT-4,99381-99429,Preventive medicine services,0.047,-0.00712
+CPT-4,00100-00222,Anesthesia – head,0.07,-0.00049
+CPT-4,00300-00352,Anesthesia – neck,0.01,0.00614
+CPT-4,00500-00580,Anesthesia – intrathoracic,0.015,-0.01568
+CPT-4,00800-00882,Anesthesia – lower abdomen,0.049,-0.01053
+CPT-4,01320-01444,Anesthesia – knee and popliteal area,0.015,-0.01215
+CPT-4,30000-32999,Surgery – respiratory system,0.036,-0.00129
+CPT-4,56405-58999,Surgery – female genital system,0.014,0.00327
+CPT-4,61000-64999,Surgery – nervous system,0.063,0.00843
+CPT-4,78000-79999,Radiology – nuclear medicine,0.163,-0.00301
+CPT-4,80150-80299,Therapeutic drug assays,0.024,0.00789
+CPT-4,88104-88199,Cytopathology,0.057,-0.01082
+CPT-4,88300-88399,Surgical pathology,0.28,-0.00427
+CPT-4,92002-92499,Medicine – Ophthalmology,0.559,-0.00295
+CPT-4,92950-93799,Medicine – Cardiovascular,0.53,-0.00046
+CPT-4,93875-93990,Medicine – Noninvasive vascular diagnostic studies,0.198,-0.00828
+CPT-4,95004-95199,Allergy and clinical immunology,0.013,-0.0084
+CPT-4,97001-97799,Physical medicine and rehabilitation,0.083,-0.00012
+CPT-4,98940-98943,Chiropractic manipulative treatment,0.09,-0.01426
+CPT-4,99000-99091,"Special services, procedures and reports",0.032,0.00127
+HCPCS,A0021-A0999,Transportation services including ambulance,0.11,0.01022
+HCPCS,A4244-A4290,Other supplies including diabetes supplies and contraceptives ,0.125,0.0236
+HCPCS,A5500-A5513,Diabetic footwear ,0.029,0.02375
+HCPCS,A7000-A7046,Breathing aids ,0.047,0.00947
+HCPCS,A9150-A9999,"Administrative, miscellaneous and experimental",0.092,-0.00167
+HCPCS,E0100-E0159,Walking aids and attachments ,0.048,0.02821
+HCPCS,E0250-E0373,Hospital beds and associated supplies ,0.018,0.08649
+HCPCS,E0424-E0486,Oxygen delivery systems and related supplies ,0.038,0.00665
+HCPCS,E0550-E0601,Humidifiers and nebulizers with related equipment ,0.055,0.00385
+HCPCS,E0950-E1298,Wheelchair or transport chair and related accessories,0.015,0.00805
+,E2201-E2294,,,
+,E2300-E2399,,,
+,E2601-E2621,,,
+HCPCS,E1353-E1406,Accessories for oxygen delivery devices ,0.051,0.02702
+HCPCS,G0008-G0010,Vaccine administration ,0.523,-0.00158
+HCPCS,G0101-G0124,Screening examinations and disease management training ,0.177,-0.01136
+HCPCS,J0120-J7130,"Drugs, administered by injection",0.262,0.00664
+HCPCS,J7608-J7684,Inhalation solutions,0.038,0.00412
+HCPCS,K0001-K0462,"Wheelchairs, components, and accessories ",0.035,0.07802
+,K0669,,,
