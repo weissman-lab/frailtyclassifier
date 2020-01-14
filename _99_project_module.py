@@ -161,3 +161,8 @@ VALUES
         filter_footer += fi
     outq = filter_header + "\n" + q + "\n" + filter_footer
     return outq
+
+def write_txt(str, path):
+    text_file = open(path, "w")
+    text_file.write(str)
+    text_file.close()

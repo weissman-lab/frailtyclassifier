@@ -1,4 +1,5 @@
 
+
 --Query to get notes.
 select hi.PAT_ENC_CSN_ID,
        nei.CONTACT_SERIAL_NUM                                    NOTE_SERIAL_NUM,

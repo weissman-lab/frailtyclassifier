@@ -73,9 +73,6 @@ plt.ylabel("Number of notes")
 plt.figure(figsize=(8, 8))
 f.savefig(f'{figdir}pat_per_month.pdf')
 
-# make a figure that is number of unique patients with at least two encounters over the past 12 months, by month
-
-
 '''
 armed with the running list of patient IDs, go through the note text, month by month, and concatenate all notes from 
 that patient.  join MWEs while at it.
@@ -91,7 +88,7 @@ def identify_mwes(s, macer):
 
 joiner = "\n--------------------------------------------------------------\n"
 
-# load notes.  this is the DF with all the data pulled from clarity.  there are some colums here that aren't in znotes
+# load notes.  this is the DF with all the data pulled from clarity.  there are some columns here that aren't in znotes
 notes = pd.read_json(f'{datadir}combined_notes_df.json.bz2')
 notes["month"] = notes.ENTRY_TIME.dt.month + (notes.ENTRY_TIME.dt.year - 2017) * 12  # note here the hard-coded 2017.
 
