@@ -99,6 +99,65 @@ def combine_all_notes(df, cohort):
     del d
     return f
 
-def make_sql_string(lst):
-    out = "('" + "','".join(lst) + "')"
+# def make_sql_string(lst):
+#     out = "('" + "','".join(lst) + "')"
+#     return out
+
+def make_sql_string(lst, dtype="str", mode = "wherelist"):
+    assert dtype in ["str", 'int']
+    assert mode in ["wherelist", 'vallist']
+    if dtype == "int":
+        lst = [str(i) for i in lst]
+    if mode == "wherelist":
+        if dtype == "str":
+            out = "('" + "','".join(lst) + "')"
+        elif dtype == "int":
+            out = "(" + ",".join(lst) + ")"
+    elif mode == "vallist":
+        if dtype == "str":
+            out = "('"+"'),('".join(lst) + "')"
+        elif dtype == "int":
+            out = "("+"),(".join(lst) + ")"
     return out
+
+import re
+def query_filtered_with_temp_tables(q, fdict, rstring = ""):
+    """
+    The q is the query
+    the fdict contains the info on how to filter, and what the foreign table is
+    the rstring is some random crap to append to the filter table when making lots of temp tables through multiprocessing
+    """
+    base_temptab = """
+IF OBJECT_ID('tempdb..#filter_n') IS NOT NULL BEGIN DROP TABLE #filter_n END
+CREATE TABLE #filter_n (
+  :idname :type NOT NULL,
+  PRIMARY KEY (:idname)
+);
+INSERT INTO #filter_n
+    (:idname)
+VALUES
+:ids;
+"""
+    base_footer = "join #filter_n on #filter_n.:idname = :ftab.:idname \n"
+    filter_header = ""
+    filter_footer = ""
+    for i in range(len(fdict)):
+        tti = re.sub(":idname", list(fdict.keys())[i], base_temptab)
+        dtype = list(set(type(j).__name__ for j in fdict[list(fdict.keys())[i]]['vals']))
+        assert len(dtype) == 1
+        dtype = dtype[0]
+        valstring = make_sql_string(fdict[list(fdict.keys())[i]]['vals'], dtype = dtype, mode = 'vallist')
+        tti = re.sub(":ids", valstring , tti)
+        if dtype == "str":
+            tti = re.sub(":type", "VARCHAR(255)", tti)
+        elif dtype == "int":
+            tti = re.sub(":type", "INT", tti)
+        tti = re.sub("filter_n", f"filter_{i}_{rstring}", tti)
+        filter_header += tti
+
+        fi = re.sub(":idname", list(fdict.keys())[i], base_footer)
+        fi = re.sub("filter_n", f"filter_{i}_{rstring}", fi)
+        fi = re.sub(":ftab", fdict[list(fdict.keys())[i]]['foreign_table'], fi)
+        filter_footer += fi
+    outq = filter_header + "\n" + q + "\n" + filter_footer
+    return outq
