@@ -94,16 +94,18 @@ notes["month"] = notes.ENTRY_TIME.dt.month + (notes.ENTRY_TIME.dt.year - 2017) *
 
 
 def proc(j):
-    pi, mi = running_list.PAT_ID[j], running_list.month[
-        j] + 12  # the "+12 is there because the running list started in 2018"
+    pi, mi = running_list.PAT_ID[j], running_list.month[j] + 12  # the "+12 is there because the running list started in 2018"
     # slice the df
-    ni = notes[(notes.PAT_ID == pi) & ((mi - notes.month) < 6) & ((mi - notes.month) >= 0)]
+    ni = notes[(notes.PAT_ID == pi) &
+               ((mi - notes.month) < 6) &
+               ((mi - notes.month) >= 0)]
     ni = ni.sort_values(by=["ENTRY_TIME"], ascending=False)
     # process the notes
     comb_notes = [identify_mwes(i, macer) for i in ni.NOTE_TEXT]
     comb_string = ""
     for i in list(range(len(comb_notes))):
-        comb_string = comb_string + joiner + str(ni.ENTRY_TIME.iloc[i]) + joiner + comb_notes[i]
+        comb_string = comb_string + joiner + str(ni.ENTRY_TIME.iloc[i]) + \
+                      joiner + comb_notes[i]
 
     wds = re.split(" |\n", comb_string)
     wds = [i.lower() for i in wds if i != ""]
@@ -116,7 +118,6 @@ def proc(j):
                             combined_notes=comb_string)
     return comb_note_dict_i
 
-
 pool = multiprocessing.Pool(processes=16)
 start = time.time()
 dictlist = pool.map(proc, range(running_list.shape[0]), chunksize=1)
@@ -126,11 +127,11 @@ pool.close()
 # make a data frame
 ds = dictlist
 d = {}
-for k in dictlist[1].keys():
+for k in dictlist[1].keys(): # dict 1 is arbitrary -- it's just pulling the keys
     d[k] = tuple(d[k] for d in ds)
 conc_notes_df = pd.DataFrame(d)
 # remove multple newlines
-conc_notes_df.combined_notes = conc_notes_df.combined_notes.apply(lambda x: re.sub("\n\n+", "\n\n", xx))
+conc_notes_df.combined_notes = conc_notes_df.combined_notes.apply(lambda x: re.sub("\n\n+", "\n\n", x))
 conc_notes_df.to_pickle(f'{outdir}conc_notes_df.pkl')
 
 conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
@@ -166,6 +167,7 @@ def plotfun(var, yaxt, q=False):
 plotfun("n_notes", "Number of notes per combined note")
 plotfun("n_words", "Number of words per combined note", q=True)
 plotfun("u_words", "Number of unique words per combined note", q=True)
+
 
 # numbers of words by number of conc notes
 f, ax = plt.subplots()
