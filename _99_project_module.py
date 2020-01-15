@@ -99,10 +99,6 @@ def combine_all_notes(df, cohort):
     del d
     return f
 
-# def make_sql_string(lst):
-#     out = "('" + "','".join(lst) + "')"
-#     return out
-
 def make_sql_string(lst, dtype="str", mode = "wherelist"):
     assert dtype in ["str", 'int']
     assert mode in ["wherelist", 'vallist']
@@ -138,7 +134,7 @@ INSERT INTO #filter_n
 VALUES
 :ids;
 """
-    base_footer = "join #filter_n on #filter_n.:idname = :ftab.:idname \n"
+    base_footer = "join #filter_n on #filter_n.:idname = :ftab.:fkey \n"
     filter_header = ""
     filter_footer = ""
     for i in range(len(fdict)):
@@ -156,6 +152,7 @@ VALUES
         filter_header += tti
 
         fi = re.sub(":idname", list(fdict.keys())[i], base_footer)
+        fi = re.sub(":fkey", fdict[list(fdict.keys())[i]]['foreign_key'], fi)
         fi = re.sub("filter_n", f"filter_{i}_{rstring}", fi)
         fi = re.sub(":ftab", fdict[list(fdict.keys())[i]]['foreign_table'], fi)
         filter_footer += fi
@@ -166,3 +163,9 @@ def write_txt(str, path):
     text_file = open(path, "w")
     text_file.write(str)
     text_file.close()
+
+def read_txt(path):
+    f = open(path, 'r')
+    out = f.read()
+    f.close()
+    return out

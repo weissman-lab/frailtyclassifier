@@ -2,8 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/_8_patient_notes_query.sql" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_03_notes_preporocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/_03_notes_preporocessing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_8_diagnosis_query.sql" beforeDir="false" afterPath="$PROJECT_DIR$/_8_diagnosis_query.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_8_patient_query_v3.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/_99_project_module.py" beforeDir="false" afterPath="$PROJECT_DIR$/_99_project_module.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -161,7 +164,7 @@
       <workItem from="1578429937150" duration="756000" />
       <workItem from="1578587430843" duration="7830000" />
       <workItem from="1578948508298" duration="3000" />
-      <workItem from="1579014216598" duration="14353000" />
+      <workItem from="1579014216598" duration="31326000" />
     </task>
     <servers />
   </component>
@@ -182,6 +185,14 @@
     </option>
   </component>
   <component name="WindowStateProjectService">
+    <state x="880" y="368" key="#SQL_Dialects" timestamp="1579118425095">
+      <screen x="0" y="23" width="2560" height="1360" />
+    </state>
+    <state x="880" y="368" key="#SQL_Dialects/0.23.2560.1360@0.23.2560.1360" timestamp="1579118425095" />
+    <state x="880" y="368" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1579118430283">
+      <screen x="0" y="23" width="2560" height="1360" />
+    </state>
+    <state x="880" y="368" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.23.2560.1360@0.23.2560.1360" timestamp="1579118430283" />
     <state width="1878" height="356" key="GridCell.Tab.0.bottom" timestamp="1579039462812">
       <screen x="0" y="23" width="1920" height="1000" />
     </state>
