@@ -2,11 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/_8_patient_notes_query.sql" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_8_diagnosis_query.sql" beforeDir="false" afterPath="$PROJECT_DIR$/_8_diagnosis_query.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_8_patient_query_v3.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/_99_project_module.py" beforeDir="false" afterPath="$PROJECT_DIR$/_99_project_module.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_01_pull_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_pull_data.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/_03_notes_preporocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_preprocessing.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -164,7 +162,7 @@
       <workItem from="1578429937150" duration="756000" />
       <workItem from="1578587430843" duration="7830000" />
       <workItem from="1578948508298" duration="3000" />
-      <workItem from="1579014216598" duration="31326000" />
+      <workItem from="1579014216598" duration="37117000" />
     </task>
     <servers />
   </component>

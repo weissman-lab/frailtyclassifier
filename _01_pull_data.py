@@ -15,6 +15,7 @@ import re
 import time
 import sys
 import copy
+import numpy as np
 
 # preferences
 pd.options.display.max_rows = 4000
@@ -25,6 +26,8 @@ clar_conn = get_clarity_conn("/Users/crandrew/Documents/clarity_creds_ACD.yaml")
 
 # set a global data dir for PHI
 datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/"
+outdir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/"
+
 
 # get the diagnoses data frame.  look first in the data directory.
 if "diagnosis_df.pkl" in os.listdir(datadir):
@@ -59,16 +62,41 @@ fdict = dict(PAT_ID={"vals": [], "foreign_table":"pe",
                         "foreign_table": "nei",
                           "foreign_key":"note_status_c"}
              )
-fd = copy.deepcopy(fdict)
-l = []
-batchsize = 10
-for i in range(len(unique_PIDs) // batchsize + 1):
-    fd['PAT_ID']['vals'] = unique_PIDs[(i * batchsize):((i + 1) * batchsize)]
-    q = query_filtered_with_temp_tables(base_query, fd)
+
+# download the notes in small batches, using multiprocessing
+# save them to a temp directory, and then concatenate them when done
+# to enable this to be restarted, let the function first check and see what's already been done
+already_got = [i for i in os.listdir(f"{outdir}/tmp/") if 'notes_' in i]
+gotlist = []
+for i in already_got:
+    got = re.sub("notes_|\.pkl", "", i).split("_")
+    for j in got:
+        gotlist+=[j]
+tbd = [i for i in unique_PIDs if i not in gotlist]
+
+def wrapper(ids):
+    if type(ids).__name__ == 'list':
+        assert len(ids) < 6
+    if type(ids).__name__ == 'str':
+        ids = [ids]
+    fd = copy.deepcopy(fdict)
+    fd['PAT_ID']['vals'] = ids
+    q = query_filtered_with_temp_tables(base_query, fd, rstring=str(np.random.choice(10000000000)))
     q += "where pe.ENTRY_TIME >= '2017-01-01'"
-    l.append(get_from_clarity_then_save(q, clar_conn=clar_conn))
-    print(i)
-df = pd.concat(l)
+    out = get_from_clarity_then_save(q, clar_conn=clar_conn)
+    out.to_pickle(f"{outdir}tmp/notes_{'_'.join(ids)}.pkl")
+
+import multiprocessing as mp
+pool = mp.Pool(mp.cpu_count())
+start = time.time()
+pool.map(wrapper, tbd, chunksize=1)
+print(time.time() - start)
+pool.close()
+
+# now combine them into a single data frame, and then split-off a metadata frame,
+# it should be smaller and simpler to work with
+
+
 
 @@ LEFT OFF HERE
 
