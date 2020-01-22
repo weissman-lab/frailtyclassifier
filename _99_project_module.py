@@ -53,8 +53,8 @@ def get_from_clarity_then_save(query=None, clar_conn=None, save_path=None):
     if save_path is not None:
         try:
             df.to_json(save_path)
-        except Exception:
-            print("error: problem saving the file")
+        except Exception as e:
+            return e
     return df
 
 def get_res_with_values(q, values, conn):
@@ -81,7 +81,7 @@ def chunk_res_with_values(query, ids, conn, chunk_size=10000, params=None):
 
 def combine_notes(df):
     full_notes = []
-    for g, dfi in df.groupby('PAT_ENC_CSN_ID'):
+    for g, dfi in df.groupby('CSN'):
         full_note = '\n'.join(' '.join(list(dfi.sort_values(['NOTE_ENTRY_TIME', 'NOTE_LINE'])['NOTE_TEXT'])).split('  '))
         row = dfi.iloc[0].to_dict()
         _ = row.pop('NOTE_TEXT')

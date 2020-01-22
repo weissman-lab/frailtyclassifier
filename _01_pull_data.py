@@ -13,7 +13,7 @@ from _99_project_module import get_clarity_conn, get_from_clarity_then_save, com
     query_filtered_with_temp_tables
 import re
 import time
-import sys
+import multiprocessing as mp
 import copy
 import numpy as np
 
@@ -66,15 +66,20 @@ fdict = dict(PAT_ID={"vals": [], "foreign_table":"pe",
 # download the notes in small batches, using multiprocessing
 # save them to a temp directory, and then concatenate them when done
 # to enable this to be restarted, let the function first check and see what's already been done
-already_got = [i for i in os.listdir(f"{outdir}/tmp/") if 'notes_' in i]
-gotlist = []
-for i in already_got:
-    got = re.sub("notes_|\.pkl", "", i).split("_")
-    for j in got:
-        gotlist+=[j]
-tbd = [i for i in unique_PIDs if i not in gotlist]
+def get_tbd():
+    already_got = [i for i in os.listdir(f"{outdir}/tmp/") if 'notes_' in i]
+    gotlist = []
+    for i in already_got:
+        got = re.sub("notes_|\.pkl", "", i).split("_")
+        for j in got:
+            gotlist += [j]
+    tbd = [i for i in unique_PIDs if i not in gotlist]
+    return tbd
+
+tbd = get_tbd()
 
 def wrapper(ids):
+    assert 5 == 0, "If you run this code again, pay attention to what you're including.  As of 16 Jan, GW indicated that we'd lose allied health visits, MR AVS snapshots, patient instructons"
     if type(ids).__name__ == 'list':
         assert len(ids) < 6
     if type(ids).__name__ == 'str':
@@ -86,19 +91,94 @@ def wrapper(ids):
     out = get_from_clarity_then_save(q, clar_conn=clar_conn)
     out.to_pickle(f"{outdir}tmp/notes_{'_'.join(ids)}.pkl")
 
-import multiprocessing as mp
+
+
 pool = mp.Pool(mp.cpu_count())
 start = time.time()
 pool.map(wrapper, tbd, chunksize=1)
 print(time.time() - start)
 pool.close()
 
-# now combine them into a single data frame, and then split-off a metadata frame,
+# now combine them into a single data  frame, and then split-off a metadata frame,
 # it should be smaller and simpler to work with
+if "raw_notes_df.pkl" not in os.listdir(datadir):
+    tbd = get_tbd()
+    assert len(tbd) == 0
+    already_got = [i for i in os.listdir(f"{outdir}/tmp/") if 'notes_' in i]
+    def proc(path):
+        try:
+            df = pd.read_pickle(path)
+            if df.shape != (0, 0):
+                # remove allied health visits encounter type
+                df = df[df.ENCOUNTER_TYPE != "Allied Health Visit"]
+                # remove patient instructions and MR AVS snapshot
+                df = df[~df.NOTE_TYPE.isin(['Patient Instructions', 'MR AVS Snapshot'])]
+                df = combine_notes(df)
+                return df
+        except Exception as e:
+            message = f"ERROR AT {path}"
+            return message
+
+    pool = mp.Pool(mp.cpu_count())
+    start = time.time()
+    raw_notes_df = pool.map(proc, [outdir + "tmp/" + i for i in already_got], chunksize=1)
+    print(time.time() - start)
+    pool.close()
+
+    errs = [i for i in raw_notes_df if type(i).__name__ == "str"]
+    assert len(errs)==0
+    raw_notes_df = pd.concat(raw_notes_df)
+    raw_notes_df.to_pickle(f"{datadir}raw_notes_df.pkl")
+
+    # now pull out transplants -- figure out who had a transplant and lose any encounters from before the transplant
+    unique_PIDs = raw_notes_df.PAT_ID.unique().tolist()
+    unique_PIDs.sort()
+    base_query = open("_8_transplant_query.sql").read()
+    fdict = dict(PAT_ID={"vals": [], "foreign_table":"ti",
+                              "foreign_key":"PAT_ID"}
+                 )
+
+    def wrapper(ids):
+        if type(ids).__name__ == 'str':
+            ids = [ids]
+        fd = copy.deepcopy(fdict)
+        fd['PAT_ID']['vals'] = ids
+        q = query_filtered_with_temp_tables(base_query, fd, rstring=str(np.random.choice(10000000000)))
+        q+="\nwhere tc.TX_CLASS_C = 2 and ti.TX_SURG_DT is not NULL"
+        out = get_from_clarity_then_save(q, clar_conn=clar_conn)
+        return out
+
+    chunks = [i * 1000 for i in list(range(len(unique_PIDs)//1000+1))]
+    chunkids = [unique_PIDs[i:(i+1000)] for i in chunks]
+    pool = mp.Pool(1)
+    start = time.time()
+    txplists = pool.map(wrapper, chunkids, chunksize=1)
+    print(time.time() - start)
+    pool.close()
+    txpdf = pd.concat(txplists)
+    txpdf.shape
+
+    raw_notes_df = raw_notes_df.merge(txpdf, how = "left")
+    raw_notes_df = raw_notes_df[(raw_notes_df.TX_SURG_DT > raw_notes_df.ENC_DATE) | (raw_notes_df.TX_SURG_DT.isnull())]
+
+    # Keep the ones with at least three visits within the past 12 months
+    # so, first sort by MRN and then by date.  then you can proceed linearly.
+    raw_notes_df = raw_notes_df.sort_values(["PAT_ID", "ENC_DATE"])
+    # two conditions:
+    same_patient_conditon = (raw_notes_df.PAT_ID.shift(periods=2) == raw_notes_df.PAT_ID).astype(int)
+    time_conditon = ((raw_notes_df.ENC_DATE - raw_notes_df.ENC_DATE.shift(periods=2)). \
+                     dt.total_seconds() / 60 / 60 / 24 / 365 < 1).astype(int)
+    # unify them
+    condition = same_patient_conditon * time_conditon
+    print(raw_notes_df.PAT_ID[condition.astype(bool)].nunique())
+    print(raw_notes_df.PAT_ID.nunique())
+    raw_notes_df = raw_notes_df[raw_notes_df.PAT_ID.isin(raw_notes_df.PAT_ID[condition.astype(bool)].unique())]
+    raw_notes_df.to_pickle(f"{outdir}raw_notes_df.pkl")
+else:
+    raw_notes_df = pd.read_pickle(f"{outdir}raw_notes_df.pkl")
 
 
 
-@@ LEFT OFF HERE
 
 #
 # # do a batch download.  first specify a base query, and iteratively substitute out the ":ids" string with
