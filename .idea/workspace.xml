@@ -2,11 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_01_pull_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/_01_pull_data.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_02_preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/_02_preprocessing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_8_transplant_query.sql" beforeDir="false" afterPath="$PROJECT_DIR$/_8_transplant_query.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_99_project_module.py" beforeDir="false" afterPath="$PROJECT_DIR$/_99_project_module.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/frailty_classifier_proj_desc.md" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,7 +53,10 @@
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="com.intellij.ide.scratch.LRUPopupBuilder$1/New Scratch File" value="Python&#10;TSQL" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
+    <property name="settings.editor.selected.configurable" value="reference.idesettings.debugger.python" />
+  </component>
+  <component name="PyDebuggerOptionsProvider">
+    <option name="mySupportGeventDebugging" value="true" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -167,7 +170,8 @@
       <workItem from="1579014216598" duration="40799000" />
       <workItem from="1579270275954" duration="15716000" />
       <workItem from="1579620163763" duration="14611000" />
-      <workItem from="1579703740189" duration="15540000" />
+      <workItem from="1579703740189" duration="24143000" />
+      <workItem from="1579894907109" duration="6782000" />
     </task>
     <servers />
   </component>
@@ -244,16 +248,16 @@
     </state>
     <state width="1878" height="356" key="GridCell.Tab.1.right/0.23.1680.970/1680.23.3840.2137@0.23.1680.970" timestamp="1579269946427" />
     <state width="1878" height="356" key="GridCell.Tab.1.right/0.23.1920.1000@0.23.1920.1000" timestamp="1579039462812" />
-    <state x="592" y="258" key="SettingsEditor" timestamp="1577804922958">
+    <state x="592" y="258" key="SettingsEditor" timestamp="1579798656973">
       <screen x="0" y="23" width="1920" height="1000" />
     </state>
-    <state x="592" y="258" key="SettingsEditor/0.23.1920.1000@0.23.1920.1000" timestamp="1577804922958" />
+    <state x="592" y="258" key="SettingsEditor/0.23.1920.1000@0.23.1920.1000" timestamp="1579798656973" />
     <state x="789" y="342" key="SettingsEditor/0.23.2560.1360@0.23.2560.1360" timestamp="1576852656969" />
-    <state x="1038" y="421" key="com.intellij.ide.util.TipDialog" timestamp="1579703744113">
-      <screen x="0" y="23" width="1680" height="970" />
+    <state x="959" y="535" key="com.intellij.ide.util.TipDialog" timestamp="1579894911350">
+      <screen x="0" y="23" width="2560" height="1360" />
     </state>
     <state x="719" y="399" key="com.intellij.ide.util.TipDialog/0.23.1920.1000@0.23.1920.1000" timestamp="1576768422715" />
-    <state x="959" y="535" key="com.intellij.ide.util.TipDialog/0.23.2560.1360@0.23.2560.1360" timestamp="1576852541206" />
+    <state x="959" y="535" key="com.intellij.ide.util.TipDialog/0.23.2560.1360@0.23.2560.1360" timestamp="1579894911350" />
     <state x="1038" y="421" key="com.intellij.ide.util.TipDialog/1680.23.1920.1057/0.23.1680.970@1680.23.1920.1057" timestamp="1579703744113" />
     <state x="945" y="334" width="670" height="676" key="search.everywhere.popup" timestamp="1579721599052">
       <screen x="0" y="23" width="2560" height="1360" />

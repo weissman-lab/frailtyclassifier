@@ -173,9 +173,41 @@ if "raw_notes_df.pkl" not in os.listdir(datadir):
     print(raw_notes_df.PAT_ID[condition.astype(bool)].nunique())
     print(raw_notes_df.PAT_ID.nunique())
     raw_notes_df = raw_notes_df[raw_notes_df.PAT_ID.isin(raw_notes_df.PAT_ID[condition.astype(bool)].unique())]
+
+    # pull the dx associated with each CSN
+    base_query = open("_8_diagnosis_query_all.sql").read()
+    fdict = dict(CSN={"vals": [], "foreign_table": "dx",
+                      "foreign_key": "CSN"}
+                 )
+    def wrapper(ids):
+        fd = copy.deepcopy(fdict)
+        fd['CSN']['vals'] = ids
+        q = query_filtered_with_temp_tables(base_query, fd, rstring=str(np.random.choice(10000000000)))
+        out = get_from_clarity_then_save(q, clar_conn=clar_conn)
+        l = []
+        for i in out.CSN.unique().tolist():
+            l.append(dict(CSN=i, dxs=','.join(out.icd10[out.CSN == i].unique().tolist())))
+        return pd.DataFrame(l)
+
+
+    csnlist = raw_notes_df.CSN.unique().astype(int).tolist()
+    chunks = [i * 1000 for i in list(range(len(csnlist) // 1000 + 1))]
+    chunkids = [csnlist[i:(i + 1000)] for i in chunks]
+    pool = mp.Pool(mp.cpu_count())
+    start = time.time()
+    dxdflist = pool.map(wrapper, chunkids, chunksize=1)
+    print(time.time() - start)
+    pool.close()
+
+    dxdf = pd.concat(dxdflist)
+    raw_notes_df = raw_notes_df.merge(dxdf, how='left')
+    raw_notes_df.drop(columns="TX_SURG_DT", inplace=True)
+
     raw_notes_df.to_pickle(f"{outdir}raw_notes_df.pkl")
 else:
     raw_notes_df = pd.read_pickle(f"{outdir}raw_notes_df.pkl")
+
+
 
 
 

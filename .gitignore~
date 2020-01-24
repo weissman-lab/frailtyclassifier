@@ -5,6 +5,7 @@
 /.DS_store
 /old_misc
 /figures
+/notebooks
 
 # editor cruft
 *~
