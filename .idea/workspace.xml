@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9eaa2e52-212d-45dc-a1ea-c8c0306d391d" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/_99_project_module.py" beforeDir="false" afterPath="$PROJECT_DIR$/_99_project_module.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/annotation/open_review_2019-12-04_1616.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/_05_tokenize_and_label.py" beforeDir="false" afterPath="$PROJECT_DIR$/_05_tokenize_and_label.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -58,6 +55,9 @@
     <option name="mySupportGeventDebugging" value="true" />
   </component>
   <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+    </key>
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
     </key>
@@ -173,7 +173,7 @@
       <workItem from="1579894907109" duration="7042000" />
       <workItem from="1580136780982" duration="69000" />
       <workItem from="1580136865033" duration="4487000" />
-      <workItem from="1580149430169" duration="7077000" />
+      <workItem from="1580149430169" duration="7197000" />
     </task>
     <servers />
   </component>

@@ -3,11 +3,10 @@
 Pull the data from webanno and prep it for modelling.
 1. Convert the json into labels
 2. Tokenize the source documents
-3.  Create a four-column data frame:
-    1.  Position.  Just an ordinal index
-    2.  span_start (span end will be implicit, defined as the beginning of the next)
-    3.  Token
-    4.  Label
+3.  Create a data frame:
+    1.  token
+    2.  token lenght, start, and end
+    3.  columns for each of the tags.  they'll span [-1,0, 1], and we can convert them to categorical later
 '''
 
 import pandas as pd
