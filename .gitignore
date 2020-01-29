@@ -1,6 +1,8 @@
 
 # ignore folders with large files
+/__pycache__
 /data
+/.idea
 /output
 /.DS_store
 /old_misc

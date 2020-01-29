@@ -1,12 +1,14 @@
 
 # ignore folders with large files
 /data
+/.idea
 /output
 /.DS_store
 /old_misc
 /figures
 /notebooks
 /docs/papers
+/annotation
 
 # editor cruft
 *~
