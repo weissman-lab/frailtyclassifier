@@ -94,6 +94,28 @@ def combine_notes(df):
     print('')
     return pd.DataFrame(full_notes)
 
+def combine_notes_by_type(df, CSN = "PAT_ENC_CSN_ID", note_type = "IP_NOTE_TYPE"):
+    full_notes = []
+    for g, dfi in df.groupby(CSN):
+        dfis = dfi.sort_values(['NOTE_ENTRY_TIME', 'NOTE_LINE'])[['NOTE_TEXT', note_type, 'NOTE_ENTRY_TIME',
+                                                                  'NOTE_ID', 'NOTE_STATUS']]
+        full_note = ""
+        current_type = "YARR, HERE BE ERRORS IF YOU SCRY THIS IN ANY OUTPUT, MATEY"
+        for i in range(nrow(dfis)):
+            if current_type != dfis[note_type].iloc[i]: # prepend separator
+                full_note += f"\n\n#### {dfis[note_type].iloc[i]}, {dfis['NOTE_ENTRY_TIME'].iloc[i]}, " \
+                             f"ID: {dfis['NOTE_ID'].iloc[i]}, " \
+                             f"Status: {note_status_mapper(dfis['NOTE_STATUS'].iloc[i])} ####\n"
+            current_type = dfis[note_type].iloc[i]
+            full_note += '\n'.join(dfis['NOTE_TEXT'].iloc[i].split('  '))
+        row = dfi.iloc[0].to_dict()
+        _ = row.pop('NOTE_TEXT')
+        _ = row.pop('NOTE_LINE')
+        _ = row.pop(note_type)
+        row['NOTE_TEXT'] = full_note
+        full_notes.append(row)
+    return pd.DataFrame(full_notes)
+
 def combine_all_notes(df, cohort):
     d = df.sort_values(['NOTE_ID', 'CONTACT_NUM']).drop_duplicates(['NOTE_ID', 'NOTE_LINE'], keep='last')
     d = d.merge(cohort, on='PAT_ENC_CSN_ID', how='left')
@@ -187,3 +209,34 @@ def process_webanno_output(anno_dir, output_file):
     for i in os.listdir(anno_dir + output_dir + "/annotation"):  # note that the dirs are named after the text files
         cmd = f"unzip {anno_dir + output_dir}/annotation/{i}/* -d {anno_dir + output_dir}/annotation/{i}/"
         os.system(cmd)
+
+
+def nrow(x):
+    return x.shape[0]
+
+def ncol(x):
+    return x.shape[1]
+
+def note_status_mapper(x):
+    d = {
+        1 : "Incomplete",
+        2 : "Signed",
+        3 : "Addendum",
+        4 : "Deleted",
+        5 : "Revised",
+        6 : "Cosigned",
+        7 : "Finalized",
+        8 : "Unsigned",
+        9 : "Cosign Needed",
+        10 : "Incomplete Revision",
+        11 : "Cosign Needed Addendum",
+        12 : "Shared"
+    }
+    if type(x).__name__ == "str":
+        return d[int(x)]
+    elif x is None:
+        return "None"
+    elif type(x).__name__ == "int":
+        return d[x]
+    else:
+        raise Exception("feeding note mapper something it didn't like")

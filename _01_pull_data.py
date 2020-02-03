@@ -9,7 +9,7 @@ Finally, we pull info on transplants, and use that to filter-out encounters that
 # libraries and imports
 import pandas as pd
 import os
-from _99_project_module import get_clarity_conn, get_from_clarity_then_save, combine_notes, \
+from _99_project_module import get_clarity_conn, get_from_clarity_then_save, combine_notes_by_type, \
     query_filtered_with_temp_tables
 import re
 import time
@@ -52,10 +52,10 @@ fdict = dict(PAT_ID={"vals": [], "foreign_table":"pe",
                                  'CARDIOLOGY', 'RHEUMATOLOGY', 'Neurology'],
                         "foreign_table": "cd",
                           "foreign_key":"SPECIALTY"},
-             NOTE_TYPE={"vals": ['Progress Notes', 'MR AVS Snapshot', 'Patient Instructions'],
+             NOTE_TYPE={"vals": ['Progress Notes'],
                         "foreign_table": "znti",
                           "foreign_key":"NAME"},
-             ENCOUNTER_TYPE={"vals":['Appointment', 'Office Visit', 'Allied Health Visit', 'Post Hospitalization'],
+             ENCOUNTER_TYPE={"vals":['Appointment', 'Office Visit', 'Post Hospitalization'],
                              "foreign_table":"zdet",
                           "foreign_key":"NAME"},
              NOTE_STATUS={"vals": ['2', '3'],
@@ -79,7 +79,6 @@ def get_tbd():
 tbd = get_tbd()
 
 def wrapper(ids):
-    assert 5 == 0, "If you run this code again, pay attention to what you're including.  As of 16 Jan, GW indicated that we'd lose allied health visits, MR AVS snapshots, patient instructons"
     if type(ids).__name__ == 'list':
         assert len(ids) < 6
     if type(ids).__name__ == 'str':
@@ -109,11 +108,7 @@ if "raw_notes_df.pkl" not in os.listdir(datadir):
         try:
             df = pd.read_pickle(path)
             if df.shape != (0, 0):
-                # remove allied health visits encounter type
-                df = df[df.ENCOUNTER_TYPE != "Allied Health Visit"]
-                # remove patient instructions and MR AVS snapshot
-                df = df[~df.NOTE_TYPE.isin(['Patient Instructions', 'MR AVS Snapshot'])]
-                df = combine_notes(df)
+                df = combine_notes_by_type(df, CSN = 'CSN', note_type="NOTE_TYPE")
                 return df
         except Exception as e:
             message = f"ERROR AT {path}"

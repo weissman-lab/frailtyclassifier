@@ -4,6 +4,7 @@
 select
         pe.PAT_ENC_CSN_ID                                           as CSN
     ,   pe.PAT_ID
+    ,   hi.NOTE_ID
     ,   pe.CONTACT_DATE                                             as ENC_DATE
     ,   datediff(day, p.BIRTH_DATE, pe.CONTACT_DATE) / 365.0        as AGE
     ,   zpc.NAME                                                    as PATIENT_CLASS
