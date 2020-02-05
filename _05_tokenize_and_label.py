@@ -23,8 +23,8 @@ pd.options.display.max_columns = 4000
 nlp = spacy.load("en", disable=['parser', 'tagger', 'ner'])
 
 # stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
-tags = ['Functionalimpairment', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
-mapping_dict = dict(frailty_nos="Functionalimpairment",
+tags = ['Frailty_nos', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
+mapping_dict = dict(frailty_nos_tags="Frailty_nos",
                     msk_prob_tags="Msk_prob",
                     nutrition="Nutrition",
                     resp_imp_tags="Resp_imp",

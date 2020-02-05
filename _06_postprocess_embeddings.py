@@ -1,3 +1,26 @@
+
+'''
+This script will contain function that will take text that is tokenized by the function in _05_tokenize_and_label.py
+and generate features.
+Rather than building features and saving them to static files, it'll be a function that outputs rows of a dataframe.
+If a static file is desired, the output can be aggregated.
+
+The function will take the following arguments:
+- embeddings:  this is a path to the embeddings to be used.
+- bandwidth:  this is the radius of the window around a centroid word
+- aggfunc: a dictionary of functions to apply to the matrix of embeddings.  If there is more than one function,
+    the results will just get appended
+
+
+'''
+def f(x):
+    return x+2
+dd = {"f":f}
+dd["f"](1)
+
+
+
+
 '''
 Picking up from ACD pulling files from webanno & converting JSON file into labels
 This script will tokenize the source documents & create a word embedding matrix
