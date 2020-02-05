@@ -288,32 +288,32 @@ plt.ylabel("Number of unique words")
 plt.figure(figsize=(8, 8))
 f.savefig(f'{figdir}nnotes_by_uwords.pdf')
 
-# pull some random notes
-np.random.seed(8675309)
-kind = "lp"
-for i in conc_notes_df.month.unique():
-    if kind == "lp":
-        sampdf = conc_notes_df[(conc_notes_df.month == i) &
-                               (conc_notes_df.lowprob == True) &
-                               (conc_notes_df.highprob == False) &
-                               (conc_notes_df.n_comorb <5)]
-        samp = np.random.choice(sampdf.shape[0], 1)
-        towrite = sampdf.combined_notes.iloc[int(samp)]
-        fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-        with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
-            f.write(towrite)
-        kind = "hp"
-    elif kind == "hp":
-        sampdf = conc_notes_df[(conc_notes_df.month == i) &
-                               (conc_notes_df.lowprob == False) &
-                               (conc_notes_df.highprob == True) &
-                               (conc_notes_df.n_comorb >15)]
-        samp = np.random.choice(sampdf.shape[0], 1)
-        towrite = sampdf.combined_notes.iloc[int(samp)]
-        fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-        with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
-            f.write(towrite)
-        kind = "lp"
+# # pull some random notes
+# np.random.seed(8675309)
+# kind = "lp"
+# for i in conc_notes_df.month.unique():
+#     if kind == "lp":
+#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
+#                                (conc_notes_df.lowprob == True) &
+#                                (conc_notes_df.highprob == False) &
+#                                (conc_notes_df.n_comorb <5)]
+#         samp = np.random.choice(sampdf.shape[0], 1)
+#         towrite = sampdf.combined_notes.iloc[int(samp)]
+#         fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
+#         with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
+#             f.write(towrite)
+#         kind = "hp"
+#     elif kind == "hp":
+#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
+#                                (conc_notes_df.lowprob == False) &
+#                                (conc_notes_df.highprob == True) &
+#                                (conc_notes_df.n_comorb >15)]
+#         samp = np.random.choice(sampdf.shape[0], 1)
+#         towrite = sampdf.combined_notes.iloc[int(samp)]
+#         fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
+#         with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
+#             f.write(towrite)
+#         kind = "lp"
 
 
 

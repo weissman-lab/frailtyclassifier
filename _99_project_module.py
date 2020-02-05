@@ -207,7 +207,7 @@ def process_webanno_output(anno_dir, output_file):
     os.system(f'unzip {anno_dir + output_file} -d {anno_dir + output_dir}')
     # unzip all of the annotation files in the overall output file
     for i in os.listdir(anno_dir + output_dir + "/annotation"):  # note that the dirs are named after the text files
-        cmd = f"unzip {anno_dir + output_dir}/annotation/{i}/* -d {anno_dir + output_dir}/annotation/{i}/"
+        cmd = f"unzip -n {anno_dir + output_dir}/annotation/{i}/\*.zip -d {anno_dir + output_dir}/annotation/{i}/"
         os.system(cmd)
 
 

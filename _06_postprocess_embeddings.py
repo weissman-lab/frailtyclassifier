@@ -19,7 +19,7 @@ os.listdir(anno_dir)
 
 
 # unzip the output file
-webanno_output = 'ACD_sandbox_2020-01-29_0847.zip'
+webanno_output = 'ACD_sandbox_2020-01-27_1007.zip'
 annotator_of_record = 'andrew'
 webanno_unzipped_dir = re.sub('\.zip', "", webanno_output)
 test_dir = re.sub('/labels', "", anno_dir+webanno_unzipped_dir)
@@ -88,3 +88,41 @@ for token in w2v_note:
 #test print the token vectors
 for token in w2v_note:
     print('Vector for %s:' % token, token.vector)
+
+
+
+
+
+
+'''
+Define a span in terms of token length or span length.
+For each span, construct a one-hot-encoded vector of it.  
+Do the semanic vector enrichment, but implement it as an option.
+Each one-hot will be TxV.  Word embeddings take that to TxD.  Need to get it to 1xD.  
+There can be multiple 1xD transformations.  Some of those transformations can be dependent on the TFIDF probability or whatever
+It's also the case that there is parameter vector of dimension Tx1 such that I can take transposed embedded text and 
+take it to 1xD.  That would effectively be a windower.
+'''
+
+from gensim.models import Word2Vec, keyedvectors
+import numpy as np
+word2vec = Word2Vec.load('/Users/crandrew/projects/pwe/output/trained_models/w2v_d100.wv')
+1+1
+
+np.sum((word2vec['blood'] - word2vec['plasma'])**2)
+
+def euc(x, y):
+    return (np.sum((x-y)**2))**.5
+
+euc(word2vec['pulmonary'], word2vec['lung'])
+
+
+b = np.array([.1,.8, .1])
+
+
+'''
+embeddings:
+
+1xd * dxv
+basically SEVR is nust a weighted sum of the embeddings!
+'''

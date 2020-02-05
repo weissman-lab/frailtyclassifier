@@ -10,7 +10,7 @@ Finally, we pull info on transplants, and use that to filter-out encounters that
 import pandas as pd
 import os
 from _99_project_module import get_clarity_conn, get_from_clarity_then_save, combine_notes_by_type, \
-    query_filtered_with_temp_tables
+    query_filtered_with_temp_tables, write_txt
 import re
 import time
 import multiprocessing as mp
@@ -200,8 +200,7 @@ if "raw_notes_df.pkl" not in os.listdir(datadir):
 
     raw_notes_df.to_pickle(f"{outdir}raw_notes_df.pkl")
 else:
-    raw_notes_df = pd.read_pickle(f"{outdir}raw_notes_df.pkl")
-
+    raw_notes_df = pd.read_pickle(f"{datadir}raw_notes_df.pkl")
 
 
 
