@@ -28,14 +28,11 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 import inspect
 
-
-# all of this shit will eventually be function arguments and shit that happens directly after the function starts
 anno_dir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/"
 webanno_output = "frailty_phenotype_batch_1_2020-02-05_1016"
 file = os.listdir(f"{anno_dir+webanno_output}/labels/")[0]
-embeddings = '/Users/crandrew/projects/pwe/output/trained_models/w2v_d100.wv'
+embeddings = '/Users/crandrew/projects/pwe/output/trained_models/ft_d300.ft'
 wv = KeyedVectors.load(embeddings, mmap='r')
-
 
 
 # take the file and filter it with the masking function
@@ -89,7 +86,7 @@ def featurize(file, # the name of the file
     ### Still haven't gotten this working for fasttext
     if isinstance(embeddings, str): # load it if it's not
         embeddings = KeyedVectors.load(embeddings, mmap='r')
-    assert "Word2Vec" in type(wv).__name__
+    assert ("Word2Vec" in type(embeddings).__name__) or ("FastText" in type(embeddings).__name__)
     # now load the file and remove its headers (note concatenation indicators)
     fi = pd.read_pickle(f"{anno_dir + webanno_output}/labels/{file}")
     fi = remove_headers(fi)
@@ -115,9 +112,10 @@ def featurize(file, # the name of the file
         idx = [i for i in window if i >= 0 and i < nrow(fi)]
         tokdf = pd.DataFrame(fi.token.iloc[idx].str.lower())
         tokdf["k"] = ktrim
-        tokdf["invocab"] = [1 if wv.__contains__(tokdf.token.iloc[i]) else 0 for i in range(nrow(tokdf))]
+        # incovab isn't relevant to fasttext, but it doesn't fail for fasttext either
+        tokdf["invocab"] = [1 if embeddings.__contains__(tokdf.token.iloc[i]) else 0 for i in range(nrow(tokdf))]
         # create the embeddings matrix
-        Emat = np.vstack([wv[tokdf.token.iloc[i]] for i in range(nrow(tokdf)) if tokdf.invocab.iloc[i] == 1])
+        Emat = np.vstack([embeddings[tokdf.token.iloc[i]] for i in range(nrow(tokdf)) if tokdf.invocab.iloc[i] == 1])
         # apply the aggregation functions to it
         for i in range(len(aggfuncdict)):
             ki = list(aggfuncdict.keys())[i]
