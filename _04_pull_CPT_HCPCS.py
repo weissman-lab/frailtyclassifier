@@ -6,15 +6,29 @@ It'll comile a data frame with
     -code type
     -date
 It'll do so for all patients represented in the concatenated notes data frame
+
+cleaning CPT codes:
+--trailing single letters seem to indicate the status of something.  for example, CSN 26198351
+    has CPT 85651 and 85651C, and they're both described in ORDER_PROC.DESCRIPTION as SEDIMENTATION
+    but they have different status -- one is "sent" and the other is "completed"
+    this is also bourne out by they CPT 85610 and 85610A, which is a prothombrin test, requested
+    and subsequently completed
+--weirdly formatted CPT codes seem to be duplicates of properly-formatted CPT codes.  C3050065
+    is described as the same PROTHOMBRIN test as the previous one
+    BUT not always.  there are singleton bad-formatted ones.
 '''
 
 import pandas as pd
 import os
-from _99_project_module import get_clarity_conn, get_from_clarity_then_save, make_sql_string
+from _99_project_module import get_clarity_conn, get_from_clarity_then_save, \
+    make_sql_string, query_filtered_with_temp_tables, nrow
 import re
 import numpy as np
 import time
 import sys
+import multiprocessing as mp
+import copy
+import matplotlib.pyplot as plt
 
 # preferences
 pd.options.display.max_rows = 4000
@@ -31,32 +45,51 @@ cndf = pd.read_pickle(f'{outdir}conc_notes_df.pkl')
 uids = cndf.PAT_ID.unique().tolist()
 len(uids)
 
-# query the cpt and HCPCS codes:
-base_query = open("_8_CPT_HCPCS_query.sql").read()
-qi = re.sub(":ids", make_sql_string(uids), base_query)
+if "cpt_hcpcs_df.pkl" not in os.listdir(outdir):
 
+    # query the cpt and HCPCS codes:
+    base_query = """
+    select
+            op.PAT_ENC_CSN_ID as CSN
+        ,   ceo.CPT_CODE as CPT
+        ,   op.PAT_ID
+        ,   ceo.CODE_TYPE_C as TYPE
+        , 	op.ORDERING_DATE
+        , 	op.PROC_ID
+        ,	op.DESCRIPTION
+        ,   maxdate = Max(ceo.CONTACT_DATE_REAL)
+    from ORDER_PROC as op
+    inner join CLARITY_EAP_OT as ceo on ceo.PROC_ID = op.PROC_ID
+    """
+    fdict = dict(PAT_ID={"vals": [], "foreign_table":"op",
+                              "foreign_key":"PAT_ID"},
+                 CODE_TYPE_C={"vals": [1,2], "foreign_table":"ceo",
+                              "foreign_key":"CODE_TYPE_C"})
+    footers = """
+    where ceo.CPT_CODE is not null
+    and op.ORDERING_DATE > '2017-01-01'
+    group by op.PAT_ENC_CSN_ID, op.PAT_ID, ceo.CPT_CODE, ceo.CODE_TYPE_C, op.PROC_ID, op.ORDERING_DATE, op.DESCRIPTION, op.PROC_ID
+    """
 
+    def wrapper(ids):
+        fd = copy.deepcopy(fdict)
+        fd['PAT_ID']['vals'] = ids
+        q = query_filtered_with_temp_tables(base_query, fd, rstring=str(np.random.choice(10000000000)))
+        q += footers
+        out = get_from_clarity_then_save(q, clar_conn=clar_conn)
+        return out
 
-'''
-cleaning CPT codes:  
---trailing single letters seem to indicate the status of something.  for example, CSN 26198351
-    has CPT 85651 and 85651C, and they're both described in ORDER_PROC.DESCRIPTION as SEDIMENTATION
-    but they have different status -- one is "sent" and the other is "completed"
-    this is also bourne out by they CPT 85610 and 85610A, which is a prothombrin test, requested
-    and subsequently completed
---weirdly formatted CPT codes seem to be duplicates of properly-formatted CPT codes.  C3050065 
-    is described as the same PROTHOMBRIN test as the previous one
-    BUT not always.  there are singleton bad-formatted ones.  
-@@
-THe cleaning done below will get skipped if the df is found along the specified path
-@@
-'''
+    UIDs = cndf.PAT_ID.unique().tolist()
+    UIDs.sort()
+    chunks = [UIDs[(i*1000):((i+1)*1000)] for i in range(len(UIDs)//1000+1)]
 
-if "cpt_hcpcs_df.pkl" in os.listdir(outdir):
-    chdf = pd.read_pickle(f'{outdir}cpt_hcpcs_df.pkl')
-else:
-    chdf = get_from_clarity_then_save(qi, clar_conn=clar_conn)
+    pool = mp.Pool(processes=mp.cpu_count())
+    start = time.time()
+    cptlist = pool.map(wrapper, chunks, chunksize=1)
+    print(time.time() - start)
+    pool.close()
 
+    chdf = pd.concat(cptlist)
 
     def get_bad_cpt():
         return chdf.CPT[(chdf.TYPE == 1) & ((chdf.CPT.apply(len) != 5) | (chdf.CPT.str.isdigit() == False))]
@@ -173,41 +206,185 @@ else:
 
     # save the output
     chdf.to_pickle(f'{outdir}cpt_hcpcs_df.pkl')
+else:
+    chdf = pd.read_pickle(f'{outdir}cpt_hcpcs_df.pkl')
+
 
 
 '''
 Pull the ICD9 codes
 '''
-base_query = open("_8_ICD9_query.sql").read()
-qi = re.sub(":ids", make_sql_string(uids), base_query)
 
 if "icd9_df.pkl" in os.listdir(outdir):
     icd9df = pd.read_pickle(f'{outdir}icd9_df.pkl')
 else:
-    icd9df = get_from_clarity_then_save(qi, clar_conn=clar_conn)
+    base_query = """
+    select
+            ped.PAT_ID
+        ,   eci.CODE as ICD9
+        ,   ped.CONTACT_DATE
+    from PAT_ENC_DX as ped
+    inner join EDG_CURRENT_ICD9 as eci on ped.DX_ID = eci.DX_ID
+    """
+    fdict = dict(PAT_ID={"vals": [], "foreign_table": "ped",
+                         "foreign_key": "PAT_ID"})
+    footers = "where ped.CONTACT_DATE > '2017-01-01'"
+
+
+    def wrapper(ids):
+        fd = copy.deepcopy(fdict)
+        fd['PAT_ID']['vals'] = ids
+        q = query_filtered_with_temp_tables(base_query, fd, rstring=str(np.random.choice(10000000000)))
+        q += footers
+        out = get_from_clarity_then_save(q, clar_conn=clar_conn)
+        return out
+
+
+    UIDs = cndf.PAT_ID.unique().tolist()
+    UIDs.sort()
+    chunks = [UIDs[(i * 1000):((i + 1) * 1000)] for i in range(len(UIDs) // 1000 + 1)]
+
+    pool = mp.Pool(processes=mp.cpu_count())
+    start = time.time()
+    icdlist = pool.map(wrapper, chunks, chunksize=1)
+    print(time.time() - start)
+    pool.close()
+
+    icd9df = pd.concat(icdlist)
     icd9df.to_pickle(f'{outdir}icd9_df.pkl')
+
 
 '''
 Combine the two data frames.  First add a consistent type column, then push date to month
 Save it.  Filter for desired dates before pivoting, to save space.
 '''
 chdf.head()
+chdf.dtypes
 icd9df.head()
 icd9df.dtypes
 icd9df['TYPE'] = "icd9"
 chdf.TYPE = chdf.TYPE.astype(str)
-chdf['TYPE'][chdf['TYPE'] == 1] = "cpt"
-chdf['TYPE'][chdf['TYPE'] == 2] = "hcpcs"
-icd9df['CODE'] = icd9df['ICD9']
-chdf['CODE'] = chdf['CPT']
-chdf['DATE'] = chdf['ORDERING_DATE']
-icd9df['DATE'] = icd9df['CONTACT_DATE']
+chdf['TYPE'][chdf['TYPE'] == "1"] = "cpt"
+chdf['TYPE'][chdf['TYPE'] == "2"] = "hcpcs"
+icd9df=icd9df.rename(columns={"ICD9":"CODE", "CONTACT_DATE":"DATE"})
+chdf=chdf.rename(columns={"CPT":"CODE", "ORDERING_DATE":"DATE"})
+
 df = pd.concat([chdf[["PAT_ID", "DATE", "CODE", "TYPE"]],
                 icd9df[["PAT_ID", "DATE", "CODE", "TYPE"]]])
-df.shape
+
 del chdf, icd9df
 # convert to month
 df.DATE = df.DATE.dt.month + (df.DATE.dt.year*12 - 2017*12)
 df.drop_duplicates(inplace=True)
-df.shape
 df.to_pickle(f'{outdir}codes_df.pkl')
+
+'''
+get unique values of codes/types, then associate with coefs, then merge
+'''
+ucodes = df[['TYPE', 'CODE']].drop_duplicates()
+# lose the ones that aren't interpretable
+# have a look at them first...
+# ucodes[(ucodes.TYPE == 'cpt') & (ucodes.CODE.apply(len) !=5)]
+dropcpt = ucodes.CODE[(ucodes.TYPE == 'cpt') & (ucodes.CODE.apply(len) !=5)]
+ucodes = ucodes[~ucodes.CODE.isin(dropcpt)]
+
+drophcpcs = ucodes[(ucodes.TYPE == 'hcpcs') &
+       ((ucodes.CODE.apply(len) != 5) |
+        (ucodes.CODE.apply(lambda x: x[0].isalpha()) == False) |
+        (ucodes.CODE.apply(lambda x: x[1:].isdigit()) == False))]
+# noticing here a couple of codes where I can make a post-hoc fix:
+df.loc[df.CODE == "J1885A", "CODE"] = "J1885"
+df.loc[df.CODE == "J0696A", "CODE"] = "J0696"
+ucodes.loc[ucodes.CODE == "J1885A", "CODE"] = "J1885"
+ucodes.loc[ucodes.CODE == "J0696A", "CODE"] = "J0696"
+ucodes = ucodes[~ucodes.CODE.isin(drophcpcs.CODE)]
+
+# load the kim coefs
+kim = pd.read_csv("cpt_hcpcs_kim.csv")
+# detect letters in the codes
+kim["letter"] = kim.code.apply(lambda x: "".join(re.findall("[a-zA-Z]+", x)))
+kim["letter"] = [i[0] if len(i)>0 else "" for i in kim.letter]
+# construct range fields
+kim["start"] = ""
+kim['stop'] = ""
+for i in range(nrow(kim.code)):
+    if "-" in kim.code[i]:
+        kim.start.iloc[i], kim.stop.iloc[i] = kim.code.iloc[i].split("-")
+    else:
+        kim.start.iloc[i], kim.stop.iloc[i] = kim.code.iloc[i], kim.code.iloc[i]
+    kim.start.iloc[i] = re.sub("[a-zA-Z]+", "", kim.start.iloc[i])
+    kim.stop.iloc[i] = re.sub("[a-zA-Z]+", "", kim.stop.iloc[i])
+# drop the intercept
+intercept = kim.coef[kim.name == "Intercept"]
+kim = kim[~kim.name.isin(['Intercept'])]
+kim.start = kim.start.astype(int)
+kim.stop = kim.stop.astype(int)
+
+ucodes.head()
+ucodes['coef'] = np.nan
+for i in range(nrow(ucodes)):
+    targ = ucodes.CODE.iloc[i]
+    letter = re.findall("[a-zA-Z]+", targ)
+    letter = letter[0] if len(letter)>0 else "" # this only works for single letters, but that's a feature rather than a bug
+    number = float(re.sub("[a-zA-Z]+","", targ)) if any(re.findall("[0-9]", targ)) else -999
+    if number != -999:
+        coef = kim[(kim.letter == letter) &
+                    (kim.start <= number) &
+                    (kim.stop >= number) &
+                    (kim.type == ucodes.TYPE.iloc[i])].coef
+        if nrow(coef) > 0:
+            assert nrow(coef) == 1
+            ucodes.coef.iloc[i] = coef.iloc[0]
+            print(coef.iloc[0])
+
+    isinstance(re.findall("[a-zA-Z]+", "5"), str)
+
+ucodes = ucodes[~np.isnan(ucodes.coef)]
+
+df = df.merge(ucodes, how = 'inner')
+df.head()
+
+def f(ID): # kim aggregation function
+    x = df.loc[df.PAT_ID == ID]
+    months = [i for i in x.DATE.sort_values().unique() if i > 12]
+    out = []
+    for m in months:
+        mdf = x.loc[(x.DATE>(m-12)) & (x.DATE <= m), ['CODE', "TYPE","coef"]].drop_duplicates()
+        out.append(dict(DATE = m, score = float(mdf.coef.sum()+intercept)))
+    out = pd.DataFrame(out)
+    out['PAT_ID'] = x.PAT_ID.iloc[0]
+    return out
+
+UIDs = df.PAT_ID.unique().tolist()
+
+pool = mp.Pool(processes=mp.cpu_count())
+start = time.time()
+kimlist = pool.map(f, UIDs, chunksize=1)
+print(time.time() - start)
+pool.close()
+
+kimdf = pd.concat(kimlist)
+kimdf.to_pickle(f"{outdir}kim_score_df.pkl")
+
+
+
+plt.hist(kimdf.score)
+plt.xlabel("kim score")
+plt.show()
+
+X = np.vstack([np.ones(nrow(kimdf)), kimdf.DATE]).T
+y = np.array(kimdf.score)
+
+boot = []
+np.linalg.inv(X.T @ X) @ X.T @ y
+for i in range(1000):
+    s = np.random.choice(nrow(X), nrow(X))
+    Xs = X[s,:]
+    ys = y[s]
+    boot.append(np.linalg.inv(Xs.T @ Xs) @ Xs.T @ ys)
+
+boots = np.vstack(boot)
+boots.shape
+plt.hist(boots[:,1])
+plt.show()
+

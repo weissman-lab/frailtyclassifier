@@ -15,3 +15,4 @@ and ceo.CPT_CODE is not null
 and op.PAT_ID in :ids
 and op.ORDERING_DATE > '2017-01-01'
 group by op.PAT_ENC_CSN_ID, op.PAT_ID, ceo.CPT_CODE, ceo.CODE_TYPE_C, op.PROC_ID, op.ORDERING_DATE, op.DESCRIPTION, op.PROC_ID
+

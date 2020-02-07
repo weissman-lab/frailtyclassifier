@@ -46,9 +46,9 @@ def get_from_clarity_then_save(query=None, clar_conn=None, save_path=None):
     # now get the data
     try:
         db_out = get_res_dict(query, clar_conn)
-    except Exception:
+    except Exception as e:
         print("error:  problem with query or connection")
-        return
+        return e
     # move it to a df
     df = pd.DataFrame(db_out)
     # save it

@@ -73,7 +73,7 @@ aggfunc = dict(wmean = wmean,
                min = lambda x: np.amin(x, axis=0))
 
 
-def featurize(file, # the name of the file
+def featurize(file, # the name of the token/label file
               anno_dir, # the location of the annotation output
               webanno_output, # the specific webanno object, processed per the function in _05_tokenize_and_label.py
               bandwidth,  # the bandwidth of the window
@@ -83,7 +83,6 @@ def featurize(file, # the name of the file
               indices = None, # the specific indices of the file to process
               howmany = "all"): # if idx is not None, this is how many random indices to pull
     # First check and see whether the embeddings object is loaded
-    ### Still haven't gotten this working for fasttext
     if isinstance(embeddings, str): # load it if it's not
         embeddings = KeyedVectors.load(embeddings, mmap='r')
     assert ("Word2Vec" in type(embeddings).__name__) or ("FastText" in type(embeddings).__name__)
@@ -94,7 +93,6 @@ def featurize(file, # the name of the file
     if howmany == "all":
         centers = list(range(nrow(fi)))
     elif isinstance(howmany, int) and (indices is None):
-        np.random.seed(8675309)
         centers = np.random.choice(nrow(fi), howmany, replace=False)
     else:
         centers = indices
@@ -127,6 +125,7 @@ def featurize(file, # the name of the file
                 outdict[ki + "_" + str(j)] = res[j]
         outframe = pd.DataFrame(outdict, index=[0])
         mm = fi.merge(outframe, left_index=True, right_on='index', copy=False)
+        assert nrow(mm) == 1
         l.append(mm)
     return pd.concat(l).reset_index(drop=True)
 
