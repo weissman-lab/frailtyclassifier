@@ -27,11 +27,12 @@ from gensim.models import KeyedVectors
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 import inspect
+import sys
 
 anno_dir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/"
 webanno_output = "frailty_phenotype_batch_1_2020-02-05_1016"
 file = os.listdir(f"{anno_dir+webanno_output}/labels/")[0]
-embeddings = '/Users/crandrew/projects/pwe/output/trained_models/ft_d300.ft'
+embeddings = '/Users/crandrew/projects/pwe/output/trained_models/w2v_d100.wv'
 wv = KeyedVectors.load(embeddings, mmap='r')
 
 
@@ -54,7 +55,7 @@ def remove_headers(fi):
     # make sure there is at least one year inside these spans
     for i in range(1, len(dash_token_indices),2):
         jstring = "".join(fi.token[(dash_token_indices[i-1]):(dash_token_indices[i]+1)])
-        assert re.search("(19[789]\d|20[01]\d)", jstring)
+        assert re.search("(19[789]\d|20[012]\d)", jstring)
     # if these pass, lose the spans
     for i in range(1, len(dash_token_indices),2):
         fi = fi.drop(index=list(range((dash_token_indices[i-1]-1),(dash_token_indices[i]+2))))
@@ -68,9 +69,6 @@ def wmean(Emat, kernel):
     kernel = kernel/sum(kernel)
     return Emat.T @ kernel
 
-aggfunc = dict(wmean = wmean,
-               max = lambda x: np.amax(x, axis=0),
-               min = lambda x: np.amin(x, axis=0))
 
 
 def featurize(file, # the name of the token/label file
@@ -129,16 +127,30 @@ def featurize(file, # the name of the token/label file
         l.append(mm)
     return pd.concat(l).reset_index(drop=True)
 
-x = featurize(file = "batch_01_m10_Z1950630_labels.pkl",
-              anno_dir = anno_dir,
-              webanno_output = webanno_output,
-              bandwidth=20,
-              kernel = norm.pdf(np.linspace(-3,3,20*2)),
-              embeddings = wv,
-              aggfuncdict=aggfunc,
-              howmany="all")
+aggfunc = dict(identity = lambda x: x[(nrow(x)//2),:],
+               lag1 = lambda x: x[(nrow(x)//2-1),:],
+               lag2 = lambda x: x[(nrow(x)//2-2),:],
+               wmean = wmean,
+               max = lambda x: np.amax(x, axis=0),
+               min = lambda x: np.amin(x, axis=0))
 
-x.to_csv(f'{os.getcwd()}/output/foo.csv')
+fi = os.listdir('/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/frailty_phenotype_batch_1_2020-02-05_1016/labels')
+ll = []
+for i in fi:
+    x = featurize(file = i,
+                  anno_dir = anno_dir,
+                  webanno_output = webanno_output,
+                  bandwidth=30,
+                  kernel = norm.pdf(np.linspace(-3,3,30*2)),
+                  embeddings = wv,
+                  aggfuncdict=aggfunc,
+                  howmany="all")
+    ll.append(x)
+    print(sys.getsizeof(ll)/1e6)
+
+ff = pd.concat(ll)
+ff.note.nunique()
+ff.to_csv(f'{os.getcwd()}/output/foo.csv')
 
 
 

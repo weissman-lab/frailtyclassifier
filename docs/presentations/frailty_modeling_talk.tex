@@ -21,7 +21,7 @@
 
 
 
-\title{Frailty Classifier Project \\ Modelling Strategy}
+\title{Frailty Classifier Project \\ Modeling Strategy}
 \author{Andrew Crane-Droesch}
 \date{\today}
 
@@ -34,9 +34,81 @@
     \end{frame}
 
 
-\begin{frame}
-Intro
+\begin{frame}{Outline}
+\begin{enumerate}
+\item Brief overview of the project
+\item Annotation:  why/what/how
+\item Word embeddings
+\item Modeling
+\item Active learning
+\end{enumerate}
 \end{frame}
+
+\begin{frame}{Project overview}
+``Classify potentially preventable phenotypes of hospital admission among community-dwelling patients with chronic lung diseases using NLP within EHR data''
+\begin{itemize}
+\item Many hospital admissions are ``low value''
+	\begin{itemize}
+	\item Perhaps they could have been prevented
+	\item Patients often prefer not to be hospitalized
+	\end{itemize}
+\item It is not obvious \textit{a priori} which people would be candidates for preventative measures, or what preventative measures to take
+\item This project builds on a related project that \textit{identifies phenotypes} of people who are at high risk of hospitalization (``frailty'')
+\item The \textbf{immediate aim} is to identify \textit{actionable aspects} of frailty
+\item Later, the goal is to use this to identify patients at high risk of being hospitalized, who have \textit{\textbf{actionable}} risk reduction avenues
+	\begin{itemize}
+	\item Pulmonary rehab might prevent some respiratory crises
+	\item Physical therapy might enable pulmonary rehab
+	\item Installing grab bars in bathrooms might prevent falls
+	\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Project workflow}
+\begin{enumerate}
+\item Download and process free text notes $\rightarrow$
+\item Annotation of spans of notes that are {\color{red}\textbf{positive}} or {\color{green}\textbf{negative}} for the following actionable aspects of frailty:
+	\begin{itemize}
+	\item Fall risk
+	\item Musculo-skeletal problems
+	\item Respiratory impairment
+	\item Nutrition problems
+	\end{itemize}
+\item Fitting models to predict the annotations from the spans
+\item Using the fitted models to serve new batches of notes to annotate
+\item Repeating 2, 3, and 4 until the models are good enough to classify text in the wild
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Data munging and text processing}
+\textbf{Population}:  all patients who've been at Penn for $>$1 year, with at least one of several diagnoses relating to chronic lung disease.
+Pipeline:
+\begin{itemize}
+\item Pull all signed \textbf{outpatient} progress notes from patients with relevant diagnoses
+\item Concatenate notes for individual patients into 6-month windows, simulating a prospective trial where targeting is done based on 6 months of history
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Summary stats}
+\includegraphics[width = .48\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/pat_per_month.pdf}
+\includegraphics[width = .48\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/n_notes.pdf}
+\includegraphics[width = .48\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/n_words.pdf}
+\includegraphics[width = .48\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/nnotes_by_uwords.pdf}
+\end{frame}
+
+\begin{frame}{Annotation}
+\includegraphics[width = 1.10\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/webanno.png}
+\end{frame}
+
+\begin{frame}{Tokenization and label processing}
+\includegraphics[width = 1\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/df_slice.png}
+$\uparrow$ this is the raw data.  How can we use the token to predict the label?
+\end{frame}
+
+\begin{frame}
+\huge{Word embeddings}
+\end{frame}
+
 
 \begin{frame}{Document matrix}
 Start with a sparse matrix ``one-hot'' encoded representation of a document:
@@ -67,9 +139,10 @@ Call it $\bm{D}$.  It has dimensions $N\times V$ -- total words by unique words.
 \begin{itemize}
 	\item Document matrices are \textit{sparse}.  Lots of zeros.  
 	\item They are high-dimensional.  Using $\bm{D}$ directly as a design matrix in a model is generally inefficient.
-	\item A document matrix doesn't explicitly encode any informaiton about how words might be similar to each other.  Synonyms are wholly different from each other.
+	\item A document matrix doesn't explicitly encode any information about how words might be similar to each other.  Synonyms are wholly different from each other.
 	\begin{itemize}
-		\item The euclidian distance between any two word vectors (rows in the matrix) will always be $\sqrt{2}$
+		\item The euclidean distance between any two word vectors (rows in the matrix) will always be $\sqrt{2}$
+		\item The cosine similarity will always be zero
 	\end{itemize}
 	\item Summing them column-wise makes a unigram matrix:
 	\[ 
@@ -127,7 +200,7 @@ where:
 \end{frame}
 
 \begin{frame}{Embeddings in practice}
-Training and using embeddings are separate processes.  Trained embedding models give you $\bm{\Gamma}_0$.  You then supply your own text to multiply it against.  For example, take $\bm{D}$ to be our doctor Seuss example from before.  The embeddings $\bm\Gamma_0$ might look like this:
+Training and using embeddings are separate processes.  Trained embedding models give you $\bm{\Gamma}_0$.  You then supply your own text to multiply it against.  For example, take $\bm{D}$ to be our Dr Seuss example from before.  The embeddings $\bm\Gamma_0$ might look like this:
 \[  \bm{\Gamma}_0 \equiv
 \begin{array}{c|cccccc}
      & u1 & u2 \\
@@ -173,7 +246,7 @@ Sam  & 5 & 6   \\
 \end{array}
 \right]
 \] 
-Because the the document matrix $\bm{D}$ has only one ``1'' per row, this matrix multiplicaton is the same as a ``lookup'' operation.
+Because the the document matrix $\bm{D}$ has only one ``1'' per row, this matrix multiplication is the same as a ``lookup'' operation.
 
 Still, the matrix notation will come in handy later.
 
@@ -274,7 +347,7 @@ Sam  & 5 & 6\\
 \end{array}\right]
 = [2.8, 3.8]
 \] 
-Optimal weighting schemes could be hyperparameters.  Or they could be \textit{directly estimated} at the same time as model parameters if we're using a neural network.  This is very similar to the concept of \textit{attention}.
+Optimal weighting schemes could be hyperparameters.  Or they could be \textit{directly estimated} at the same time as model parameters if we're using a neural network.  This is basically the same thing as a one-dimensional \textit{convolution}.
 \end{frame}
 
 \begin{frame}{Embedded Ngrams}
@@ -303,9 +376,132 @@ Neural nets are the exception, because they effectively create their own design 
 We'll try:
 \begin{itemize}
 \item Penalized logistic regression
-\item Random forests
+\item Random forest
 \item XGboost (with trees, probably)
 \end{itemize}
 \end{frame}
 
+
+\begin{frame}{Structured data (not incorporated yet)}
+We'll be using:
+\begin{itemize}
+\item Labs
+\item Comorbidities
+\item Frailty indices from the literature
+\item Vitals
+\item Demographics
+\end{itemize}
+All of the structure data will only vary at the \textit{patient level}.  We'll have $>>10^6$ labeled tokens, but from $<<1000$ labeled patients. 
+\end{frame}
+
+\begin{frame}{Random Forest}
+Doing the RF as a first pass, because RF's require minimal tuning.
+
+Key considerations:
+\begin{itemize}
+\item The data aren't IID:  $X_i$ will be deeply correlated with $X_{i+1}$
+	\begin{itemize}
+	\item because the features include window statistics
+	\item because the tokens represent language, which is non-random
+	\end{itemize}
+$\rightarrow$ Training and test sets need to be \textit{cluster-sampled}
+\item Labels are rare, and classification forests aren't probablistically calibrated:  their score isn't in general the expectation of a class's probability\\
+$\rightarrow$ The \texttt{ranger} package (in R) offers the \textit{probability forest} option.  Terminal nodes output probabilities, rather than majority votes.  This will help in the early stages of active learning.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Featurization}
+Here are the sets of features of the embeddings that we're using:
+\begin{itemize}
+\item Identity:  $f(i) = E_i$
+\item Last word (one lag): $f(i) = E_{i-1}$
+\item Last word (two lags): $f(i) = E_{i-2}$
+\item Weighted mean over bandwidth ($b$): $f(i) = k\bm{E}_{i \in b}$
+	\begin{itemize}
+	\item where $k$ is a $1 \times b$ vector of interpolated densities from under a standard normal between -3 and 3
+	\end{itemize}
+\item Max over bandwidth: $f(i)$ = \texttt{lambda x: np.amax(x, axis=0)}
+\item Min over bandwidth: $f(i)$ = \texttt{lambda x: np.amin(x, axis=0)}
+\end{itemize}
+Bandwidth set to 30
+\end{frame}
+
+
+\begin{frame}{Results (preliminary)}
+\includegraphics[width = 1.09\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Fall_risk.pdf}
+\end{frame}
+
+\begin{frame}{Results (preliminary)}
+\includegraphics[width = 1.09\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Nutrition.pdf}
+\end{frame}
+
+\begin{frame}{Results (preliminary)}
+\includegraphics[width = 1.09\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Resp_imp.pdf}
+\end{frame}
+
+\begin{frame}{Results (preliminary)}
+\includegraphics[width = 1.09\textwidth]{/Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Msk_prob.pdf}
+\end{frame}
+
+
+\begin{frame}{Neural nets}
+\begin{itemize}
+\item I haven't trained a neural net yet
+\item I expect that it will be much more efficient
+\item Neural nets have the nice feature that they implicitly do the featurization for you
+	\begin{itemize}
+	\item That's what \textit{representation learning} is, basically
+	\end{itemize}
+\item That doesn't mean that featurizations fed to the other models wouldn't be useful to the net
+	\begin{itemize}
+	\item Basically it'd be giving the AI a cribsheet
+	\end{itemize}
+\item Likewise it'll be important to think carefully about model architecture, including
+	\begin{itemize}
+	\item Directionality (probably both)
+	\item Representation windowing -- maybe 1d dilated convolutions on top of LSTM output, in a manner analogous to an attention mechanism?
+	\end{itemize}
+\item Suggestions especially welcome here
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Active learning}
+How do we take the output of models fit to the first 25 patient notes and use them to pick the most fruitful notes to annotate next?
+\begin{itemize}
+\item Standard approach is to pick examples that we're maximally uncertain about
+\end{itemize}
+Entropy:  $-\displaystyle\sum_{c}p(class = c)log(p(class = c))$
+\begin{itemize}
+\item We're going to pick notes that have a lot of entropy
+\item Not obvious how best to aggregate entropy over the note.  Thinking perhaps an average over the top quantile.  Maybe decile.
+\item We're going to feed annotators batches of 25 notes at a time.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Active learning}
+Example:  In the beginning, the model isn't very good and will default to the dominant class (neutral)
+\begin{itemize}
+\item A token that the model thinks is neutral will have low entropy:  E($[.01, .98, .01] = .11$)
+\item If the model thinks that \textit{maybe} another token might be positive, entropy will be a little lower:  E($[.1, .88, .01] = .39$).  That token will make the note more likely to get picked.
+\end{itemize}
+Eventually, the model will get better about distinguishing the positive classes:
+\begin{itemize}
+\item After a while, it gets confident about a negative:  E($[.01, .01, .98] = .11$), and that token won't influence what notes get picket to annotate
+\item If a note has examples that we are completely uninformed about (maximum entropy), we'd gravitate towards those notes:  E($[.33, .33, .33] = 1.1$)
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Meta-considerations}
+This isn't a causal model, so the usual caveats about feature importance apply
+\begin{itemize}
+\item That said, it'd be useful to know what sort of features trigger positives and negatives for these frailty aspects
+\item Standard permutation importance is usually only done for RF's but can be coded for any model
+\end{itemize}
+Fairness:
+\begin{itemize}
+\item What happens if our model is much less certain about patients who are/aren't black/white/men/women/rich/indigent?
+\item Do we think it's likely that clinicians write differently about patients who are different -- consciously or unconsciously, intentionally or otherwise?
+\item Can we apply post-hoc statistical fixes to correct for such biases?
+\end{itemize}
+\end{frame}
 \end{document}
