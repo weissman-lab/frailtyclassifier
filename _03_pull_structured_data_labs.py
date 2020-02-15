@@ -173,10 +173,9 @@ else:
 
 
 '''
-Now, build a dataset that pulls their most recent values
+Now, build a dataset that pulls their means, SDs, and counts
 '''
 # pull the most recent CSN from the concatenated notes df
-
 df['PAT_ENC_CSN_ID'] = df.CSNS.apply(lambda x: int(x.split(",")[0]))
 # write a function that takes a row of the concatenated notes DF and outputs a dict of lab values
 def recent_labs(i):
