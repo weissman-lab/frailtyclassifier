@@ -28,10 +28,11 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 import inspect
 import sys
+import multiprocessing as mp
+import platform
 
-anno_dir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/"
-webanno_output = "frailty_phenotype_batch_1_2020-02-05_1016"
-file = os.listdir(f"{anno_dir+webanno_output}/labels/")[0]
+outdir = f"{os.getcwd()}/output/"
+anno_dir = f"{os.getcwd()}/annotation/"
 
 # take the file and filter it with the masking function
 def remove_headers(fi):
@@ -61,22 +62,19 @@ def remove_headers(fi):
     fi = fi[fi.token != "\n "]
     return fi
 
-# these are functions for putting into the aggfunc dictionary
-def wmean(Emat, kernel):
-    kernel = kernel/sum(kernel)
-    return Emat.T @ kernel
 
 
 
-def featurize(file, # the name of the token/label file
-              anno_dir, # the location of the annotation output
-              webanno_output, # the specific webanno object, processed per the function in _05_tokenize_and_label.py
+
+def featurize(file,  # the name of the token/label file
+              anno_dir,  # the location of the annotation output
+              webanno_output,  # the specific webanno object, processed per the function in _05_tokenize_and_label.py
               bandwidth,  # the bandwidth of the window
               kernel,  # The weights kernel, for weighted functions
               embeddings,  # this is either the path to the embeddings (in which case they will be loaded) or the filename of the loaded embeddings
-              aggfuncdict, # this is a dictionary of functions to apply
-              indices = None, # the specific indices of the file to process
-              howmany = "all"): # if idx is not None, this is how many random indices to pull
+              aggfuncdict,  # this is a dictionary of functions to apply
+              indices,  # the specific indices of the file to process
+              howmany):  # if idx is not None, this is how many random indices to pull
     # First check and see whether the embeddings object is loaded
     if isinstance(embeddings, str): # load it if it's not
         embeddings = KeyedVectors.load(embeddings, mmap='r')
@@ -107,13 +105,16 @@ def featurize(file, # the name of the token/label file
         tokdf["k"] = ktrim
         # incovab isn't relevant to fasttext, but it doesn't fail for fasttext either
         tokdf["invocab"] = [1 if embeddings.__contains__(tokdf.token.iloc[i]) else 0 for i in range(nrow(tokdf))]
+        # zero-out the kernel if the word isn't in the vocab
+        tokdf.loc[tokdf.invocab == 0, 'k'] = 0
         # create the embeddings matrix
-        Emat = np.vstack([embeddings[tokdf.token.iloc[i]] for i in range(nrow(tokdf)) if tokdf.invocab.iloc[i] == 1])
+        Emat = np.vstack([embeddings[tokdf.token.iloc[i]] if tokdf.invocab.iloc[i] == 1
+                          else np.zeros(embeddings.vector_size) for i in range(nrow(tokdf))])
         # apply the aggregation functions to it
         for i in range(len(aggfuncdict)):
             ki = list(aggfuncdict.keys())[i]
             if 'kernel' in inspect.getfullargspec(aggfuncdict[ki]).args:
-                res = aggfuncdict[ki](Emat, tokdf.k[tokdf.invocab == 1])
+                res = aggfuncdict[ki](Emat, tokdf.k)
             else:
                 res = aggfuncdict[ki](Emat)
             for j in range(len(res)):
@@ -124,224 +125,56 @@ def featurize(file, # the name of the token/label file
         l.append(mm)
     return pd.concat(l).reset_index(drop=True)
 
-aggfunc = dict(identity = lambda x: x[(nrow(x)//2),:],
-               lag1 = lambda x: x[(nrow(x)//2-1),:],
-               lag2 = lambda x: x[(nrow(x)//2-2),:],
-               wmean = wmean)
-    #            max = lambda x: np.amax(x, axis=0),
-    #            min = lambda x: np.amin(x, axis=0))
-
-fi = os.listdir('/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/frailty_phenotype_batch_1_2020-02-05_1016/labels')
-ll = []
-for i in fi:
-    x = featurize(file = i,
-                  anno_dir = anno_dir,
-                  webanno_output = webanno_output,
-                  bandwidth=30,
-                  kernel = norm.pdf(np.linspace(-3,3,30*2)),
-                  embeddings = wv,
-                  aggfuncdict=aggfunc,
-                  howmany="all")
-    ll.append(x)
-    print(sys.getsizeof(ll)/1e6)
 
 
 def makeds(argsdict):
-    embeddings = argsdict['enbeddings']
-    bandwidth = argsdict['bandiwdth']
-    ll = []
-    for i in fi:
-        x = featurize(file=i,
-                      anno_dir=anno_dir,
-                      webanno_output=webanno_output,
-                      bandwidth=bandwidth,
-                      kernel=norm.pdf(np.linspace(-3, 3, bandwidth * 2)),
-                      embeddings=embeddings,
-                      aggfuncdict=aggfunc,
-                      howmany="all")
-        ll.append(x)
+    dicts_for_starmap = [(i,
+                          anno_dir,
+                          webanno_output,
+                          argsdict['bandwidth'],
+                          norm.pdf(np.linspace(-3, 3, argsdict['bandwidth'] * 2)),
+                          argsdict['embeddings'],
+                          aggfunc,
+                          None,
+                          "all") for i in argsdict['fi']]
+    pool = mp.Pool(argsdict['ncores'])
+    ll = pool.starmap(featurize, dicts_for_starmap, chunksize=1)
+    pool.close()
     outfile = pd.concat(ll)
-    outfile.to_csv(f'{os.getcwd()}/output/test_data_{embeddings.split("/")[-1].split(".")[0]}_bw{bandwidth}.csv')
+    outfile.to_csv(f'{outdir}/test_data_{argsdict["embeddings"].split("/")[-1].split(".")[0]}_bw{argsdict["bandwidth"]}.csv')
 
+# these are functions for putting into the aggfunc dictionary
+def wmean(Emat, kernel):
+    kernel = kernel/sum(kernel)
+    return Emat.T @ kernel
 
-'''
-Next:
-Download the new annotations, decompress them, process, amke sure fine, then replicate on GRACE
-Test the embeddings locally.
-Get the dataset creator running on grace
-'''
+def identity(x):
+    return x[(nrow(x)//2),:]
 
+def lag1(x):
+    return x[(nrow(x)//2-1),:]
 
-embeddings = '/Users/crandrew/projects/pwe/output/trained_models/w2v_d100.wv'
-wv = KeyedVectors.load(embeddings, mmap='r')
+def lag2(x):
+    return x[(nrow(x)//2-2),:]
 
+aggfunc = dict(identity = identity,
+               lag1 = lag1,
+               lag2 = lag2,
+               wmean = wmean)
 
-ff = pd.concat(ll)
-ff.note.nunique()
-ff.to_csv(f'{os.getcwd()}/output/foo.csv')
+webanno_output = "frailty_phenotype_batch_1_2020-02-17_1147"
 
-
-
-# fi = remove_headers(fi)
-# fi.head()
-#
-# # pick a center word
-# center = np.random.choice(nrow(fi))
-# # instantiate the output dictionary
-# outdict = dict(index = fi.index[center],
-#                note = file)
-# # make a data frame to keep track of the kernel and whether or not words are in the vocab
-# # the window is the raw index of the df
-# window = list(range((center-bandwidth),(center+bandwidth)))
-# # trim the kernel, for cases where the window overlaps the edges of the note
-# ktrim = [kernel[i] for i in range(len(window)) if window[i]>=0 and window[i]< nrow(fi)]
-#
-# idx = [i for i in window if i >= 0 and i < nrow(fi)]
-# tokdf = pd.DataFrame(fi.token.iloc[idx].str.lower())
-# tokdf["k"] = ktrim
-# tokdf["invocab"] = [1 if wv.__contains__(tokdf.token.iloc[i]) else 0 for i in range(nrow(tokdf))]
-# # create the embeddings matrix
-# Emat = np.vstack([wv[tokdf.token.iloc[i]] for i in range(nrow(tokdf)) if tokdf.invocab.iloc[i] == 1])
-# # apply the aggregation functions to it
-# for i in range(len(aggfunc)):
-#     ki = list(aggfunc.keys())[i]
-#     if 'kernel' in inspect.getfullargspec(aggfunc[ki]).args:
-#         res = aggfunc[ki](Emat, tokdf.k[tokdf.invocab == 1])
-#     else:
-#         res = aggfunc[ki](Emat)
-#     for j in range(len(res)):
-#         outdict[ki+"_"+str(j)] = res[j]
-#
-# outframe = pd.DataFrame(outdict, index = [0])
-# mm = fi.merge(outframe, left_index = True, right_on = 'index', copy = False)
-#
-#
-#
-# '''
-# Picking up from ACD pulling files from webanno & converting JSON file into labels
-# This script will tokenize the source documents & create a word embedding matrix
-# '''
-#
-# import pandas as pd
-# from _99_project_module import read_txt, read_json, process_webanno_output
-# import os
-# import re
-# import spacy
-# import gensim
-# from gensim.models import Word2Vec
-#
-# pd.options.display.max_rows = 4000
-# pd.options.display.max_columns = 4000
-#
-# anno_dir = f'{os.getcwd()}/annotation/'
-# os.listdir(anno_dir)
-#
-#
-# # unzip the output file
-# webanno_output = 'ACD_sandbox_2020-01-27_1007.zip'
-# annotator_of_record = 'andrew'
-# webanno_unzipped_dir = re.sub('\.zip', "", webanno_output)
-# test_dir = re.sub('/labels', "", anno_dir+webanno_unzipped_dir)
-# if webanno_unzipped_dir not in os.listdir(anno_dir):
-#     process_webanno_output(anno_dir, webanno_output)
-#     os.system(f"mkdir {anno_dir+webanno_unzipped_dir}/labels/")
-#
-#
-# # load the spacy stuff
-# # note: may need to load spacy model en with this script in terminal: [full path to python interpreter] -m spacy download en
-# nlp = spacy.load("en", disable=['parser', 'tagger', 'ner'])
-#
-#
-# # stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
-# tags = ['Functionalimpairment', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
-# mapping_dict = dict(frailty_nos = "Functionalimpairment",
-#                     msk_prob_tags = "Msk_prob",
-#                     nutrition = "Nutrition",
-#                     resp_imp_tags = "Resp_imp",
-#                     fall_risk_tags = "Fall_risk")
-#
-# print(anno_dir) #/Users/jmartin89/Documents/Frailty/frailty_classifier/annotation/
-# print(webanno_unzipped_dir) #ACD_sandbox_2020-01-27_1007
-# for stub in os.listdir(anno_dir+webanno_unzipped_dir+"/annotation"):
-#     # get the annotation file and process it into something that I can work with
-#     anno = read_json(f"{anno_dir+webanno_unzipped_dir}/annotation/{stub}/{annotator_of_record}.json")
-#     l = []
-#     for i in tags:
-#         try:
-#             l.append(pd.DataFrame(anno["_views"]["_InitialView"][i]))
-#         except Exception:
-#             pass
-#     tag_df = pd.concat(l, sort = True)
-#     tag_df.drop(columns='sofa', inplace=True)
-#     tag_df = pd.melt(tag_df, id_vars=['begin', 'end'])
-#     tag_df = tag_df[~tag_df.value.isnull()]
-#     tag_df.value = [1 if 'yes' in i else -1 for i in tag_df.value]
-#     # get the original note and tokenize it
-#     note = read_txt(f"{anno_dir + webanno_unzipped_dir}/source/{stub}")
-#     res = nlp(note)
-#     span_df = pd.DataFrame([{"token": i.text, 'length': len(i.text_with_ws)} for i in res])
-#     span_df['end'] = span_df.length.cumsum().astype(int)
-#     span_df['start'] = span_df.end - span_df.length
-#     assert int(span_df.end[-1:]) == len(note)
-#     # merge them on
-#     for i in tags:
-#         span_df[i] = 0
-#     for i in range(tag_df.shape[0]):
-#         var = mapping_dict[tag_df.variable.iloc[i]]
-#         span_df.loc[(span_df.end > tag_df.begin.iloc[i]) &
-#                     (span_df.start < tag_df.end.iloc[i]), var] = tag_df.value.iloc[i]
-#     outfn = re.sub('\.txt', '_labels.pkl', stub)
-#     span_df.to_pickle(f"{anno_dir + webanno_unzipped_dir}/labels/{outfn}")
-#
-# #convert gensim word2vec into format usable by spacy
-# from gensim.models import Word2Vec, keyedvectors
-# word2vec = Word2Vec.load('/Users/jmartin89/Documents/Frailty/JMworkingproj/W2V_300/w2v_OA_CR_300d.bin')
-# word2vec.wv.save_word2vec_format('w2v_test.txt')
-# # code for terminal: python -m spacy init-model en /Users/jmartin89/Documents/Frailty/frailty_classifier/spacy/w2v_300 --vectors-loc /Users/jmartin89/Documents/Frailty/frailty_classifier/w2v_test.txt
-# word2vec_load = spacy.load('/Users/jmartin89/Documents/Frailty/frailty_classifier/spacy/w2v_300')
-# #load the note from above with word2vec as language
-# w2v_note = word2vec_load(note)
-# #test print the tokens
-# for token in w2v_note:
-#     print(token)
-# #test print the token vectors
-# for token in w2v_note:
-#     print('Vector for %s:' % token, token.vector)
-#
-#
-#
-#
-#
-#
-# '''
-# Define a span in terms of token length or span length.
-# For each span, construct a one-hot-encoded vector of it.
-# Do the semanic vector enrichment, but implement it as an option.
-# Each one-hot will be TxV.  Word embeddings take that to TxD.  Need to get it to 1xD.
-# There can be multiple 1xD transformations.  Some of those transformations can be dependent on the TFIDF probability or whatever
-# It's also the case that there is parameter vector of dimension Tx1 such that I can take transposed embedded text and
-# take it to 1xD.  That would effectively be a windower.
-# '''
-#
-# from gensim.models import Word2Vec, keyedvectors
-# import numpy as np
-# word2vec = Word2Vec.load('/Users/crandrew/projects/pwe/output/trained_models/w2v_d100.wv')
-# 1+1
-#
-# np.sum((word2vec['blood'] - word2vec['plasma'])**2)
-#
-# def euc(x, y):
-#     return (np.sum((x-y)**2))**.5
-#
-# euc(word2vec['pulmonary'], word2vec['lung'])
-#
-#
-# b = np.array([.1,.8, .1])
-#
-#
-# '''
-# embeddings:
-#
-# 1xd * dxv
-# basically SEVR is nust a weighted sum of the embeddings!
-# '''
+if platform.uname()[1] == "grace":
+    # OA embeddings
+    OA = os.popen("find /proj/cwe/built_models/OA_CR |grep -E 'bin' | grep -v .npy").read().split("\n")
+    # penn
+    uphs = os.popen("find /data/penn_cwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
+    #
+    Efiles = [i for i in OA + uphs if len(i) > 0]
+    print(Efiles)
+    print(len(Efiles))
+    # BW30
+    for e in Efiles:
+        makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+                    embeddings=e,
+                    bandwidth=30, ncores=mp.cpu_count()))
