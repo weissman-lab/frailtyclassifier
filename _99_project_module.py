@@ -209,7 +209,10 @@ def process_webanno_output(anno_dir, output_file):
     for i in os.listdir(anno_dir + output_dir + "/annotation"):  # note that the dirs are named after the text files
         cmd = f"unzip -n {anno_dir + output_dir}/annotation/{i}/\*.zip -d {anno_dir + output_dir}/annotation/{i}/"
         os.system(cmd)
-
+    # same with curation
+    for i in os.listdir(anno_dir + output_dir + "/curation"):  # note that the dirs are named after the text files
+        cmd = f"unzip -n {anno_dir + output_dir}/curation/{i}/\*.zip -d {anno_dir + output_dir}/curation/{i}/"
+        os.system(cmd)
 
 def nrow(x):
     return x.shape[0]

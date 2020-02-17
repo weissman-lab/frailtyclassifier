@@ -32,9 +32,6 @@ import sys
 anno_dir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/"
 webanno_output = "frailty_phenotype_batch_1_2020-02-05_1016"
 file = os.listdir(f"{anno_dir+webanno_output}/labels/")[0]
-embeddings = '/Users/crandrew/projects/pwe/output/trained_models/w2v_d100.wv'
-wv = KeyedVectors.load(embeddings, mmap='r')
-
 
 # take the file and filter it with the masking function
 def remove_headers(fi):
@@ -130,9 +127,9 @@ def featurize(file, # the name of the token/label file
 aggfunc = dict(identity = lambda x: x[(nrow(x)//2),:],
                lag1 = lambda x: x[(nrow(x)//2-1),:],
                lag2 = lambda x: x[(nrow(x)//2-2),:],
-               wmean = wmean,
-               max = lambda x: np.amax(x, axis=0),
-               min = lambda x: np.amin(x, axis=0))
+               wmean = wmean)
+    #            max = lambda x: np.amax(x, axis=0),
+    #            min = lambda x: np.amin(x, axis=0))
 
 fi = os.listdir('/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/frailty_phenotype_batch_1_2020-02-05_1016/labels')
 ll = []
@@ -149,6 +146,34 @@ for i in fi:
     print(sys.getsizeof(ll)/1e6)
 
 
+def makeds(argsdict):
+    embeddings = argsdict['enbeddings']
+    bandwidth = argsdict['bandiwdth']
+    ll = []
+    for i in fi:
+        x = featurize(file=i,
+                      anno_dir=anno_dir,
+                      webanno_output=webanno_output,
+                      bandwidth=bandwidth,
+                      kernel=norm.pdf(np.linspace(-3, 3, bandwidth * 2)),
+                      embeddings=embeddings,
+                      aggfuncdict=aggfunc,
+                      howmany="all")
+        ll.append(x)
+    outfile = pd.concat(ll)
+    outfile.to_csv(f'{os.getcwd()}/output/test_data_{embeddings.split("/")[-1].split(".")[0]}_bw{bandwidth}.csv')
+
+
+'''
+Next:
+Download the new annotations, decompress them, process, amke sure fine, then replicate on GRACE
+Test the embeddings locally.
+Get the dataset creator running on grace
+'''
+
+
+embeddings = '/Users/crandrew/projects/pwe/output/trained_models/w2v_d100.wv'
+wv = KeyedVectors.load(embeddings, mmap='r')
 
 
 ff = pd.concat(ll)
