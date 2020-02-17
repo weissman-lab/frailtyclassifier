@@ -83,58 +83,58 @@ if "labs_raw.pkl" not in os.listdir(outdir):
     labdf = pd.concat(labout)
     labdf.to_pickle(f"{outdir}labs_raw.pkl")
 
-    # aggregate the labs and quality check them
-    labdf.loc[labdf.COMMON_NAME == "UREA NITROGEN", "COMMON_NAME"] = "BUN"
-    labdf.loc[labdf.COMMON_NAME == "POTASSIUM PLASMA", "COMMON_NAME"] = "POTASSIUM"
-    labdf.loc[labdf.COMMON_NAME == "PHOSPHOROUS", "COMMON_NAME"] = "PHOSPHATE"
-    labdf.loc[labdf.COMMON_NAME == "PHOSPHORUS", "COMMON_NAME"] = "PHOSPHATE"
-    labdf.loc[labdf.COMMON_NAME == "TSH W/REFLEX TO FT4", "COMMON_NAME"] = "TSH"
-    labdf.loc[labdf.COMMON_NAME == "TSH+ FREE T4", "COMMON_NAME"] = "TSH"
-    labdf.loc[labdf.COMMON_NAME == "TSH, 3RD GENERATION (REFL)", "COMMON_NAME"] = "TSH"
-    labdf.loc[labdf.COMMON_NAME == "TSH-ICMA", "COMMON_NAME"] = "TSH"
-    labdf.loc[labdf.COMMON_NAME == "HYPOTHYROIDISM/TSH", "COMMON_NAME"] = "TSH"
-    labdf.loc[labdf.COMMON_NAME == "ALKALINE PHOSPHATASE", "COMMON_NAME"] = "ALKALINE_PHOSPHATASE"
-    labdf.loc[labdf.COMMON_NAME == "ALK PHOS, TOTAL", "COMMON_NAME"] = "ALKALINE_PHOSPHATASE"
-    labdf.loc[labdf.COMMON_NAME == "PROTEIN TOTAL", "COMMON_NAME"] = "PROTEIN"
-    labdf.loc[labdf.COMMON_NAME == "TOTAL PROTEIN", "COMMON_NAME"] = "PROTEIN"
-    labdf.loc[labdf.COMMON_NAME == "BILIRUBIN TOTAL", "COMMON_NAME"] = "BILIRUBIN"
-    labdf.loc[labdf.COMMON_NAME == "MEAN CELLULAR VOLUME", "COMMON_NAME"] = "MCV"
-    labdf.loc[labdf.COMMON_NAME == "MEAN CELLULAR HEMOGLOBIN CONCENTRATION", "COMMON_NAME"] = "MCHC"
-    labdf.loc[labdf.COMMON_NAME == "BICARBONATE", "COMMON_NAME"] = "CO2"
-    labdf.loc[labdf.COMMON_NAME == "CARBON DIOXIDE", "COMMON_NAME"] = "CO2"
-    labdf.loc[labdf.COMMON_NAME == "TOTAL IRON BINDING C", "COMMON_NAME"] = "TRANSFERRIN"
-    labdf.loc[labdf.COMMON_NAME == "TOTAL IRON BINDING CAPACITY", "COMMON_NAME"] = "TRANSFERRIN"
-    labdf.loc[labdf.COMMON_NAME == "IRON BINDING", "COMMON_NAME"] = "TRANSFERRIN"
-    labdf.loc[labdf.COMMON_NAME == "IRON BINDING CAPACITY", "COMMON_NAME"] = "TRANSFERRIN"
-    labdf.loc[labdf.COMMON_NAME == "TRANSFERRIN SATURATI", "COMMON_NAME"] = "TRANSFERRIN_SAT"
-    labdf.loc[labdf.COMMON_NAME == "TRANSFERRIN SATURATION", "COMMON_NAME"] = "TRANSFERRIN_SAT"
-    labdf.loc[labdf.COMMON_NAME == "IRON SATURATION", "COMMON_NAME"] = "TRANSFERRIN_SAT"
-    labdf.loc[labdf.COMMON_NAME == "CHOLESTEROL CALCULATED LOW DENSITY LIPOPROTEIN", "COMMON_NAME"] = "LDL"
-    labdf.loc[labdf.COMMON_NAME == "CHOLESTEROL DIRECT LDL", "COMMON_NAME"] = "LDL"
-    labdf.loc[labdf.COMMON_NAME == "LOW DENSITY LIPOPROT", "COMMON_NAME"] = "LDL"
-    labdf.loc[labdf.COMMON_NAME == "QLDL", "COMMON_NAME"] = "LDL"
-    labdf.loc[labdf.COMMON_NAME == "Q LEUKOCYTES", "COMMON_NAME"] = "WBC"
-    
-
-    # convert  to numeric
-    labdf['VAL_NUM'] = np.nan
-    # use the limits where < and > are specified
-    labdf.ORD_VALUE = labdf.ORD_VALUE.str.replace(">", "")
-    labdf.ORD_VALUE = labdf.ORD_VALUE.str.replace("<", "")
-
-
-    # convert to float where possible, throw an error otherwise
-    def f(x):
-        try:
-            return float(x)
-        except Exception:
-            return -999.0
-
-
-    labdf['VAL_NUM'] = labdf.ORD_VALUE.apply(f)
-    # drop the ones that don't fit the filter
-    labdf = labdf.loc[labdf.VAL_NUM != -999.0]
-    labdf = labdf.drop(columns="ORD_VALUE")
+    # # aggregate the labs and quality check them
+    # labdf.loc[labdf.COMMON_NAME == "UREA NITROGEN", "COMMON_NAME"] = "BUN"
+    # labdf.loc[labdf.COMMON_NAME == "POTASSIUM PLASMA", "COMMON_NAME"] = "POTASSIUM"
+    # labdf.loc[labdf.COMMON_NAME == "PHOSPHOROUS", "COMMON_NAME"] = "PHOSPHATE"
+    # labdf.loc[labdf.COMMON_NAME == "PHOSPHORUS", "COMMON_NAME"] = "PHOSPHATE"
+    # labdf.loc[labdf.COMMON_NAME == "TSH W/REFLEX TO FT4", "COMMON_NAME"] = "TSH"
+    # labdf.loc[labdf.COMMON_NAME == "TSH+ FREE T4", "COMMON_NAME"] = "TSH"
+    # labdf.loc[labdf.COMMON_NAME == "TSH, 3RD GENERATION (REFL)", "COMMON_NAME"] = "TSH"
+    # labdf.loc[labdf.COMMON_NAME == "TSH-ICMA", "COMMON_NAME"] = "TSH"
+    # labdf.loc[labdf.COMMON_NAME == "HYPOTHYROIDISM/TSH", "COMMON_NAME"] = "TSH"
+    # labdf.loc[labdf.COMMON_NAME == "ALKALINE PHOSPHATASE", "COMMON_NAME"] = "ALKALINE_PHOSPHATASE"
+    # labdf.loc[labdf.COMMON_NAME == "ALK PHOS, TOTAL", "COMMON_NAME"] = "ALKALINE_PHOSPHATASE"
+    # labdf.loc[labdf.COMMON_NAME == "PROTEIN TOTAL", "COMMON_NAME"] = "PROTEIN"
+    # labdf.loc[labdf.COMMON_NAME == "TOTAL PROTEIN", "COMMON_NAME"] = "PROTEIN"
+    # labdf.loc[labdf.COMMON_NAME == "BILIRUBIN TOTAL", "COMMON_NAME"] = "BILIRUBIN"
+    # labdf.loc[labdf.COMMON_NAME == "MEAN CELLULAR VOLUME", "COMMON_NAME"] = "MCV"
+    # labdf.loc[labdf.COMMON_NAME == "MEAN CELLULAR HEMOGLOBIN CONCENTRATION", "COMMON_NAME"] = "MCHC"
+    # labdf.loc[labdf.COMMON_NAME == "BICARBONATE", "COMMON_NAME"] = "CO2"
+    # labdf.loc[labdf.COMMON_NAME == "CARBON DIOXIDE", "COMMON_NAME"] = "CO2"
+    # labdf.loc[labdf.COMMON_NAME == "TOTAL IRON BINDING C", "COMMON_NAME"] = "TRANSFERRIN"
+    # labdf.loc[labdf.COMMON_NAME == "TOTAL IRON BINDING CAPACITY", "COMMON_NAME"] = "TRANSFERRIN"
+    # labdf.loc[labdf.COMMON_NAME == "IRON BINDING", "COMMON_NAME"] = "TRANSFERRIN"
+    # labdf.loc[labdf.COMMON_NAME == "IRON BINDING CAPACITY", "COMMON_NAME"] = "TRANSFERRIN"
+    # labdf.loc[labdf.COMMON_NAME == "TRANSFERRIN SATURATI", "COMMON_NAME"] = "TRANSFERRIN_SAT"
+    # labdf.loc[labdf.COMMON_NAME == "TRANSFERRIN SATURATION", "COMMON_NAME"] = "TRANSFERRIN_SAT"
+    # labdf.loc[labdf.COMMON_NAME == "IRON SATURATION", "COMMON_NAME"] = "TRANSFERRIN_SAT"
+    # labdf.loc[labdf.COMMON_NAME == "CHOLESTEROL CALCULATED LOW DENSITY LIPOPROTEIN", "COMMON_NAME"] = "LDL"
+    # labdf.loc[labdf.COMMON_NAME == "CHOLESTEROL DIRECT LDL", "COMMON_NAME"] = "LDL"
+    # labdf.loc[labdf.COMMON_NAME == "LOW DENSITY LIPOPROT", "COMMON_NAME"] = "LDL"
+    # labdf.loc[labdf.COMMON_NAME == "QLDL", "COMMON_NAME"] = "LDL"
+    # labdf.loc[labdf.COMMON_NAME == "Q LEUKOCYTES", "COMMON_NAME"] = "WBC"
+    #
+    #
+    # # convert  to numeric
+    # labdf['VAL_NUM'] = np.nan
+    # # use the limits where < and > are specified
+    # labdf.ORD_VALUE = labdf.ORD_VALUE.str.replace(">", "")
+    # labdf.ORD_VALUE = labdf.ORD_VALUE.str.replace("<", "")
+    #
+    #
+    # # convert to float where possible, throw an error otherwise
+    # def f(x):
+    #     try:
+    #         return float(x)
+    #     except Exception:
+    #         return -999.0
+    #
+    #
+    # labdf['VAL_NUM'] = labdf.ORD_VALUE.apply(f)
+    # # drop the ones that don't fit the filter
+    # labdf = labdf.loc[labdf.VAL_NUM != -999.0]
+    # labdf = labdf.drop(columns="ORD_VALUE")
 
     # names = labdf.COMMON_NAME.unique()
     # names.sort()
@@ -149,79 +149,79 @@ if "labs_raw.pkl" not in os.listdir(outdir):
     # print(labdf.loc[(labdf.COMMON_NAME == names[i])].groupby('REFERENCE_UNIT').count())
     # i += 1
 
-    # convert mg/dl albumin to grams
-    labdf.loc[(labdf.REFERENCE_UNIT == "mg/dL") & (labdf.COMMON_NAME == "ALBUMIN"), "VAL_NUM"] /= 1000
-    labdf.loc[(labdf.REFERENCE_UNIT == "mg/dL") & (labdf.COMMON_NAME == "ALBUMIN"), "REFERENCE_UNIT"] = 'g/dL'
-    # drop the percent in Alkaline phosphotase
-    labdf = labdf.drop(labdf[(labdf.COMMON_NAME == "ALKALINE_PHOSPHATASE") & (labdf.REFERENCE_UNIT == "%")].index)
-    print(labdf.shape)
-    # drop hemoglobin when no in g/dl
-    labdf = labdf.drop(labdf[(labdf.COMMON_NAME == "HEMOGLOBIN") & (labdf.REFERENCE_UNIT != "g/dL")].index)
-    print(labdf.shape)
-    # drop LDL with nanomoles
-    labdf = labdf.drop(labdf[(labdf.COMMON_NAME == "LDL") & (labdf.REFERENCE_UNIT == "nmol/L")].index)
-    print(labdf.shape)
-    # drop protein when not in g/dl
-    labdf = labdf.drop(labdf[(labdf.COMMON_NAME == "HEMOGLOBIN") & (labdf.REFERENCE_UNIT == "mg/dL")].index)
-    # drop the reference unit field now that they're all standardized
-    labdf = labdf.drop(columns = "REFERENCE_UNIT")
-    # save
-    labdf.to_pickle(f"{outdir}labs_raw.pkl")
+    # # convert mg/dl albumin to grams
+    # labdf.loc[(labdf.REFERENCE_UNIT == "mg/dL") & (labdf.COMMON_NAME == "ALBUMIN"), "VAL_NUM"] /= 1000
+    # labdf.loc[(labdf.REFERENCE_UNIT == "mg/dL") & (labdf.COMMON_NAME == "ALBUMIN"), "REFERENCE_UNIT"] = 'g/dL'
+    # # drop the percent in Alkaline phosphotase
+    # labdf = labdf.drop(labdf[(labdf.COMMON_NAME == "ALKALINE_PHOSPHATASE") & (labdf.REFERENCE_UNIT == "%")].index)
+    # print(labdf.shape)
+    # # drop hemoglobin when no in g/dl
+    # labdf = labdf.drop(labdf[(labdf.COMMON_NAME == "HEMOGLOBIN") & (labdf.REFERENCE_UNIT != "g/dL")].index)
+    # print(labdf.shape)
+    # # drop LDL with nanomoles
+    # labdf = labdf.drop(labdf[(labdf.COMMON_NAME == "LDL") & (labdf.REFERENCE_UNIT == "nmol/L")].index)
+    # print(labdf.shape)
+    # # drop protein when not in g/dl
+    # labdf = labdf.drop(labdf[(labdf.COMMON_NAME == "HEMOGLOBIN") & (labdf.REFERENCE_UNIT == "mg/dL")].index)
+    # # drop the reference unit field now that they're all standardized
+    # labdf = labdf.drop(columns = "REFERENCE_UNIT")
+    # # save
+    # labdf.to_pickle(f"{outdir}labs_raw.pkl")
 
 else:
     labdf = pd.read_pickle(f"{outdir}labs_raw.pkl")
 
 
-'''
-Now, build a dataset that pulls their means, SDs, and counts
-'''
-# pull the most recent CSN from the concatenated notes df
-df['PAT_ENC_CSN_ID'] = df.CSNS.apply(lambda x: int(x.split(",")[0]))
-# write a function that takes a row of the concatenated notes DF and outputs a dict of lab values
-def recent_labs(i):
-    try:
-        ldf = labdf.loc[(labdf.PAT_ID == df.PAT_ID.iloc[i]) &
-                        (labdf.RESULT_TIME <= df.LATEST_TIME.iloc[i] + pd.DateOffset(days=1)) & # the deals with the fact that the times might be rounded down to the nearest day sometimes
-                        (labdf.RESULT_TIME >= df.LATEST_TIME.iloc[i] - pd.DateOffset(months=6))
-                        ]
-        if nrow(ldf) > 0:
-            g = ldf.groupby(["COMMON_NAME"])
-            mu = g['VAL_NUM'].mean()
-            sig = g['VAL_NUM'].std()
-            N = g['VAL_NUM'].count()
-            outdict = {**{**dict(zip(mu.index.tolist(), mu.tolist())),
-                          **dict(zip(["sd_"+ j for j in sig.index.tolist()], sig.tolist()))},
-                        **dict(zip(["n_"+ j for j in N.index.tolist()], N.tolist()))}
-            return(outdict)
-        else:
-            return
-    except Exception as e:
-        print(f"======={i}======")
-        print(e)
-        return e
-        
-pool = mp.Pool(processes=mp.cpu_count())
-start = time.time()
-rlabs = pool.map(recent_labs, range(nrow(df)), chunksize=1)
-print(time.time() - start)
-pool.close()
-
-# oh snap!  I forgot to put the coordinates in
-assert(len(rlabs) == nrow(df))
-for i in range(len(rlabs)):
-    if type(rlabs[i]).__name__ == "dict":
-        rlabs[i].update({'PAT_ID':df.PAT_ID.iloc[i]})
-        rlabs[i].update({'PAT_ENC_CSN_ID':df.PAT_ENC_CSN_ID.iloc[i]})
-    
-
-
-errs = [i for i in range(len(rlabs)) if type(rlabs[i]).__name__ != "dict"]
-rlabs_fixed = [i for i in rlabs if type(i).__name__ == "dict"]
-
-labs_6m = pd.DataFrame(rlabs_fixed)
-
-
-labs_6m.to_pickle(f"{outdir}labs_6m.pkl")
+# '''
+# Now, build a dataset that pulls their means, SDs, and counts
+# '''
+# # pull the most recent CSN from the concatenated notes df
+# df['PAT_ENC_CSN_ID'] = df.CSNS.apply(lambda x: int(x.split(",")[0]))
+# # write a function that takes a row of the concatenated notes DF and outputs a dict of lab values
+# def recent_labs(i):
+#     try:
+#         ldf = labdf.loc[(labdf.PAT_ID == df.PAT_ID.iloc[i]) &
+#                         (labdf.RESULT_TIME <= df.LATEST_TIME.iloc[i] + pd.DateOffset(days=1)) & # the deals with the fact that the times might be rounded down to the nearest day sometimes
+#                         (labdf.RESULT_TIME >= df.LATEST_TIME.iloc[i] - pd.DateOffset(months=6))
+#                         ]
+#         if nrow(ldf) > 0:
+#             g = ldf.groupby(["COMMON_NAME"])
+#             mu = g['VAL_NUM'].mean()
+#             sig = g['VAL_NUM'].std()
+#             N = g['VAL_NUM'].count()
+#             outdict = {**{**dict(zip(mu.index.tolist(), mu.tolist())),
+#                           **dict(zip(["sd_"+ j for j in sig.index.tolist()], sig.tolist()))},
+#                         **dict(zip(["n_"+ j for j in N.index.tolist()], N.tolist()))}
+#             return(outdict)
+#         else:
+#             return
+#     except Exception as e:
+#         print(f"======={i}======")
+#         print(e)
+#         return e
+#
+# pool = mp.Pool(processes=mp.cpu_count())
+# start = time.time()
+# rlabs = pool.map(recent_labs, range(nrow(df)), chunksize=1)
+# print(time.time() - start)
+# pool.close()
+#
+# # oh snap!  I forgot to put the coordinates in
+# assert(len(rlabs) == nrow(df))
+# for i in range(len(rlabs)):
+#     if type(rlabs[i]).__name__ == "dict":
+#         rlabs[i].update({'PAT_ID':df.PAT_ID.iloc[i]})
+#         rlabs[i].update({'PAT_ENC_CSN_ID':df.PAT_ENC_CSN_ID.iloc[i]})
+#
+#
+#
+# errs = [i for i in range(len(rlabs)) if type(rlabs[i]).__name__ != "dict"]
+# rlabs_fixed = [i for i in rlabs if type(i).__name__ == "dict"]
+#
+# labs_6m = pd.DataFrame(rlabs_fixed)
+#
+#
+# labs_6m.to_pickle(f"{outdir}labs_6m.pkl")
 
 
 

@@ -148,6 +148,9 @@ for i in fi:
     ll.append(x)
     print(sys.getsizeof(ll)/1e6)
 
+
+
+
 ff = pd.concat(ll)
 ff.note.nunique()
 ff.to_csv(f'{os.getcwd()}/output/foo.csv')
