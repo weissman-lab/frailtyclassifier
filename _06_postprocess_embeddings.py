@@ -106,8 +106,9 @@ def featurize(file,  # the name of the token/label file
         tokdf["k"] = ktrim
         # incovab isn't relevant to fasttext, but it doesn't fail for fasttext either
         tokdf["invocab"] = [1 if embeddings.__contains__(tokdf.token.iloc[i]) else 0 for i in range(nrow(tokdf))]
-        # zero-out the kernel if the word isn't in the vocab
-        tokdf.loc[tokdf.invocab == 0, 'k'] = 0
+        # zero-out the kernel if the word isn't in the vocab, but only for w2v
+        if "Word2Vec" in type(embeddings).__name__:
+            tokdf.loc[tokdf.invocab == 0, 'k'] = 0
         # create the embeddings matrix
         Emat = np.vstack([embeddings[tokdf.token.iloc[i]] if tokdf.invocab.iloc[i] == 1
                           else np.zeros(embeddings.vector_size) for i in range(nrow(tokdf))])
@@ -171,14 +172,22 @@ if platform.uname()[1] == "grace":
     # penn
     uphs = os.popen("find /data/penn_cwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
     #
-    Efiles = [i for i in OA + uphs if len(i) > 0]
-    print(Efiles)
-    print(len(Efiles))
-    # BW30
-    for e in Efiles:
-        print(e)
-        start = time.time()
-        makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-                    embeddings=e,
-                    bandwidth=30, ncores=mp.cpu_count()))
-        print(f"done in {(time.time()-start)/60} minutes")
+elif platform.uname()[1] == 'PAIR-ADM-010.local':
+    # OA embeddings
+    OA = os.popen("find /Users/crandrew/projects/clinical_word_embeddings |grep -E 'bin' | grep -v .npy").read().split("\n")
+    # penn
+    uphs = os.popen("find /Users/crandrew/projects/pwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
+    #
+
+Efiles = [i for i in OA + uphs if len(i) > 0]
+print(Efiles)
+print(len(Efiles))
+# BW30
+for e in Efiles:
+    print(e)
+    start = time.time()
+    makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+                embeddings=e,
+                bandwidth=30, ncores=mp.cpu_count()))
+    print(f"done in {(time.time()-start)/60} minutes")
+
