@@ -30,6 +30,7 @@ import inspect
 import sys
 import multiprocessing as mp
 import platform
+import time
 
 outdir = f"{os.getcwd()}/output/"
 anno_dir = f"{os.getcwd()}/annotation/"
@@ -175,6 +176,9 @@ if platform.uname()[1] == "grace":
     print(len(Efiles))
     # BW30
     for e in Efiles:
+        print(e)
+        start = time.time()
         makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
                     embeddings=e,
                     bandwidth=30, ncores=mp.cpu_count()))
+        print(f"done in {(time.time()-start)/60} minutes")
