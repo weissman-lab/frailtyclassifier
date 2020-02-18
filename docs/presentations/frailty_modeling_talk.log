@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.8)  14 FEB 2020 11:44
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.8)  18 FEB 2020 13:00
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1414,20 +1414,27 @@ Package pdftex.def Info: embeddings_example.jpeg  used on input line 172.
 (pdftex.def)             Requested size: 276.559pt x 173.86958pt.
  [13
 
- <./embeddings_example.jpeg>] [14
+ <./embeddings_example.jpeg>]
+<cosine_sim_2.jpg, id=269, 640.3925pt x 480.79625pt>
+File: cosine_sim_2.jpg Graphic file (type jpg)
+<use cosine_sim_2.jpg>
+Package pdftex.def Info: cosine_sim_2.jpg  used on input line 177.
+(pdftex.def)             Requested size: 276.559pt x 207.64072pt.
+ [14
 
-] [15
+ <./cosine_sim_2.jpg>]
+[15
 
 ] [16
 
+] [17
+
 ]
-Overfull \hbox (19.74275pt too wide) detected at line 253
+Overfull \hbox (19.74275pt too wide) detected at line 258
 [] [] \OT1/lmr/m/n/10 = []
  []
 
-[17
-
-] [18
+[18
 
 ] [19
 
@@ -1435,122 +1442,128 @@ Overfull \hbox (19.74275pt too wide) detected at line 253
 
 ] [21
 
+] [22
+
 ]
-Overfull \hbox (13.28067pt too wide) detected at line 369
+Overfull \hbox (13.28067pt too wide) detected at line 374
 \OML/lmm/b/it/10 G[] \OT1/lmr/m/n/10 = []
  []
 
-[22
-
-] [23
+[23
 
 ] [24
 
+] [25
+
 ]
-LaTeX Font Info:    Try loading font information for OT1+lmtt on input line 411
+LaTeX Font Info:    Try loading font information for OT1+lmtt on input line 416
 .
  (/usr/local/texlive/2019/texmf-dist/tex/latex/lm/ot1lmtt.fd
 File: ot1lmtt.fd 2009/10/30 v1.6 Font defs for Latin Modern
 )
-[25
+[26
 
-] [26
+] [27
 
 ]
 </Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Fall_r
-isk.pdf, id=358, 578.16pt x 433.62pt>
+isk.pdf, id=365, 578.16pt x 433.62pt>
 File: /Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_F
 all_risk.pdf Graphic file (type pdf)
 <use /Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Fa
 ll_risk.pdf>
 Package pdftex.def Info: /Users/crandrew/projects/GW_PAIR_frailty_classifier/fi
-gures/exploratory_Fall_risk.pdf  used on input line 432.
+gures/exploratory_Fall_risk.pdf  used on input line 437.
 (pdftex.def)             Requested size: 334.94482pt x 251.20865pt.
 
-Overfull \hbox (27.65495pt too wide) in paragraph at lines 432--432
+Overfull \hbox (27.65495pt too wide) in paragraph at lines 437--437
 [][]  
  []
 
 
-Overfull \vbox (5.69803pt too high) detected at line 432
+Overfull \vbox (5.69803pt too high) detected at line 437
  []
 
-[27
+[28
 
  </Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Fall_
 risk.pdf>]
 </Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Nutrit
-ion.pdf, id=371, 578.16pt x 433.62pt>
+ion.pdf, id=378, 578.16pt x 433.62pt>
 File: /Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_N
 utrition.pdf Graphic file (type pdf)
 <use /Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Nu
 trition.pdf>
 Package pdftex.def Info: /Users/crandrew/projects/GW_PAIR_frailty_classifier/fi
-gures/exploratory_Nutrition.pdf  used on input line 436.
+gures/exploratory_Nutrition.pdf  used on input line 441.
 (pdftex.def)             Requested size: 334.94482pt x 251.20865pt.
 
-Overfull \hbox (27.65495pt too wide) in paragraph at lines 436--436
+Overfull \hbox (27.65495pt too wide) in paragraph at lines 441--441
 [][]  
  []
 
 
-Overfull \vbox (5.69803pt too high) detected at line 436
+Overfull \vbox (5.69803pt too high) detected at line 441
  []
 
-[28
+[29
 
  </Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Nutri
 tion.pdf>]
 </Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Resp_i
-mp.pdf, id=384, 578.16pt x 433.62pt>
+mp.pdf, id=391, 578.16pt x 433.62pt>
 File: /Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_R
 esp_imp.pdf Graphic file (type pdf)
 <use /Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Re
 sp_imp.pdf>
 Package pdftex.def Info: /Users/crandrew/projects/GW_PAIR_frailty_classifier/fi
-gures/exploratory_Resp_imp.pdf  used on input line 440.
+gures/exploratory_Resp_imp.pdf  used on input line 445.
 (pdftex.def)             Requested size: 334.94482pt x 251.20865pt.
 
-Overfull \hbox (27.65495pt too wide) in paragraph at lines 440--440
+Overfull \hbox (27.65495pt too wide) in paragraph at lines 445--445
 [][]  
  []
 
 
-Overfull \vbox (5.69803pt too high) detected at line 440
+Overfull \vbox (5.69803pt too high) detected at line 445
  []
 
-[29
+[30
 
  </Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Resp_
 imp.pdf>]
 </Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Msk_pr
-ob.pdf, id=397, 578.16pt x 433.62pt>
+ob.pdf, id=404, 578.16pt x 433.62pt>
 File: /Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_M
 sk_prob.pdf Graphic file (type pdf)
 <use /Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Ms
 k_prob.pdf>
 Package pdftex.def Info: /Users/crandrew/projects/GW_PAIR_frailty_classifier/fi
-gures/exploratory_Msk_prob.pdf  used on input line 444.
+gures/exploratory_Msk_prob.pdf  used on input line 449.
 (pdftex.def)             Requested size: 334.94482pt x 251.20865pt.
 
-Overfull \hbox (27.65495pt too wide) in paragraph at lines 444--444
+Overfull \hbox (27.65495pt too wide) in paragraph at lines 449--449
 [][]  
  []
 
 
-Overfull \vbox (5.69803pt too high) detected at line 444
+Overfull \vbox (5.69803pt too high) detected at line 449
  []
 
-[30
+[31
 
  </Users/crandrew/projects/GW_PAIR_frailty_classifier/figures/exploratory_Msk_p
-rob.pdf>] [31
-
-] [32
+rob.pdf>] [32
 
 ] [33
 
 ] [34
+
+] [35
+
+] [36
+
+] [37
 
 ]
 \tf@nav=\write6
@@ -1562,20 +1575,20 @@ rob.pdf>] [31
 \tf@snm=\write8
 \openout8 = `frailty_modeling_talk.snm'.
 
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 507.
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 507.
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 538.
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 538.
  (./frailty_modeling_talk.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 507.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 507.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 538.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 538.
 Package rerunfilecheck Info: File `frailty_modeling_talk.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 28555 strings out of 492616
- 545053 string characters out of 6129482
- 613411 words of memory out of 5000000
- 31883 multiletter control sequences out of 15000+600000
- 597951 words of font info for 75 fonts, out of 8000000 for 9000
+ 28575 strings out of 492616
+ 545288 string characters out of 6129482
+ 613407 words of memory out of 5000000
+ 31894 multiletter control sequences out of 15000+600000
+ 600897 words of font info for 76 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  57i,12n,74p,812b,412s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/local/texlive/2019/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}{/usr/local/
@@ -1583,29 +1596,30 @@ texlive/2019/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}{/usr/local/texlive/20
 19/texmf-dist/fonts/enc/dvips/lm/lm-rmtt.enc}{/usr/local/texlive/2019/texmf-dis
 t/fonts/enc/dvips/lm/lm-mathsy.enc}{/usr/local/texlive/2019/texmf-dist/fonts/en
 c/dvips/lm/lm-mathex.enc}</usr/local/texlive/2019/texmf-dist/fonts/type1/public
-/lm/lmbx10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmbx7.
-pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmbxi10.pfb></usr
-/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmex10.pfb></usr/local/tex
-live/2019/texmf-dist/fonts/type1/public/lm/lmmi10.pfb></usr/local/texlive/2019/
-texmf-dist/fonts/type1/public/lm/lmmi7.pfb></usr/local/texlive/2019/texmf-dist/
-fonts/type1/public/lm/lmmi9.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1
-/public/lm/lmmib10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/l
-m/lmr10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmr17.pfb
-></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmr5.pfb></usr/local
-/texlive/2019/texmf-dist/fonts/type1/public/lm/lmr7.pfb></usr/local/texlive/201
-9/texmf-dist/fonts/type1/public/lm/lmr9.pfb></usr/local/texlive/2019/texmf-dist
-/fonts/type1/public/lm/lmri10.pfb></usr/local/texlive/2019/texmf-dist/fonts/typ
-e1/public/lm/lmri9.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/l
-m/lmss10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmss12.p
-fb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/l
-ocal/texlive/2019/texmf-dist/fonts/type1/public/lm/lmsy7.pfb></usr/local/texliv
-e/2019/texmf-dist/fonts/type1/public/lm/lmsy9.pfb></usr/local/texlive/2019/texm
-f-dist/fonts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2019/texmf-dist/fon
-ts/type1/public/amsfonts/symbols/msam10.pfb>
-Output written on frailty_modeling_talk.pdf (34 pages, 1034120 bytes).
+/lm/lmbx10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmbx12
+.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmbx7.pfb></usr/
+local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmbxi10.pfb></usr/local/tex
+live/2019/texmf-dist/fonts/type1/public/lm/lmex10.pfb></usr/local/texlive/2019/
+texmf-dist/fonts/type1/public/lm/lmmi10.pfb></usr/local/texlive/2019/texmf-dist
+/fonts/type1/public/lm/lmmi7.pfb></usr/local/texlive/2019/texmf-dist/fonts/type
+1/public/lm/lmmi9.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm
+/lmmib10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmr10.pf
+b></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmr17.pfb></usr/loc
+al/texlive/2019/texmf-dist/fonts/type1/public/lm/lmr5.pfb></usr/local/texlive/2
+019/texmf-dist/fonts/type1/public/lm/lmr7.pfb></usr/local/texlive/2019/texmf-di
+st/fonts/type1/public/lm/lmr9.pfb></usr/local/texlive/2019/texmf-dist/fonts/typ
+e1/public/lm/lmri10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/
+lm/lmri9.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmss10.p
+fb></usr/local/texlive/2019/texmf-dist/fonts/type1/public/lm/lmss12.pfb></usr/l
+ocal/texlive/2019/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/local/texli
+ve/2019/texmf-dist/fonts/type1/public/lm/lmsy7.pfb></usr/local/texlive/2019/tex
+mf-dist/fonts/type1/public/lm/lmsy9.pfb></usr/local/texlive/2019/texmf-dist/fon
+ts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2019/texmf-dist/fonts/type1/p
+ublic/amsfonts/symbols/msam10.pfb>
+Output written on frailty_modeling_talk.pdf (37 pages, 1086001 bytes).
 PDF statistics:
- 528 PDF objects out of 1000 (max. 8388607)
- 312 compressed objects within 4 object streams
- 69 named destinations out of 1000 (max. 500000)
- 98 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 556 PDF objects out of 1000 (max. 8388607)
+ 335 compressed objects within 4 object streams
+ 75 named destinations out of 1000 (max. 500000)
+ 103 words of extra memory for PDF output out of 10000 (max. 10000000)
 

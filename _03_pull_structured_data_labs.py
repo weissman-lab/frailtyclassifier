@@ -35,6 +35,16 @@ outdir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/"
 df = pd.read_pickle((f'{outdir}conc_notes_df.pkl'))
 
 
+df.head()
+import matplotlib.pyplot as plt
+df['month'] = (df.LATEST_TIME.dt.year - 2018)*12 + df.LATEST_TIME.dt.month
+xx = df[['month', 'n_comorb']].groupby('month').mean()
+plt.plot(xx)
+plt.xlabel('month')
+plt.ylabel('n_comorb')
+plt.show()
+
+
 '''
 labs
 '''

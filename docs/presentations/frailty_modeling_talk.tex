@@ -171,6 +171,11 @@ Different embedding methods do this in different ways, but all create analogous 
 \includegraphics[width=.9\textwidth]{embeddings_example.jpeg}
 \end{frame}
 
+\begin{frame}{Embeddings in pictures}
+\centering
+\includegraphics[width=.9\textwidth]{cosine_sim_2.jpg}
+\end{frame}
+
 \begin{frame}{Embeddings in math}
 (a simple) Embedding model:
 \[
@@ -456,12 +461,7 @@ Bandwidth set to 30
 	\begin{itemize}
 	\item Basically it'd be giving the AI a cribsheet
 	\end{itemize}
-\item Likewise it'll be important to think carefully about model architecture, including
-	\begin{itemize}
-	\item Directionality (probably both)
-	\item Representation windowing -- maybe 1d dilated convolutions on top of LSTM output, in a manner analogous to an attention mechanism?
-	\end{itemize}
-\item Suggestions especially welcome here
+\item Likewise it'll be important to think carefully about model architecture, especially around questons of context (negation, allusion, etc.)
 \end{itemize}
 \end{frame}
 
@@ -469,25 +469,27 @@ Bandwidth set to 30
 How do we take the output of models fit to the first 25 patient notes and use them to pick the most fruitful notes to annotate next?
 \begin{itemize}
 \item Standard approach is to pick examples that we're maximally uncertain about
+\item \textit{Entropy} is a useful measure of uncertainty from information theory
 \end{itemize}
-Entropy:  $-\displaystyle\sum_{c}p(class = c)log(p(class = c))$
+Entropy $\equiv$ H =  $-\displaystyle\sum_{c}p(class = c)log(p(class = c))$
 \begin{itemize}
-\item We're going to pick notes that have a lot of entropy
+\item It is maximized when you know nothing about which class an example belongs to.
+\item We're going to pick notes that have a lot of entropy.
 \item Not obvious how best to aggregate entropy over the note.  Thinking perhaps an average over the top quantile.  Maybe decile.
-\item We're going to feed annotators batches of 25 notes at a time.
+% \item We're going to feed annotators batches of 25 notes at a time.
 \end{itemize}
 \end{frame}
 
 \begin{frame}{Active learning}
 Example:  In the beginning, the model isn't very good and will default to the dominant class (neutral)
 \begin{itemize}
-\item A token that the model thinks is neutral will have low entropy:  E($[.01, .98, .01] = .11$)
-\item If the model thinks that \textit{maybe} another token might be positive, entropy will be a little lower:  E($[.1, .88, .01] = .39$).  That token will make the note more likely to get picked.
+\item A token that the model thinks is neutral will have low entropy:  H($[.01, .98, .01] = .11$)
+\item If the model thinks that \textit{maybe} another token might be positive, entropy will be a little lower:  H($[.1, .88, .01] = .39$).  That token will make the note more likely to get picked.
 \end{itemize}
 Eventually, the model will get better about distinguishing the positive classes:
 \begin{itemize}
 \item After a while, it gets confident about a negative:  E($[.01, .01, .98] = .11$), and that token won't influence what notes get picket to annotate
-\item If a note has examples that we are completely uninformed about (maximum entropy), we'd gravitate towards those notes:  E($[.33, .33, .33] = 1.1$)
+\item If a note has examples that we are completely uninformed about (maximum entropy), we'd gravitate towards those notes:  H($[.33, .33, .33] = 1.1$)
 \end{itemize}
 \end{frame}
 
@@ -504,4 +506,33 @@ Fairness:
 \item Can we apply post-hoc statistical fixes to correct for such biases?
 \end{itemize}
 \end{frame}
+
+\begin{frame}{Wrapup}
+Takeaways, challenges, and points to discuss:
+\begin{itemize}
+\item We are annotating and predicting labels on spans of text, but
+	\begin{itemize}
+	\item how do we classify actual patients?
+	\end{itemize}		
+\item Context is critical in text modeling.  
+	\begin{itemize}
+	\item What are the best ways to represent it?
+	\end{itemize}		
+\item After the first batches of notes, we're going to pick subsequent notes about which we're maximally uncertain.  
+	\begin{itemize}
+	\item But what is the best way to aggregate that uncertainty?
+	\end{itemize}		
+\item Bias is likely to pop up along the way.  
+	\begin{itemize}
+	\item How can we plan for it?
+	\end{itemize}		
+
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\huge{\textbf{Thanks!}}
+\end{frame}
+
+
 \end{document}
