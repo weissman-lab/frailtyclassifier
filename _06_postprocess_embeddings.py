@@ -64,7 +64,16 @@ def remove_headers(fi):
     return fi
 
 
-
+def embeddings_catcher(tok, embeddings):
+    '''
+    This function is a workaround for the fact that some OOV words throw errors in the OA corpus, because the
+    dictionary wasn't identical to the corpus.
+    Tok is a string and embeddings is a gensim object
+    '''
+    try:
+        return embeddings[tok]
+    except Exception:
+        return np.zeros(embeddings.vector_size)
 
 
 def featurize(file,  # the name of the token/label file
@@ -106,12 +115,11 @@ def featurize(file,  # the name of the token/label file
         tokdf["k"] = ktrim
         # incovab isn't relevant to fasttext, but it doesn't fail for fasttext either
         tokdf["invocab"] = [1 if embeddings.__contains__(tokdf.token.iloc[i]) else 0 for i in range(nrow(tokdf))]
-        # zero-out the kernel if the word isn't in the vocab, but only for w2v
-        if "Word2Vec" in type(embeddings).__name__:
-            tokdf.loc[tokdf.invocab == 0, 'k'] = 0
         # create the embeddings matrix
-        Emat = np.vstack([embeddings[tokdf.token.iloc[i]] if tokdf.invocab.iloc[i] == 1
+        Emat = np.vstack([embeddings_catcher([tokdf.token.iloc[i]], embeddings) if tokdf.invocab.iloc[i] == 1
                           else np.zeros(embeddings.vector_size) for i in range(nrow(tokdf))])
+        # Emat = np.vstack([embeddings[tokdf.token.iloc[i]] if tokdf.invocab.iloc[i] == 1
+        #                   else np.zeros(embeddings.vector_size) for i in range(nrow(tokdf))])
         # apply the aggregation functions to it
         for i in range(len(aggfuncdict)):
             ki = list(aggfuncdict.keys())[i]
@@ -128,9 +136,8 @@ def featurize(file,  # the name of the token/label file
     return pd.concat(l).reset_index(drop=True)
 
 
-
 def makeds(argsdict):
-    dicts_for_starmap = [(i,
+    tuples_for_starmap = [(i,
                           anno_dir,
                           webanno_output,
                           argsdict['bandwidth'],
@@ -140,7 +147,7 @@ def makeds(argsdict):
                           None,
                           "all") for i in argsdict['fi']]
     pool = mp.Pool(argsdict['ncores'])
-    ll = pool.starmap(featurize, dicts_for_starmap, chunksize=1)
+    ll = pool.starmap(featurize, tuples_for_starmap, chunksize=1)
     pool.close()
     outfile = pd.concat(ll)
     outfile.to_csv(f'{outdir}/test_data_{argsdict["embeddings"].split("/")[-1].split(".")[0]}_bw{argsdict["bandwidth"]}.csv')
@@ -179,15 +186,21 @@ elif platform.uname()[1] == 'PAIR-ADM-010.local':
     uphs = os.popen("find /Users/crandrew/projects/pwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
     #
 
+
+bandwidth = 30
 Efiles = [i for i in OA + uphs if len(i) > 0]
 print(Efiles)
 print(len(Efiles))
+# remove if already done:
 # BW30
 for e in Efiles:
     print(e)
-    start = time.time()
-    makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-                embeddings=e,
-                bandwidth=30, ncores=mp.cpu_count()))
-    print(f"done in {(time.time()-start)/60} minutes")
+    if f'test_data_{e.split("/")[-1].split(".")[0]}_bw{bandwidth}.csv' not in outdir:
+        start = time.time()
+        makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+                    embeddings=e,
+                    bandwidth=bandwidth, ncores=mp.cpu_count()))
+        print(f"done in {(time.time()-start)/60} minutes")
+
+
 
