@@ -141,7 +141,7 @@ def makeds(argsdict):
                           anno_dir,
                           webanno_output,
                           argsdict['bandwidth'],
-                          norm.pdf(np.linspace(-3, 3, argsdict['bandwidth'] * 2)),
+                          argsdict['kernel'],
                           argsdict['embeddings'],
                           aggfunc,
                           None,
@@ -187,7 +187,7 @@ elif platform.uname()[1] == 'PAIR-ADM-010.local':
     #
 
 
-bandwidth = 30
+bandwidth = 5
 Efiles = [i for i in OA + uphs if len(i) > 0]
 print(Efiles)
 print(len(Efiles))
@@ -199,8 +199,30 @@ for e in Efiles:
         start = time.time()
         makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
                     embeddings=e,
-                    bandwidth=bandwidth, ncores=mp.cpu_count()))
+                    kernel = np.ones(bandwidth*2),
+                    bandwidth=bandwidth,
+                    ncores=mp.cpu_count()))
         print(f"done in {(time.time()-start)/60} minutes")
 
 
 
+
+# bandwidth = 30
+# Efiles = [i for i in OA + uphs if len(i) > 0]
+# print(Efiles)
+# print(len(Efiles))
+# # remove if already done:
+# # BW30
+# for e in Efiles:
+#     print(e)
+#     if f'test_data_{e.split("/")[-1].split(".")[0]}_bw{bandwidth}.csv' not in outdir:
+#         start = time.time()
+#         makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+#                     embeddings=e,
+#                     kernel = norm.pdf(np.linspace(-3, 3, argsdict['bandwidth'] * 2)),
+#                     bandwidth=bandwidth,
+#                     ncores=mp.cpu_count()))
+#         print(f"done in {(time.time()-start)/60} minutes")
+#
+#
+#
