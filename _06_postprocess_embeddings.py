@@ -14,6 +14,8 @@ The function will take the following arguments:
 - file:  the file to pull observations from.  random if none
 - idx: indices to pull.  random if none
 - maskfun:  function to apply to the data frame to preprocess it.  It might be used to remove metadata, or change case
+
+
 '''
 
 import os
@@ -22,7 +24,7 @@ pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 import re
 import numpy as np
-from _99_project_module import nrow, write_txt
+from _99_project_module import nrow, write_txt, ncol
 from gensim.models import KeyedVectors
 from scipy.stats import norm
 import matplotlib.pyplot as plt
@@ -82,9 +84,8 @@ def featurize(file,  # the name of the token/label file
               bandwidth,  # the bandwidth of the window
               kernel,  # The weights kernel, for weighted functions
               embeddings,  # this is either the path to the embeddings (in which case they will be loaded) or the filename of the loaded embeddings
-              aggfuncdict,  # this is a dictionary of functions to apply
-              indices,  # the specific indices of the file to process
-              howmany):  # if idx is not None, this is how many random indices to pull
+              aggfuncdict,
+              lagorder = 0):  # if idx is not None, this is how many random indices to pull
     # First check and see whether the embeddings object is loaded
     if isinstance(embeddings, str): # load it if it's not
         embeddings = KeyedVectors.load(embeddings, mmap='r')
@@ -93,12 +94,37 @@ def featurize(file,  # the name of the token/label file
     fi = pd.read_pickle(f"{anno_dir + webanno_output}/labels/{file}")
     fi = remove_headers(fi)
     # now figure out which rows to process
-    if howmany == "all":
-        centers = list(range(nrow(fi)))
-    elif isinstance(howmany, int) and (indices is None):
-        centers = np.random.choice(nrow(fi), howmany, replace=False)
-    else:
-        centers = indices
+    centers = list(range(nrow(fi)))
+    # loop through the words and make an embeddings matrix
+    Elist = [embeddings_catcher(i, embeddings) for i in fi.token]
+    # make a variable that indicates whether the word was found in the vocab
+    fi['invocab'] = [1 if len(set(Elist[i]))>1 else 0 for i in range(len(Elist))]
+    # loop through the functions and apply them to the list of embeddings
+    outlist = []
+    # identity
+    Emat = np.vstack(Elist)
+    outlist.append(pd.DataFrame(data = Emat,
+                     index = fi.index.tolist(),
+                     columns = ["identity_"+ str(i) for i in range(ncol(x))]))
+    # lags
+    for lag in range(1, lagorder):
+        x = np.concatenate([np.vstack(Elist[lag:]),
+                            np.zeros((lag, len(Elist[0])))],
+                           axis = 0)
+        outlist.append(pd.DataFrame(data=x,
+                       index=fi.index.tolist(),
+                       columns=["lag_"+str(lag)+"_" + str(i) for i in range(ncol(x))]).tail())
+    # functions in dictionary
+    for center in centers:
+        window = list(range((center - bandwidth), (center + bandwidth)))
+        trwindow = [i for i in window if i >= 0 and i < nrow(fi)]
+        # remove elements that are zero'd out
+        idx = [trwindow[i] for i in range(len(trwindow)) if fi.invocab.iloc[trwindow].iloc[i] == i]
+        # trim the kernel, for cases where the window overlaps the edges of the note
+        ktrim = [kernel[i] for i in range(len(window)) if window[i] >= 0 and window[i] < nrow(fi)]
+
+
+
     # loop through the centers and get the rows
     l = []
     for center in centers:
@@ -143,9 +169,7 @@ def makeds(argsdict):
                           argsdict['bandwidth'],
                           argsdict['kernel'],
                           argsdict['embeddings'],
-                          aggfunc,
-                          None,
-                          "all") for i in argsdict['fi']]
+                          aggfunc) for i in argsdict['fi']]
     pool = mp.Pool(argsdict['ncores'])
     ll = pool.starmap(featurize, tuples_for_starmap, chunksize=1)
     pool.close()

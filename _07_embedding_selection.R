@@ -9,7 +9,10 @@ registerDoParallel(detectCores())
 
 outdir <- "~/projects/GW_PAIR_frailty_classifier/output/"
 figdir <- "~/projects/GW_PAIR_frailty_classifier/figures/"
-
+if (Sys.info()['nodename'] == 'grace') {
+  outdir <- "/media/drv2/andrewcd2/frailty/output/"
+  figdir <- "/media/drv2/andrewcd2/frailty/figures/"
+}
 # load all the datasets that we'll be testing
 ds <- list.files(outdir, pattern = "test_data_")
 yvars <- c("Msk_prob","Nutrition","Resp_imp", "Fall_risk")
