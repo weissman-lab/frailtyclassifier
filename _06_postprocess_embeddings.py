@@ -105,7 +105,7 @@ def featurize(file,  # the name of the token/label file
     Emat = np.vstack(Elist)
     outlist.append(pd.DataFrame(data = Emat,
                      index = fi.index.tolist(),
-                     columns = ["identity_"+ str(i) for i in range(ncol(x))]))
+                     columns = ["identity_"+ str(i) for i in range(ncol(Emat))]))
     # lags
     for lag in range(1, lagorder):
         x = np.concatenate([np.vstack(Elist[lag:]),
@@ -113,53 +113,24 @@ def featurize(file,  # the name of the token/label file
                            axis = 0)
         outlist.append(pd.DataFrame(data=x,
                        index=fi.index.tolist(),
-                       columns=["lag_"+str(lag)+"_" + str(i) for i in range(ncol(x))]).tail())
+                       columns=["lag_"+str(lag)+"_" + str(i) for i in range(ncol(x))]))
     # functions in dictionary
-    for center in centers:
-        window = list(range((center - bandwidth), (center + bandwidth)))
-        trwindow = [i for i in window if i >= 0 and i < nrow(fi)]
-        # remove elements that are zero'd out
-        idx = [trwindow[i] for i in range(len(trwindow)) if fi.invocab.iloc[trwindow].iloc[i] == i]
-        # trim the kernel, for cases where the window overlaps the edges of the note
-        ktrim = [kernel[i] for i in range(len(window)) if window[i] >= 0 and window[i] < nrow(fi)]
-
-
-
-    # loop through the centers and get the rows
-    l = []
-    for center in centers:
-        # instantiate the output dictionary
-        outdict = dict(index=fi.index[center],
-                       note=file)
-        # make a data frame to keep track of the kernel and whether or not words are in the vocab
-        # the window is the raw index of the df
-        window = list(range((center - bandwidth), (center + bandwidth)))
-        # trim the kernel, for cases where the window overlaps the edges of the note
-        ktrim = [kernel[i] for i in range(len(window)) if window[i] >= 0 and window[i] < nrow(fi)]
-        idx = [i for i in window if i >= 0 and i < nrow(fi)]
-        tokdf = pd.DataFrame(fi.token.iloc[idx].str.lower())
-        tokdf["k"] = ktrim
-        # incovab isn't relevant to fasttext, but it doesn't fail for fasttext either
-        tokdf["invocab"] = [1 if embeddings.__contains__(tokdf.token.iloc[i]) else 0 for i in range(nrow(tokdf))]
-        # create the embeddings matrix
-        Emat = np.vstack([embeddings_catcher([tokdf.token.iloc[i]], embeddings) if tokdf.invocab.iloc[i] == 1
-                          else np.zeros(embeddings.vector_size) for i in range(nrow(tokdf))])
-        # Emat = np.vstack([embeddings[tokdf.token.iloc[i]] if tokdf.invocab.iloc[i] == 1
-        #                   else np.zeros(embeddings.vector_size) for i in range(nrow(tokdf))])
-        # apply the aggregation functions to it
-        for i in range(len(aggfuncdict)):
-            ki = list(aggfuncdict.keys())[i]
-            if 'kernel' in inspect.getfullargspec(aggfuncdict[ki]).args:
-                res = aggfuncdict[ki](Emat, tokdf.k)
-            else:
-                res = aggfuncdict[ki](Emat)
-            for j in range(len(res)):
-                outdict[ki + "_" + str(j)] = res[j]
-        outframe = pd.DataFrame(outdict, index=[0])
-        mm = fi.merge(outframe, left_index=True, right_on='index', copy=False)
-        assert nrow(mm) == 1
-        l.append(mm)
-    return pd.concat(l).reset_index(drop=True)
+    if aggfuncdict is not None:
+        for fname in list(aggfuncdict.keys()):
+            # pre-allocate a matrix to take the function's input
+            empty = np.zeros((nrow(fi), ncol(Emat)))
+            for center in centers:
+                window = list(range((center - bandwidth), (center + bandwidth)))
+                trwindow = [i for i in window if i >= 0 and i < nrow(fi) and fi.invocab.iloc[i] == 1]
+                # trim the kernel, for cases where the window overlaps the edges of the note
+                ktrim = np.array([kernel[i] for i in range(len(window)) if window[i] in trwindow])
+                empty[center,:] = aggfuncdict['wmean'](Emat[trwindow,:], ktrim)
+            outlist.append(pd.DataFrame(data=empty,
+                                        index=fi.index.tolist(),
+                                        columns=[fname + "_" + str(i) for i in range(ncol(Emat))]))
+    # construct output
+    output = pd.concat([fi]+outlist, axis = 1)
+    return output.reset_index(drop=True)
 
 
 def makeds(argsdict):
@@ -169,7 +140,8 @@ def makeds(argsdict):
                           argsdict['bandwidth'],
                           argsdict['kernel'],
                           argsdict['embeddings'],
-                          aggfunc) for i in argsdict['fi']]
+                          aggfunc,
+                          argsdict['lagorder']) for i in argsdict['fi']]
     pool = mp.Pool(argsdict['ncores'])
     ll = pool.starmap(featurize, tuples_for_starmap, chunksize=1)
     pool.close()
@@ -181,19 +153,7 @@ def wmean(Emat, kernel):
     kernel = kernel/sum(kernel)
     return Emat.T @ kernel
 
-def identity(x):
-    return x[(nrow(x)//2),:]
-
-def lag1(x):
-    return x[(nrow(x)//2-1),:]
-
-def lag2(x):
-    return x[(nrow(x)//2-2),:]
-
-aggfunc = dict(identity = identity,
-               lag1 = lag1,
-               lag2 = lag2,
-               wmean = wmean)
+aggfunc = dict(wmean = wmean)
 
 webanno_output = "frailty_phenotype_batch_1_2020-02-17_1147"
 
@@ -211,7 +171,7 @@ elif platform.uname()[1] == 'PAIR-ADM-010.local':
     #
 
 
-bandwidth = 5
+bandwidth = 10
 Efiles = [i for i in OA + uphs if len(i) > 0]
 print(Efiles)
 print(len(Efiles))
@@ -225,7 +185,8 @@ for e in Efiles:
                     embeddings=e,
                     kernel = np.ones(bandwidth*2),
                     bandwidth=bandwidth,
-                    ncores=mp.cpu_count()))
+                    ncores=mp.cpu_count(),
+                    lagorder = 2))
         print(f"done in {(time.time()-start)/60} minutes")
 
 
