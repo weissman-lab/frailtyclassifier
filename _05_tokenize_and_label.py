@@ -73,7 +73,8 @@ def tokenize_and_label(anno_dir, webanno_output, annotator_of_record = "CURATION
         outfn = re.sub('\.txt', '_labels.pkl', stub)
         span_df.to_pickle(f"{anno_dir + webanno_unzipped_dir}/labels/{outfn}")
 
-tokenize_and_label(f'{os.getcwd()}/annotation/', "frailty_phenotype_batch_1_2020-02-17_1147.zip")
+tokenize_and_label(f'{os.getcwd()}/annotation/',
+                   "frailty_phenotype_batch_1_2020-02-17_1147.zip")
 
 
 

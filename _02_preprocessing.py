@@ -342,9 +342,19 @@ for i in conc_notes_df.month.unique():
         kind = "lp"
 
 
-
-
-
+# 25 random notes from 2019
+import os
+np.random.seed(5446)
+subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
+previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02")
+previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 25)]
+for i in range(25):
+    towrite = subsubsubset.combined_notes.iloc[i]
+    fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    with open(f'{outdir}/notes_output/batch_03/{fi}', "w") as f:
+        f.write(towrite)
 
 
 

@@ -93,6 +93,9 @@ def featurize(file,  # the name of the token/label file
     # now load the file and remove its headers (note concatenation indicators)
     fi = pd.read_pickle(f"{anno_dir + webanno_output}/labels/{file}")
     fi = remove_headers(fi)
+    # add metadata
+    fi['index'] = fi.index
+    fi['note'] = file
     # now figure out which rows to process
     centers = list(range(nrow(fi)))
     # loop through the words and make an embeddings matrix
@@ -183,13 +186,11 @@ for e in Efiles:
         start = time.time()
         makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
                     embeddings=e,
-                    kernel = np.ones(bandwidth*2),
+                    kernel = norm.pdf(np.linspace(-3, 3, bandwidth * 2)),
                     bandwidth=bandwidth,
                     ncores=mp.cpu_count(),
                     lagorder = 2))
         print(f"done in {(time.time()-start)/60} minutes")
-
-
 
 
 # bandwidth = 30
