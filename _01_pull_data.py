@@ -203,9 +203,6 @@ else:
     raw_notes_df = pd.read_pickle(f"{datadir}raw_notes_df.pkl")
 
 
-
-
-
 #
 # # do a batch download.  first specify a base query, and iteratively substitute out the ":ids" string with
 # # blobs of UIDs.  as above, it only does this if it's not already on disk.

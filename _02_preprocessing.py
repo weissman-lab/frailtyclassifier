@@ -63,8 +63,6 @@ def med_list_span_finder(x):
     keeper_phrases = ["assessment"]
     st_idx = [m.start() for m in re.finditer("|".join(start_phrases), x)]
     stop_idx = [m.start() for m in re.finditer("|".join(stop_phrases), x)]
-
-    # for each instance of pmh, define a span up to the subseqent.  cut that span at the next instance of 'past surgical history'
     spans = []
     try:
         for j in range(len(st_idx)):
@@ -88,7 +86,6 @@ def med_list_span_finder(x):
                     if any(re.finditer("|".join(cutter_phrases), span)):
                         # thing that if it has it can't be cut
                         if not any(re.finditer("|".join(keeper_phrases), span)):
-                            extra = x[endpos:(endpos+200)]
                             spans.append((startpos, endpos))
         return spans
     except Exception as e:
@@ -97,6 +94,7 @@ def med_list_span_finder(x):
 
 def cut_medlists(x):
     spans = med_list_span_finder(x)
+    spans.reverse() # reverse the spans, so that re_sub cuts from the bottom.  If this isn't done, the spans that get cut will no longer correspond with the original note.
     for i in spans:
         cut = x[i[0]:i[1]]
         x = re.sub(re.escape(cut), "---medlist_was_here_but_got_cut----", x)
