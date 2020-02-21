@@ -21,6 +21,7 @@ import re
 import multiprocessing as mp
 import time
 import numpy as np
+from _99_project_module import write_txt
 
 datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/"
 outdir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/"
@@ -96,9 +97,11 @@ def cut_medlists(x):
     spans = med_list_span_finder(x)
     spans.reverse() # reverse the spans, so that re_sub cuts from the bottom.  If this isn't done, the spans that get cut will no longer correspond with the original note.
     for i in spans:
-        cut = x[i[0]:i[1]]
-        x = re.sub(re.escape(cut), "---medlist_was_here_but_got_cut----", x)
+        left = x[:i[0]]
+        right = x[i[1]:]
+        x = left + "---medlist_was_here_but_got_cut----" + right
     return x
+
 
 pool = mp.Pool(mp.cpu_count())
 start = time.time()
