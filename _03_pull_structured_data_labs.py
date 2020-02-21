@@ -41,7 +41,6 @@ labs
 if "labs_raw.pkl" not in os.listdir(outdir):
     # load the file with all of the lab names
     labnames = read_txt("labnames_for_structured_data.txt").split('\n')
-
     bq = '''
     select
             ores.PAT_ENC_CSN_ID
