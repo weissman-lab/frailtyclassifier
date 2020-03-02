@@ -64,3 +64,21 @@ bootreps <- foreach(b = 1:nboot, .errorhandling = 'remove') %do%{
   return(bootreps)
 }
 write_csv(ds_loop, paste0(outdir, "embedding_selection_output.csv"))
+
+# df <- read.csv(paste0(outdir, "incremental_output.csv"))
+# df$bw <- ifelse(grepl("bw5", df$ds), "5", "30")
+# df$corp <- ifelse(grepl("_oa_", df$ds, ignore.case = T), "OA", "UP")
+# df$type = ifelse(grepl("w2v", df$ds), "w2v", "ft")
+# df$dim <- strsplit(as.character(df$ds), "_") %>% 
+#   sapply(function(x){x[length(x)-1]}) %>% 
+#   gsub(pattern = "d", replacement = "") %>% 
+#   as.numeric()
+# 
+# 
+# m <- lm(rmse_rare~bw+corp+type+factor(dim)+y, data = df)
+# summary(m)
+# m <- lm(rmse_all~bw+corp+type+factor(dim)+y, data = df)
+# summary(m)
+# 
+# 
+# 

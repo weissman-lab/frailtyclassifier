@@ -42,14 +42,15 @@ if "vitals_raw.pkl" not in os.listdir(outdir):
     bq = '''
 select
         pe.PAT_ID
-    ,   pe.AGE
     ,   pe.PAT_ENC_CSN_ID
+    ,   datediff(day, p.BIRTH_DATE, pe.CONTACT_DATE) / 365.0        as AGE
     ,   pe.CONTACT_DATE
     ,   pe.BP_DIASTOLIC
     ,   pe.BP_SYSTOLIC
     ,   pe.WEIGHT
     ,   pe.HEIGHT
 from PAT_ENC as pe
+join PATIENT as p on p.PAT_ID = pe.PAT_ID
     '''
     fdict = dict(PAT_ID={"vals": [], "foreign_key":"PAT_ID","foreign_table": "pe"})
 

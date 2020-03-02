@@ -13,8 +13,46 @@ figdir <- "~/projects/GW_PAIR_frailty_classifier/figures/"
 
 # load all the datasets that we'll be testing
 ds <- list.files(outdir, pattern = "test_data_")
-yvars <- c("Msk_prob","Nutrition","Resp_imp", "Fall_risk")
+yvars <- c("Msk_prob","Nutrition","Resp_imp", "Fall_risk", "Frailty_nos")
 nboot = 16
+
+df <- read_csv(paste0(outdir, ds[grepl("300d_bw5", ds)]))
+df <- as.data.frame(df)
+notes = df$note %>% unique %>% sample(replace = F)
+
+# augment the data frame with predicted probability columns
+for (y in yvars){
+  toadd <- matrix(rep(NA, nrow(df)*2), ncol = 2)
+  colnames(toadd) <- paste0(y, "_", c("neg", "pos"))
+  df <- cbind(df, toadd)
+}
+
+for (i in 1:5){
+  print(((i-1)*5+1):(i*5))
+  te <- notes[((i-1)*5+1):(i*5+1)]
+  tr <- unique(notes[notes %ni% te])
+  
+  Xtr = df[df$note %in% tr, grepl("wmean|max_|min_|identity|lag", colnames(df))]
+  Xte = df[df$note %in% te, grepl("wmean|max_|min_|identity|lag", colnames(df))]
+  
+  tridx <- which(df$note %in% tr)
+  teidx <- which(df$note %in% te)
+  
+  for (y in yvars){
+    m = ranger(y = factor(df[tridx, y]), x = Xtr,
+               num.threads = detectCores(),
+               probability = TRUE,
+               verbose = F)
+    pred <- predict(m, Xte)$predictions
+    df[teidx, paste0(y,"_pos")] <- pred[,3]
+    df[teidx, paste0(y,"_neg")] <- pred[,1]    
+  }
+}
+write.csv(df[,!grepl("wmean|max_|min_|identity|lag", colnames(df))], file = paste0(outdir, "JMsandboxdatfeb25.csv"))
+
+
+
+
 ##################################
 # loop through datasets
 ds_loop <- foreach(d = ds, .combine = cbind, .errorhandling = 'remove') %do% {
