@@ -76,3 +76,44 @@ else:
     meddf = pd.read_pickle(f"{outdir}meds_raw.pkl")
 
 
+# aggregate by taking number of unique rx per period
+
+# pull the most recent CSN from the concatenated notes df
+df['PAT_ENC_CSN_ID'] = df.CSNS.apply(lambda x: int(x.split(",")[0]))
+
+
+# write a function that takes a row of the concatenated notes DF and outputs a dict of lab values
+def recent_meds(i):
+    try:
+        mdf = meddf.loc[(meddf.PAT_ID == df.PAT_ID.iloc[i]) &
+                        (meddf.ORDERING_DATE <= df.LATEST_TIME.iloc[i] + pd.DateOffset(
+                            days=1)) &  # the deals with the fact that the times might be rounded down to the nearest day sometimes
+                        (meddf.ORDERING_DATE >= df.LATEST_TIME.iloc[i] - pd.DateOffset(months=6))
+                        ]
+        if nrow(mdf) > 0:
+            outdict = dict(PAT_ID = df.PAT_ID.iloc[i],
+                           PAT_ENC_CSN_ID=df.PAT_ENC_CSN_ID.iloc[i],
+                           n_unique_meds = mdf.MEDICATION_ID.nunique())
+            return outdict
+        else:
+            return
+    except Exception as e:
+        print(f"======={i}======")
+        print(e)
+        return e
+
+
+
+pool = mp.Pool(processes=mp.cpu_count())
+start = time.time()
+rmeds = pool.map(recent_meds, range(nrow(df)), chunksize=1)
+print(time.time() - start)
+pool.close()
+
+
+errs = [i for i in range(len(rmeds)) if type(rmeds[i]).__name__ != "dict"]
+rmeds_fixed = [i for i in rmeds if type(i).__name__ == "dict"]
+
+meds_6m = pd.DataFrame(rmeds_fixed)
+
+meds_6m.to_pickle(f"{outdir}meds_6m.pkl")

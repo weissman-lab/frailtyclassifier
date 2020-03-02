@@ -1,4 +1,3 @@
-
 '''
 This script pulls structured data for patient windows corresponding to what is in 'conc_notes_df', generated
 in the previous script.
@@ -7,16 +6,13 @@ Encounters:
 
 '''
 import os
-os.chdir('/Users/crandrew/projects/GW_PAIR_frailty_classifier/')
 import pandas as pd
-from _99_project_module import get_clarity_conn, get_from_clarity_then_save, \
-    query_filtered_with_temp_tables, write_txt, read_txt, nrow
+from _99_project_module import get_clarity_conn, get_from_clarity_then_save,     query_filtered_with_temp_tables, write_txt, read_txt, nrow
 import re
 import time
 import multiprocessing as mp
 import copy
 import numpy as np
-
 
 # preferences
 pd.options.display.max_rows = 4000
@@ -26,17 +22,16 @@ pd.options.display.max_columns = 4000
 clar_conn = get_clarity_conn("/Users/crandrew/Documents/clarity_creds_ACD.yaml")
 
 # set a global data dir for PHI
-datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/"
-outdir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/"
+datadir = f"{os.getcwd()}/data/"
+outdir = f"{os.getcwd()}/output/"
 
 # load the concatenated notes DF
 df = pd.read_pickle((f'{outdir}conc_notes_df.pkl'))
 
-
 '''
 Encounters
 '''
-if "encs_raw.pkl" not in os.listdir(outdir):
+if "encs_raw.pkl" not in os.listdir(datadir):
     bq = '''
 select
         pe2.PAT_ID
@@ -77,8 +72,69 @@ left join ZC_DISP_ENC_TYPE as zdet on pe.ENC_TYPE_C = zdet.DISP_ENC_TYPE_C
     pool.close()
 
     encdf = pd.concat(encout)
-    encdf.to_pickle(f"{outdir}encs_raw.pkl")
+    encdf.to_pickle(f"{datadir}encs_raw.pkl")
 else:
-    encdf = pd.read_pickle(f"{outdir}encs_raw.pkl")
+    encdf = pd.read_pickle(f"{datadir}encs_raw.pkl")
+
+## Output for cleaning in r
+encdf.to_csv(f"{outdir}/encs_r_start.csv")
 
 
+## Running R script & reading output
+os.system("Rscript ./_03_pull_structured_data_encs.R &")
+
+# Read and set correct data types for reading
+encdf = pd.read_csv((f"{outdir}/encs_r_finish.csv"),
+                 dtype={'PAT_ID': object, 'PAT_ENC_CSN_ID': object, 'office_visit': np.float64, 
+                        'ED_visit': np.float64, 'admission': np.float64},
+                parse_dates = ["CONTACT_DATE", "ADT_ARRIVAL_TIME", "HOSP_ADMSN_TIME", "HOSP_DISCH_TIME"])
+
+## Aggregation
+'''
+Now, build a dataset that builds 6m numbers of visits, ED visits, admissions, and total time hospitalized
+'''
+# pull the most recent CSN from the concatenated notes df
+df['PAT_ENC_CSN_ID'] = df.CSNS.apply(lambda x: int(x.split(",")[0]))
+
+
+# write a function that takes a row of the concatenated notes DF and outputs a dict of lab values
+def recent_encs(i):
+    try:
+        edf = encdf.loc[(encdf.PAT_ID == df.PAT_ID.iloc[i]) &
+                        (encdf.CONTACT_DATE <= df.LATEST_TIME.iloc[i] + pd.DateOffset(
+                            days=1)) &  # the deals with the fact that the times might be rounded down to the nearest day sometimes
+                        (encdf.CONTACT_DATE >= df.LATEST_TIME.iloc[i] - pd.DateOffset(months=6))
+                        ]
+        if nrow(edf) > 0:
+            outdict = dict(PAT_ID = df.PAT_ID.iloc[i],
+                           PAT_ENC_CSN_ID=df.PAT_ENC_CSN_ID.iloc[i],
+                           n_encs = nrow(edf),
+                           n_ed_visits = int(edf.ED_visit.sum()),
+                           n_admissions = int(edf.admission.sum()))
+            if any(~edf.HOSP_ADMSN_TIME.isna()):
+                outdict['days_hospitalized'] = (edf.HOSP_DISCH_TIME - edf.HOSP_ADMSN_TIME).sum().total_seconds()/60/60/24
+            else:
+                outdict['days_hospitalized'] = 0
+
+            return outdict
+        else:
+            return
+    except Exception as e:
+        print(f"======={i}======")
+        print(e)
+        return e
+
+
+pool = mp.Pool(processes=mp.cpu_count())
+start = time.time()
+rencs = pool.map(recent_encs, range(nrow(df)), chunksize=1)
+print(time.time() - start)
+pool.close()
+
+
+errs = [i for i in range(len(rencs)) if type(rencs[i]).__name__ != "dict"]
+rencs_fixed = [i for i in rencs if type(i).__name__ == "dict"]
+
+encs_6m = pd.DataFrame(rencs_fixed)
+
+encs_6m.to_pickle(f"{outdir}encs_6m.pkl")
