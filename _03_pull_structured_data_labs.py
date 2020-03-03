@@ -152,6 +152,8 @@ Now, build a dataset that pulls their means, SDs, and counts
 '''
 # pull the most recent CSN from the concatenated notes df
 df['PAT_ENC_CSN_ID'] = df.CSNS.apply(lambda x: int(x.split(",")[0]))
+df['month'] = df.LATEST_TIME.dt.month+(df.LATEST_TIME.dt.year-2018)*12
+
 # write a function that takes a row of the concatenated notes DF and outputs a dict of lab values
 def recent_labs(i):
     try:
@@ -187,6 +189,8 @@ for i in range(len(rlabs)):
     if type(rlabs[i]).__name__ == "dict":
         rlabs[i].update({'PAT_ID':df.PAT_ID.iloc[i]})
         rlabs[i].update({'PAT_ENC_CSN_ID':df.PAT_ENC_CSN_ID.iloc[i]})
+        rlabs[i].update({'month':df.month.iloc[i]})
+
     
 
 errs = [i for i in range(len(rlabs)) if type(rlabs[i]).__name__ != "dict"]

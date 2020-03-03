@@ -94,7 +94,7 @@ vitdf = pd.read_csv((f"{outdir}/vitals_r_finish.csv"),
 
 # pull the most recent CSN from the concatenated notes df
 df['PAT_ENC_CSN_ID'] = df.CSNS.apply(lambda x: int(x.split(",")[0]))
-
+df['month'] = df.LATEST_TIME.dt.month+(df.LATEST_TIME.dt.year-2018)*12
 
 # write a function that takes a row of the concatenated notes DF and outputs a dict of lab values
 def recent_vits(i):
@@ -107,6 +107,7 @@ def recent_vits(i):
         if nrow(vdf) > 0:
             outdict = dict(PAT_ID = df.PAT_ID.iloc[i],
                            PAT_ENC_CSN_ID=df.PAT_ENC_CSN_ID.iloc[i],
+                           month=df.month.iloc[i],
                            mean_sys_bp = vdf.BP_SYSTOLIC.mean(),
                            mean_dia_bp=vdf.BP_DIASTOLIC.mean(),
                            sd_sys_bp=vdf.BP_SYSTOLIC.std(),

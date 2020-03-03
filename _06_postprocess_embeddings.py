@@ -158,7 +158,28 @@ def wmean(Emat, kernel):
 
 aggfunc = dict(wmean = wmean)
 
-webanno_output = "frailty_phenotype_batch_1_2020-02-17_1147"
+## batch 1 dataset
+bandwidth = 5
+webanno_output = "frailty_phenotype_batch_1_2020-03-02_1328"
+makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+            embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
+            kernel=np.ones(bandwidth*2),
+            bandwidth=bandwidth,
+            ncores=mp.cpu_count(),
+            lagorder=2))
+os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
+          f"{outdir}batch1_data_ft_oa_corp_300d_bw5.csv")
+##batch 2
+webanno_output = "frailty_phenotype_batch_2_2020-03-02_1325"
+makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+            embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
+            kernel=np.ones(bandwidth*2),
+            bandwidth=bandwidth,
+            ncores=mp.cpu_count(),
+            lagorder=2))
+os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
+          f"{outdir}batch2_data_ft_oa_corp_300d_bw5.csv")
+
 
 if platform.uname()[1] == "grace":
     # OA embeddings

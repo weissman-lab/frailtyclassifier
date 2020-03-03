@@ -73,8 +73,38 @@ def tokenize_and_label(anno_dir, webanno_output, annotator_of_record = "CURATION
         outfn = re.sub('\.txt', '_labels.pkl', stub)
         span_df.to_pickle(f"{anno_dir + webanno_unzipped_dir}/labels/{outfn}")
 
+
 tokenize_and_label(f'{os.getcwd()}/annotation/',
-                   "frailty_phenotype_batch_1_2020-02-17_1147.zip")
+                   "frailty_phenotype_batch_1_2020-03-02_1328.zip")
+tokenize_and_label(f'{os.getcwd()}/annotation/',
+                   "frailty_phenotype_batch_2_2020-03-02_1325.zip")
+
+
+import glob
+
+annodir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/"
+filelist = []
+for filename in glob.iglob(annodir + '**/*.pkl', recursive=True):
+     if ("ACD_sandbox" not in filename) and ("old_misc" not in filename):
+         filelist.append(filename)
+
+dflist = []
+for i in filelist:
+    # add metadata
+    fi = pd.read_pickle(i)
+    fi['index'] = fi.index
+    fi['note'] = i.split("/")[-1]
+
+
+
+
+
+
+'''
+TBD:  implement the windowed output
+TBD:  combine the multiple files into a single dataset
+'''
+
 
 
 
