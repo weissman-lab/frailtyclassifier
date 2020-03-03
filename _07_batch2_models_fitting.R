@@ -30,7 +30,7 @@ df1 <- read_csv(paste0(outdir, ds[grepl("batch1", ds)]))
 df2 <- read_csv(paste0(outdir, ds[grepl("batch2", ds)]))
 df <- rbind(df1, df2)
 df <- as.data.frame(df)
-se.seed(8675309)
+set.seed(8675309)
 notes = df$note %>% unique %>% sample(replace = F)
 
 # load the structured data
@@ -77,16 +77,6 @@ for (y in yvars){
 }
 
 # using all the data
-for (y in yvars){
-  m = ranger(y = factor(df[tridx, y]), x = Xtr,
-             num.threads = detectCores(),
-             probability = TRUE,
-             verbose = F)
-  pred <- predict(m, Xte)$predictions
-  df[teidx, paste0(y,"_pos")] <- pred[,3]
-  df[teidx, paste0(y,"_neg")] <- pred[,1]    
-}
-
 modlist <- foreach(y = yvars) %do% {
   m = ranger(y = factor(df[[y]]), x = df[,features],
              num.threads = detectCores(),
