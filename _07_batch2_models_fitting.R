@@ -14,7 +14,7 @@ if (grepl("crandrew", getwd())){
   outdir <- "~/projects/GW_PAIR_frailty_classifier/output/"
   figdir <- "~/projects/GW_PAIR_frailty_classifier/figures/"
 } else {
-  use_python("/home/andrewcd/anaconda3/envs/frailty")  
+  use_python("/home/andrewcd/anaconda3/envs/frailty/bin/python")  
   datadir <- "/media/drv2/andrewcd2/frailty/data/"
   outdir <- "/media/drv2/andrewcd2/frailty/output/"
   figdir <- "/media/drv2/andrewcd2/frailty/figures/"
@@ -22,13 +22,9 @@ if (grepl("crandrew", getwd())){
 
 pd <- import("pandas")
 
-
-
-
 # load all the datasets that we'll be testing
 ds <- list.files(outdir, pattern = "batch")
 yvars <- c("Msk_prob","Nutrition","Resp_imp", "Fall_risk", "Frailty_nos")
-nboot = 16
 
 df1 <- read_csv(paste0(outdir, ds[grepl("batch1", ds)]))
 df2 <- read_csv(paste0(outdir, ds[grepl("batch2", ds)]))
