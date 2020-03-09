@@ -47,11 +47,14 @@ def remove_headers(fi):
     Inside each span it'll assert that there is something that looks like a timestamp
     If all that is true, those obs will be removed
     '''
-    dash_token_indices = [fi.index[i] for i in fi.index if re.match("-----+", fi.token[i])]
+    # make sure that all of the separators are the correct number of dashes
+    dash_token_indices = [fi.index[i] for i in fi.index if fi.token[i] == '--------------------------------------------------------------']
     # make sure that there is an even number of them
     assert len(dash_token_indices) %2 == 0
     # make sure that they all have the same distance apart
     spanlengths = [dash_token_indices[i] - dash_token_indices[i-1] for i in range(1, len(dash_token_indices),2)]
+    if len(list(set(spanlengths))) != 1:
+        breakpoint()
     assert(len(list(set(spanlengths)))) == 1
     # make sure there is at least one year inside these spans
     for i in range(1, len(dash_token_indices),2):
@@ -179,6 +182,19 @@ makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
             lagorder=2))
 os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
           f"{outdir}batch2_data_ft_oa_corp_300d_bw5.csv")
+
+##batch 3
+webanno_output = "frailty_phenotype_test_batch_1_2020-03-06_1522"
+makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+            embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
+            kernel=np.ones(bandwidth*2),
+            bandwidth=bandwidth,
+            ncores=mp.cpu_count(),
+            lagorder=2))
+os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
+          f"{outdir}batch3_data_ft_oa_corp_300d_bw5.csv")
+
+
 
 
 if platform.uname()[1] == "grace":

@@ -78,6 +78,10 @@ tokenize_and_label(f'{os.getcwd()}/annotation/',
                    "frailty_phenotype_batch_1_2020-03-02_1328.zip")
 tokenize_and_label(f'{os.getcwd()}/annotation/',
                    "frailty_phenotype_batch_2_2020-03-02_1325.zip")
+tokenize_and_label(f'{os.getcwd()}/annotation/',
+                   "frailty_phenotype_test_batch_1_2020-03-06_1522.zip")
+
+
 
 
 import glob

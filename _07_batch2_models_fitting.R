@@ -163,6 +163,117 @@ names(modlist) <- yvars
 saveRDS(modlist, paste0(outdir, "logitlist_lasso.rds"))
 
 
+######################
+# GOF plots
+
+preddf <- read_csv(paste0(outdir, "batch2_OOSpreds.csv"))
+
+emat = matrix(rep(NA, 5*50), nrow = 50)
+colnames(emat) <- yvars
+for (y in yvars){
+  # show goodness of fit
+  yhat <- preddf[,paste0(y, c("_neg", "_pos"))]
+  yhat[[paste0(y, "_neutral")]] <- 1 - rowSums(yhat)
+  yhat <- yhat + cbind(rep(.001, nrow(yhat)),
+                       rep(.001, nrow(yhat)),
+                       rep(-.001, nrow(yhat)))
+
+  entropy <- apply(yhat, 1, function(x){-sum(x*log(x))})
+  par(mar = c(5.1, 4.1, 2.1, 4.1))
+  plot(x = which(preddf[,y]==1),
+       y = rep(1.02, length(which(df[,y]==1))),
+       ylim = c(0,2), xlim = c(0, nrow(preddf)),
+       pch = 15, col = "red",
+       xlab = "token position in concatenated corpus",
+       ylab = "",
+       yaxt = 'n',
+       main = gsub("_", " ", y))
+  points(x = which(preddf[,y]==-1),
+         y = rep(.98, length(which(preddf[,y]==-1))),
+         pch = 15, col = "darkgreen")
+  lines(yhat[[paste0(y,"_pos")]], col = "red")
+  lines(yhat[[paste0(y,"_neg")]], col = "darkgreen")
+  ll =0
+  k = 1
+  for (i in c(which(preddf[(1:nrow(preddf)), "note"] != preddf[(1:nrow(preddf))+1, "note"]))){
+    abline(v = i, lty = 2)
+    ee <- mean(entropy[ll:i], na.rm = T)
+    print(ee)
+    emat[k, y] <- ee
+    text(x = mean(c(ll, i)), y = 1.7, labels = round(mean(entropy[ll:i]),3), col = 'blue')
+    ll = i
+    k = k+1
+  } # do the last one
+  text(x = mean(c(ll, nrow(preddf))), y = 1.7, labels = round(mean(entropy[ll:nrow(preddf)]),3), col = 'blue')
+  
+  lines(entropy+1, col = "blue")
+  abline(h=1)
+  axis(side = 2, at = c(0, .5, 1))
+  axis(side = 4, at = c(0, .5, 1)+1, labels = c(0, .5, 1), col = 'blue', col.axis = 'blue')
+  mtext("Estimated probability", side = 2, line = 2, at = .5)
+  mtext("Entropy", side = 4, line = 2, at = 1.5, srt = 90)
+  dev.copy2pdf(file = paste0(figdir, "batch2_RF_CV_GOF_", y, '.pdf'), height = 6, width = 8*10)
+}
+
+# compute RMSE
+yhat <- foreach(y = yvars, .combine = cbind) %do% {
+  yhat <- preddf[,paste0(y, c("_neg", "_pos"))]
+  yhat[[paste0(y, "_neutral")]] <- 1 - rowSums(yhat)
+  return(yhat)
+}
+ymat_all <- foreach(y = yvars, .combine = cbind) %do% {
+  ymat <- model.matrix(as.formula(paste0("~as.factor(", y, ")-1")), data = preddf)
+  ymat <- ymat[,c(1,3,2)]
+  return(ymat)
+}
+ymat_rare <- foreach(y = yvars, .combine = cbind) %do% {
+  ymat <- model.matrix(as.formula(paste0("~as.factor(", y, ")-1")), data = preddf)
+  ymat <- ymat[,c(1,3,2)]
+  ymat[which(ymat[,3]==1),] = NA
+  return(ymat)
+}
+rmse_all <- colMeans((yhat - ymat_all)^2)
+rmse_rare <- colMeans((yhat - ymat_rare)^2, na.rm=T)
+comb_rmse <- foreach(y = yvars) %do%{
+  yh <- yhat[,grep(y, colnames(yhat))]
+  ym <- model.matrix(as.formula(paste0("~as.factor(", y, ")-1")), data = preddf)
+  ym <- ym[,c(1,3,2)]
+  rmse_all <- (sum((yh-ym)^2)/3/nrow(ym))^.5
+  yrare <- ym[ym[,3]==0,]
+  prare <- yh[ym[,3]==0,]
+  rmse_rare <- (sum((prare-yrare)^2)/3/nrow(yrare))^.5
+  return(list(rmse_all = rmse_all, rmse_rare = rmse_rare))
+}
+names(comb_rmse) = yvars
+comb_rmse
+
+
+
+# ridge
+ridgelist <- readRDS(paste0(outdir, "logitlist_ridge.rds"))
+sapply(ridgelist, function(x){x$rmse_all})
+sapply(ridgelist, function(x){x$rmse_rare})
+
+# lasso
+lassolist <- readRDS(paste0(outdir, "logitlist_lasso.rds"))
+sapply(lassolist, function(x){x$rmse_all})
+sapply(lassolist, function(x){x$rmse_rare})
+
+#ridge minus lasso
+sapply(ridgelist, function(x){x$rmse_all}) - sapply(lassolist, function(x){x$rmse_all})
+sapply(ridgelist, function(x){x$rmse_rare}) - sapply(lassolist, function(x){x$rmse_rare})
+
+
+# RF minus Ridge
+sapply(comb_rmse, function(x){x$rmse_all}) - sapply(ridgelist, function(x){x$rmse_all})
+sapply(comb_rmse, function(x){x$rmse_rare}) - sapply(ridgelist, function(x){x$rmse_rare})
+
+# RF minus lasso
+sapply(comb_rmse, function(x){x$rmse_all}) - sapply(lassolist, function(x){x$rmse_all})
+sapply(comb_rmse, function(x){x$rmse_rare}) - sapply(lassolist, function(x){x$rmse_rare})
+
+
+
 # ##################################
 # # loop through datasets
 # ds_loop <- foreach(d = ds, .combine = cbind, .errorhandling = 'remove') %do% {
@@ -420,3 +531,6 @@ saveRDS(modlist, paste0(outdir, "logitlist_lasso.rds"))
 # }
 # names(modlist) <- yvars
 # saveRDS(modlist, paste0(outdir, "logitlist.rds"))
+
+
+

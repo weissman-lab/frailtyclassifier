@@ -271,8 +271,10 @@ chdf=chdf.rename(columns={"CPT":"CODE", "ORDERING_DATE":"DATE"})
 
 df = pd.concat([chdf[["PAT_ID", "DATE", "CODE", "TYPE"]],
                 icd9df[["PAT_ID", "DATE", "CODE", "TYPE"]]])
+df = df.loc[df.DATE<"2020-01-01"]
 
 del chdf, icd9df
+
 # convert to month
 df.DATE = df.DATE.dt.month + (df.DATE.dt.year*12 - 2017*12)
 df.drop_duplicates(inplace=True)
@@ -346,7 +348,8 @@ df.head()
 
 def f(ID): # kim aggregation function
     x = df.loc[df.PAT_ID == ID]
-    months = [i for i in x.DATE.sort_values().unique() if i > 12]
+    # months = [i for i in x.DATE.sort_values().unique() if i > 12]
+    months = list(range(13,(df.DATE.max()+1)))
     out = []
     for m in months:
         mdf = x.loc[(x.DATE>(m-12)) & (x.DATE <= m), ['CODE', "TYPE","coef"]].drop_duplicates()
@@ -366,25 +369,31 @@ pool.close()
 kimdf = pd.concat(kimlist)
 kimdf.to_pickle(f"{outdir}kim_score_df.pkl")
 
-
-
-plt.hist(kimdf.score)
-plt.xlabel("kim score")
-plt.show()
-
-X = np.vstack([np.ones(nrow(kimdf)), kimdf.DATE]).T
-y = np.array(kimdf.score)
-
-boot = []
-np.linalg.inv(X.T @ X) @ X.T @ y
-for i in range(1000):
-    s = np.random.choice(nrow(X), nrow(X))
-    Xs = X[s,:]
-    ys = y[s]
-    boot.append(np.linalg.inv(Xs.T @ Xs) @ Xs.T @ ys)
-
-boots = np.vstack(boot)
-boots.shape
-plt.hist(boots[:,1])
-plt.show()
-
+# kimdf = pd.read_pickle(f"{outdir}kim_score_df.pkl")
+# kimdf.head()
+# kimdf.loc[kimdf.PAT_ID == "003930088"]
+#
+# chdf.loc[chdf.PAT_ID == '003930088'].sort_values('ORDERING_DATE')
+# icd9df.loc[icd9df.PAT_ID == '003930088'].sort_values('CONTACT_DATE')
+#
+#
+# plt.hist(kimdf.score)
+# plt.xlabel("kim score")
+# plt.show()
+#
+# X = np.vstack([np.ones(nrow(kimdf)), kimdf.DATE]).T
+# y = np.array(kimdf.score)
+#
+# boot = []
+# np.linalg.inv(X.T @ X) @ X.T @ y
+# for i in range(1000):
+#     s = np.random.choice(nrow(X), nrow(X))
+#     Xs = X[s,:]
+#     ys = y[s]
+#     boot.append(np.linalg.inv(Xs.T @ Xs) @ Xs.T @ ys)
+#
+# boots = np.vstack(boot)
+# boots.shape
+# plt.hist(boots[:,1])
+# plt.show()
+#
