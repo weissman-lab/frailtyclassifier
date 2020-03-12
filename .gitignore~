@@ -1,5 +1,6 @@
 
 # ignore folders with large files
+/__pycache__
 /data
 /.idea
 /output
@@ -16,3 +17,4 @@
 # ipython
 *.ipynb
 *.docx
+.Rproj.user

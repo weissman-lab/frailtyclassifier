@@ -211,6 +211,7 @@ else:
 
 
 
+
 '''
 Pull the ICD9 codes
 '''
@@ -252,6 +253,7 @@ else:
 
     icd9df = pd.concat(icdlist)
     icd9df.to_pickle(f'{outdir}icd9_df.pkl')
+
 
 
 '''
