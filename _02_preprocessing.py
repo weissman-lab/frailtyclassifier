@@ -227,9 +227,12 @@ assert len(errs) == 0
 
 
 # do the cutting
-def highlight_stuff_to_cut(i):
+def highlight_stuff_to_cut(i, do_cutting = False):
+    '''
+    THis function returns notes with the sections to cut hilighted notes.  It doesn't actually do the cutting
+    '''
     # take the spans and turn them into a dataframe
-    dfl = []
+    dfl = [] #data frame list
     for k in list(spanslist[i].keys()):
         if len(spanslist[i][k])>0:
             for j in range(len(spanslist[i][k])):
@@ -253,15 +256,16 @@ def highlight_stuff_to_cut(i):
             left = x[:sdf.start.iloc[j]]
             middle = x[sdf.start.iloc[j]:sdf.end.iloc[j]]
             right = x[sdf.end.iloc[j]:]
-            x = left +f"\n\n********** BEGIN Cutting {sdf.variety.iloc[j]} *************** \n\n" + \
-                middle + f"\n\n********** END Cutting {sdf.variety.iloc[j]} *************** \n\n" + right
+            if do_cutting is False:
+                x = left +f"\n\n********** BEGIN Cutting {sdf.variety.iloc[j]} *************** \n\n" + \
+                    middle + f"\n\n********** END Cutting {sdf.variety.iloc[j]} *************** \n\n" + right
+            else:
+                x = left + f"---{sdf.variety.iloc[j]}_was_here_but_got_cut----" + right
     return x
 
-# write_txt(x, f"{outdir}foo.txt")
-# cut_notes = []
-# for i in range(df.shape[0]):
-#     cut_notes.append(highlight_stuff_to_cut(i))
-
+'''
+There is one overlapping span at 98839.  It's a fairly intractible case.
+'''
 
 # get the spans
 pool = mp.Pool(mp.cpu_count())
@@ -289,102 +293,9 @@ for i in range(10):
     write_txt(x.notes.iloc[i], f"{outdir}structured_text_test_output/cutter_tester{x.NOTE_ID.iloc[i]}.txt")
 
 
-print(cut_notes[4])
-spanslist[4]
-
-
-
-
-def cut_medlists(x):
-x = df.NOTE_TEXT.loc[df.NOTE_ID == "765203624"].iloc[0]
-    spans = med_list_span_finder(x)
-print(x[spans[1][0]:spans[1][1]])
-    spans.reverse() # reverse the spans, so that re_sub cuts from the bottom.  If this isn't done, the spans that get cut will no longer correspond with the original note.
-    for i in spans:
-        left = x[:i[0]]
-        right = x[i[1]:]
-        x = left + "---medlist_was_here_but_got_cut----" + right
-    return x
-
-
-
-i = np.random.choice(len(df))
-print(i)
-print(df.NOTE_TEXT.iloc[i])
-spanslist[i]['meds']
-
-
-
-isinstance(5/0, Exception)
-spans_wrapper(pos[0])
-
-next(re.finditer("dyspnea when hurr", df.NOTE_TEXT.iloc[pos[0]].lower())).start()
-
-
-df.iloc[pos[57]]
-
-"Level of consciousness along a continuum"
-"GERIATRICS WELLNESS 2/13/2017"
-
-"MINI MENTAL OVERALL SCORE"  # end at newline after this
-# sometimes it ends with "copy a design"
-# sometimes does into dpreression and doesn't have questions:
-"""Concentration No
- Appetite/weight loss No
- Psychomotor agitation/retardation No
- Suicidal ideation No"""
-
-
-dd = (i for i in range(10))
-next(next(dd))
-
-def finder(x):
-    return "dyspnea when hurrying or walking up a slight hill" in x.lower()
-
-
+# now do the actual cutting
 pool = mp.Pool(mp.cpu_count())
-res = pool.map(finder, df.NOTE_TEXT)
-pool.close()
-pos = [i for i in range(len(res)) if res[i] is True]
-pos[:10]
-
-
-def f(**kw):
-    print(list(kw.keys()))
-    goats = kw.get("goats")
-    print(goats)
-
-f(**{"gsoats":4})
-
-def f(x, **kw):
-    print(x)
-    dd = kw.get("dd")
-    print(dd) if dd is not None else print ('goo')
-
-f(2, **{"dd":"aaa"})
-
-def f(x):
-    return x+1, x-1
-
-a, b = f(1)
-b
-
-def cut_medlists(x):
-x = df.NOTE_TEXT.loc[df.NOTE_ID == "765203624"].iloc[0]
-    spans = med_list_span_finder(x)
-print(x[spans[1][0]:spans[1][1]])
-    spans.reverse() # reverse the spans, so that re_sub cuts from the bottom.  If this isn't done, the spans that get cut will no longer correspond with the original note.
-    for i in spans:
-        left = x[:i[0]]
-        right = x[i[1]:]
-        x = left + "---medlist_was_here_but_got_cut----" + right
-    return x
-
-
-pool = mp.Pool(mp.cpu_count())
-start = time.time()
-cut_notes = pool.map(cut_medlists, df.NOTE_TEXT, chunksize=1)
-print(time.time() - start)
+cut_notes = pool.starmap(highlight_stuff_to_cut, ((i, True) for i in range(df.shape[0])))
 pool.close()
 
 df['NOTE_TEXT'] = cut_notes
@@ -638,63 +549,23 @@ for i in range(25):
         f.write(towrite)
 
 
+# 25 random notes from 2019
+import os
+np.random.seed(266701)
+subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2018]
+previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
+           os.listdir(f"{outdir}notes_output/batch_03")
+previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
+for i in range(30):
+    towrite = subsubsubset.combined_notes.iloc[i]
+    fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    if i < 25:
+        fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    else:
+        fi = f"batch_03_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    with open(f'{outdir}/notes_output/batch_04/{fi}', "w") as f:
+        f.write(towrite)
 
 
-
-'''
-Removing medication lists
-'''
-def med_list_span_finder(x):
-    x = x.lower()
-    # convert all non-breaking space to regular space
-    x = re.sub("\xa0", " ", x)
-    # medication_list_finder:
-    start_phrases = ["medication\n", "medications\n", "prescriptions\n", "medication:", "medications:", "prescriptions:",
-                     "prescriptions on file"]
-    stop_phrases = ["allergies\n","allergies:", "allergy list\n", "allergy list:",
-                    "-------", "\n\n\n\n",
-                    "active medical_problems", "active medical problems", "patient active",
-                    "past surgical history", "past_surgical_history",
-                    "past medical history", "past_medical_history",
-                    "review of symptoms", "review_of_symptoms",
-                    "review of systems", "review_of_systems",
-                    "family history", "family_history",
-                    "social history", "social_history", "social hx:",
-                    "physical exam:", "physical_examination", "physical examination",
-                    "history of present illness",
-                    "vital signs",
-                    "\ni saw ", " i saw ",
-                    "\npe:",
-                    "current issues",
-                    "history\n", "history:"]
-    cutter_phrases = ["by_mouth", "by mouth"]
-    keeper_phrases = ["assessment"]
-    st_idx = [m.start() for m in re.finditer("|".join(start_phrases), x)]
-    stop_idx = [m.start() for m in re.finditer("|".join(stop_phrases), x)]
-    spans = []
-    try:
-        for j in range(len(st_idx)):
-            startpos = st_idx[j]
-            endpos = next((x for x in stop_idx if x > startpos), None)
-            if endpos is not None:
-                if j < (len(st_idx)-1): # if j is not the last element being iterated over:
-                    if endpos < st_idx[j+1]: # if the end position is before the next start position
-                        # implicity, if the above condition doesn't hold, nothing will get appended into spans
-                        # and it'll go to the next j
-                        span = x[startpos:endpos]
-                        # things that it must have to get cut
-                        if any(re.finditer("|".join(cutter_phrases), span)):
-                            # thing that if it has it can't be cut
-                            if not any(re.finditer("|".join(keeper_phrases), span)):
-                                extra = x[endpos:(endpos+200)]
-                                spans.append((startpos, endpos))
-                elif j == (len(st_idx)-1): # if it's the last start index, there better be a following stop index
-                    span = x[startpos:endpos]
-                    # things that it must have to get cut
-                    if any(re.finditer("|".join(cutter_phrases), span)):
-                        # thing that if it has it can't be cut
-                        if not any(re.finditer("|".join(keeper_phrases), span)):
-                            spans.append((startpos, endpos))
-        return spans
-    except Exception as e:
-        return e
