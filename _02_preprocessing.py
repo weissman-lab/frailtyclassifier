@@ -549,7 +549,7 @@ for i in range(25):
         f.write(towrite)
 
 
-# 25 random notes from 2019
+# 25 random notes from 2018
 import os
 np.random.seed(266701)
 subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2018]
