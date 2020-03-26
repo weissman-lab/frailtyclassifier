@@ -11,6 +11,7 @@ import os
 import pandas as pd
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import re
 import numpy as np
 from _99_project_module import nrow, write_txt, ncol
@@ -157,15 +158,15 @@ def train(x, y):
 
 
 def makeplot():
-    fig, ax = plt.subplots(figsize=(10, 16), ncols=2, nrows=1, sharex=False)
+    fig, ax = plt.subplots(figsize=(16, 10), ncols=2, nrows=1, sharex=False)
     ax[0].plot(list(range(len(oslossvec))), oslossvec, label='test rmse')
-    ax[0].xlabel('Loss')
-    ax[0].ylabel('iteration //10')
+    ax[0].set_ylabel('Loss')
+    ax[0].set_xlabel('iteration //10')
     ax[0].grid('on')
     for i in range(5):
-        ax[1].plot(list(range(len(oslossvec))), osrmse[:iter,i], label=out_varnames[i])
-    ax[1].xlabel('RMSE')
-    ax[1].ylabel('iteration //10')
+        ax[1].plot(list(range(len(oslossvec))), osrmse[:iter//10+1,i], label=out_varnames[i])
+    ax[1].set_ylabel('RMSE')
+    ax[1].set_xlabel('iteration //10')
     ax[1].grid('on')
     ax[1].legend()
     fig.savefig(f"{figdir}LSTM_mar26.png")
