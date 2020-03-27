@@ -86,14 +86,15 @@ Issue: notes have varying lengths.  Possible solutions:
     Second approach seems better on balance.
 '''
 # define some useful constants
-input_timesteps = 1000
-input_dims = 600 + len(str_varnames)
+input_timesteps = 5000
+input_dims = 300 + len(str_varnames)
 out_varnames = df.columns[5:10]
 df['month'] = df.note.apply(lambda x: int(x.split("_")[2][1:]))
-trnotes = [i for i in df.note.unique() if int(i.split("_")[2][1:]) < 13]
+trnotes = [i for i in df.note.unique() if int(i.split("_")[2][1:]) <= 12]
 tenotes = [i for i in df.note.unique() if int(i.split("_")[2][1:]) > 12]
 note_lengths = df.note.value_counts()
-embedding_colnames = [i for i in df.columns if re.match("identity|wmean", i)]
+embedding_colnames = [i for i in df.columns if re.match("identity", i)]
+# embedding_colnames = [i for i in df.columns if re.match("identity|wmean", i)]
 
 # simple bilstm with parametric part for the structured data
 input = Input(shape=(input_timesteps, input_dims - len(str_varnames)))
@@ -106,6 +107,27 @@ outlayers = [Dense(3, activation="softmax", name=i)(conc) for i in out_varnames]
 model = Model([input, str_input], outlayers)
 model.summary()
 
+# initialize the bias terms with the logits of the proportions
+def logit(x):
+    return 1 / (1 + np.exp(-x))
+
+
+def inv_logit(x):
+    return np.log(x/(1-x))
+
+w = model.get_weights()
+
+for i in range(5):
+    props = np.array([inv_logit(np.mean(df[out_varnames[i]]==-1)),
+                      inv_logit(np.mean(df[out_varnames[i]]==0)),
+                      inv_logit(np.mean(df[out_varnames[i]]==1))])
+    print(props)
+    pos = 9-i*2
+    print(pos)
+    print(w[-pos].shape)
+    w[-pos] = w[-pos]*0+props
+
+model.set_weights(w)
 
 def cutter_padder(df, i, cols, samp, input_timesteps):
     di = df.loc[df.note == i, cols]
@@ -179,7 +201,7 @@ stopcounter = 0
 best = 9999
 iter = 0
 
-while stopcounter < 10:
+while stopcounter < 100:
     if iter % 10 == 0:
         tebatch = batchmaker(tenotes)
         pred = model(tebatch['x'])
