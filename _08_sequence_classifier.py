@@ -247,10 +247,10 @@ for seed in range(1000):
             props = np.array([inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == -1)),
                               inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == 0)),
                               inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == 1))])
-            print(props)
+            # print(props)
             pos = 9 - i * 2
-            print(pos)
-            print(w[-pos].shape)
+            # print(pos)
+            # print(w[-pos].shape)
             w[-pos] = w[-pos] * 0 + props
 
         model.set_weights(w)
