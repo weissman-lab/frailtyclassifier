@@ -122,7 +122,7 @@ note_lengths = df.note.value_counts()
 def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalization, half_dilated):
     if half_dilated == True:
         nfilters = nfilters // 2
-        drate = nlayers if 2 ** nlayers < 3000 else 10
+        drate = int(nlayers) if 2 ** nlayers < 3000 else 10
     inp = Input(shape=(None, input_dims))
     llay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(inp)
     if half_dilated == True:
@@ -167,8 +167,8 @@ def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalizati
 
 def draw_hps(seed):
     np.random.seed(seed)
-    hps = (np.random.choice(list(range(2, 21))),  # n layers
-           np.random.choice(list(range(10, 201))),  # n filters
+    hps = (int(np.random.choice(list(range(2, 21)))),  # n layers
+           int(np.random.choice(list(range(10, 201)))),  # n filters
            int(np.random.choice(list(range(5, 21)))),  # kernel_size
            int(np.random.choice(list(range(1, 10)))),  # output kernel size
            bool(np.random.choice(list(range(2)))),  # batch normalization
