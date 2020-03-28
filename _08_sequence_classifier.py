@@ -9,12 +9,12 @@ Start with a few simple models, and compare them:
 
 import os
 import pandas as pd
+
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import re
-import numpy as np
-from _99_project_module import nrow, write_txt, ncol
+from _99_project_module import inv_logit
 import datetime
 import tensorflow as tf
 import numpy as np
@@ -22,54 +22,65 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.layers import Dense, concatenate, Flatten, Conv1D, \
     LSTM, LeakyReLU, BatchNormalization
 from tensorflow.keras import Model, Input, backend
-import copy
+import pickle
+import time
 
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
 
-# load datasets
-df = pd.concat([
-    pd.read_csv(f"{outdir}batch1_data_ft_oa_corp_300d_bw5.csv"),
-    pd.read_csv(f"{outdir}batch2_data_ft_oa_corp_300d_bw5.csv"),
-    pd.read_csv(f"{outdir}batch3_data_ft_oa_corp_300d_bw5.csv")
-])
+if 'moddat.pkl' not in os.listdir(outdir):
+    # load datasets
+    df = pd.concat([
+        pd.read_csv(f"{outdir}batch1_data_ft_oa_corp_300d_bw5.csv"),
+        pd.read_csv(f"{outdir}batch2_data_ft_oa_corp_300d_bw5.csv"),
+        pd.read_csv(f"{outdir}batch3_data_ft_oa_corp_300d_bw5.csv")
+    ])
 
-# trim the lag off
-df = df[[i for i in df.columns if "lag" not in i]]
+    # trim the lag off
+    df = df[[i for i in df.columns if "lag" not in i]]
 
-# load and merge the structured data
-strdat = pd.DataFrame(dict(
-    month=df.note.apply(lambda x: int(x.split("_")[2][1:])),
-    PAT_ID=df.note.apply(lambda x: x.split("_")[3]),
-    note=df.note
-))
+    # load and merge the structured data
+    strdat = pd.DataFrame(dict(
+        month=df.note.apply(lambda x: int(x.split("_")[2][1:])),
+        PAT_ID=df.note.apply(lambda x: x.split("_")[3]),
+        note=df.note
+    ))
 
-for i in [i for i in os.listdir(outdir) if "_6m" in i]:
-    x = pd.read_pickle(f"{outdir}{i}")
-    x = x.drop(columns="PAT_ENC_CSN_ID")
-    strdat = strdat.merge(x, how='left')
-    print(strdat.shape)
+    for i in [i for i in os.listdir(outdir) if "_6m" in i]:
+        x = pd.read_pickle(f"{outdir}{i}")
+        x = x.drop(columns="PAT_ENC_CSN_ID")
+        strdat = strdat.merge(x, how='left')
+        print(strdat.shape)
 
-# add columns for missing values of structured data
-for i in strdat.columns:
-    if any(strdat[[i]].isna()):
-        strdat[[i + "_miss"]] = strdat[[i]].isna().astype(int)
-        strdat[[i]] = strdat[[i]].fillna(0)
+    # add columns for missing values of structured data
+    for i in strdat.columns:
+        if any(strdat[[i]].isna()):
+            strdat[[i + "_miss"]] = strdat[[i]].isna().astype(int)
+            strdat[[i]] = strdat[[i]].fillna(0)
 
-# save the column names so that I can find them later
-str_varnames = list(strdat.columns[3:])
-out_varnames = df.columns[5:10]
+    # save the column names so that I can find them later
+    str_varnames = list(strdat.columns[3:])
+    out_varnames = df.columns[5:10]
 
-# append
-assert (len([i for i in range(len(df.note)) if df.note.iloc[i] != strdat.note.iloc[i]]) == 0)
-df = pd.concat([df.reset_index(drop=True), strdat[str_varnames].reset_index(drop=True)], axis=1)
+    # append
+    assert (len([i for i in range(len(df.note)) if df.note.iloc[i] != strdat.note.iloc[i]]) == 0)
+    df = pd.concat([df.reset_index(drop=True), strdat[str_varnames].reset_index(drop=True)], axis=1)
 
-# make output dummies
-y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
-df = pd.concat([df, y_dums], axis=1)
-df.to_pickle(f"{outdir}moddat.pkl")
-
-
+    # make output dummies
+    y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
+    df = pd.concat([df, y_dums], axis=1)
+    moddat = dict(df=df,
+                  str_varnames=str_varnames,
+                  out_varnames=out_varnames,
+                  y_dums=y_dums)
+    pickle.dump(moddat, open(f"{outdir}moddat.pkl", "wb"))
+else:
+    moddat = pickle.load(open(f"{outdir}moddat.pkl", "rb"))
+    df = moddat['df']
+    str_varnames = moddat['str_varnames']
+    out_varnames = moddat['out_varnames']
+    y_dums = moddat['y_dums']
+    del moddat
 
 '''
 Model ideas (simple to more complicated):
@@ -89,58 +100,43 @@ Issue: notes have varying lengths.  Possible solutions:
     Second approach seems better on balance.
 '''
 # define some useful constants
-input_dims = 600 + len(str_varnames)
+embedding_colnames = [i for i in df.columns if re.match("identity", i)]
+# embedding_colnames = [i for i in df.columns if re.match("identity|wmean", i)]
+input_dims = len(embedding_colnames) + len(str_varnames)
 out_varnames = df.columns[5:10]
 df['month'] = df.note.apply(lambda x: int(x.split("_")[2][1:]))
 trnotes = [i for i in df.note.unique() if int(i.split("_")[2][1:]) <= 12]
 tenotes = [i for i in df.note.unique() if int(i.split("_")[2][1:]) > 12]
 note_lengths = df.note.value_counts()
-# embedding_colnames = [i for i in df.columns if re.match("identity", i)]
-embedding_colnames = [i for i in df.columns if re.match("identity|wmean", i)]
-
-# simple bilstm with parametric part for the structured data
-# inp = Input(shape=(None, input_dims - len(str_varnames)))
-# str_input = Input((len(str_varnames)))
-# LSTM_forward = LSTM(50, return_sequences=True)(inp)
-# LSTM_backward = LSTM(50, return_sequences=True, go_backwards=True)(inp)
-# LSTM_backward = backend.reverse(LSTM_backward, axes=1)
-# conc = concatenate([LSTM_forward, LSTM_backward, str_input], axis=2)
-# outlayers = [Dense(3, activation="softmax", name=i)(conc) for i in out_varnames]
-# model = Model([inp, str_input], outlayers)
-# model.summary()
-
-inp = Input(shape=(None, input_dims))
-str_input = Input((len(str_varnames)))
-LSTM_forward = LSTM(50, return_sequences=True)(inp)
-LSTM_backward = LSTM(50, return_sequences=True, go_backwards=True)(inp)
-LSTM_backward = backend.reverse(LSTM_backward, axes=1)
-conc = concatenate([LSTM_forward, LSTM_backward], axis=2)
-outlayers = [Dense(3, activation="softmax", name=i)(conc) for i in out_varnames]
-model = Model(inp, outlayers)
-model.summary()
 
 
-# initialize the bias terms with the logits of the proportions
-def logit(x):
-    return 1 / (1 + np.exp(-x))
+def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalization):
+    inp = Input(shape=(None, input_dims))
+    lay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(inp)
+    lay = LeakyReLU()(lay)
+    if batch_normalization == True:
+        lay = BatchNormalization()(lay)
+    for i in range(nlayers):
+        lay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(lay)
+        lay = LeakyReLU()(lay)
+        if batch_normalization == True:
+            lay = BatchNormalization()(lay)
+    outlayers = [Conv1D(filters=3, kernel_size=out_kernel_size, activation="softmax", padding='same', name=i)(lay)
+                 for i in out_varnames]
+    model = Model(inp, outlayers)
+    return model
 
 
-def inv_logit(x):
-    return np.log(x/(1-x))
+def draw_hps(seed):
+    np.random.seed(seed)
+    hps = (np.random.choice(list(range(2, 21))),  # n layers
+           np.random.choice(list(range(10, 201))),  # n filters
+           int(np.random.choice(list(range(5, 21)))),  # kernel_size
+           int(np.random.choice(list(range(1, 10)))),  # output kernel size
+           bool(np.random.choice(list(range(2)))))  # batch normalization
+    model = makemodel(*hps)
+    return model, hps
 
-w = model.get_weights()
-
-for i in range(5):
-    props = np.array([inv_logit(np.mean(df[out_varnames[i]]==-1)),
-                      inv_logit(np.mean(df[out_varnames[i]]==0)),
-                      inv_logit(np.mean(df[out_varnames[i]]==1))])
-    print(props)
-    pos = 9-i*2
-    print(pos)
-    print(w[-pos].shape)
-    w[-pos] = w[-pos]*0+props
-
-model.set_weights(w)
 
 def cutter_padder(df, note, cols):
     di = df.loc[df.note == note, cols]
@@ -148,103 +144,219 @@ def cutter_padder(df, note, cols):
     return x
 
 
-
 # batchmaker function
-def batchmaker(note):
-    '''
-    function to make batches to feed to TF.  Because some notes are longer 
-    than others, and to prevent oversampling the middles of notes, this 
-    function will randomly cut the note and pad with zeros, even in cases 
-    where the note length is greater then the number of inpout timesteps.
-    '''
-    
+def batchmaker(note, return_y_as_list=True):
     emdat = cutter_padder(df, note, embedding_colnames)
     strdat = cutter_padder(df, note, str_varnames)
-    X = np.concatenate([emdat, strdat], axis = 1)
+    X = np.concatenate([emdat, strdat], axis=1)
     # y variables
     yvars = cutter_padder(df, note, y_dums.columns)
-    # break out the outcomes into a list of tensors
-    y_list_of_tensors = [tf.convert_to_tensor(yvars[:, i * 3:(i + 1) * 3]) for i in range(5)]
-    output = dict(x=tf.convert_to_tensor(np.expand_dims(X,0)),
-                  y=y_list_of_tensors)
+    if return_y_as_list == True:
+        # break out the outcomes into a list of tensors
+        y_list_of_tensors = [tf.convert_to_tensor(yvars[:, i * 3:(i + 1) * 3]) for i in range(5)]
+        output = dict(x=tf.convert_to_tensor(np.expand_dims(X, 0)),
+                      y=y_list_of_tensors)
+    else:
+        output = dict(x=tf.convert_to_tensor(np.expand_dims(X, 0)),
+                      y=yvars)
     return output
 
 
-loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-optimizer = tf.keras.optimizers.Adam(learning_rate=.0001)
-
-
-# training function
-@tf.function
-def train(x, y):
-    with tf.GradientTape() as g:
-        pred = model(x)
-        loss = loss_object(y, pred)
-        gradients = g.gradient(loss, model.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-
-
 def makeplot():
-    fig, ax = plt.subplots(figsize=(16, 10), ncols=2, nrows=1, sharex=False)
+    fig, ax = plt.subplots(figsize=(24, 9), ncols=3, nrows=1, sharex=False)
     ax[0].plot(list(range(len(oslossvec))), oslossvec, label='test rmse')
+    ax[0].plot(list(range(len(oslossvec))), [np.mean(oslossvec[:i][-20:]) for i in len(oslossvec)])
     ax[0].set_ylabel('Loss')
     ax[0].set_xlabel('iteration // test_rate')
     ax[0].grid('on')
+    ax[0].axhline(y=best, color='r', linestyle='-')
     for i in range(5):
-        ax[1].plot(list(range(len(oslossvec))), osrmse[:iter//test_rate+1,i], label=out_varnames[i])
+        ax[1].plot(list(range(len(oslossvec))), osrmse[:iter // test_rate + 1, i], label=out_varnames[i])
     ax[1].set_ylabel('RMSE')
     ax[1].set_xlabel('iteration // test_rate')
     ax[1].grid('on')
     ax[1].legend()
+    for i in range(5):
+        ax[2].plot(list(range(len(oslossvec))), rmse_rare[:iter // test_rate + 1, i], label=out_varnames[i])
+    ax[2].set_ylabel('RMSE, non-neutral')
+    ax[2].set_xlabel('iteration // test_rate')
+    ax[2].grid('on')
+    ax[2].legend()
     fig.savefig(f"{figdir}LSTM_mar26.png")
     plt.close('all')
 
-# training loop
-osrmse = np.empty((1000,5))
-oslossvec = []
-test_rate = 5
-stopcounter = 0
-best = 9999
-iter = 0
 
-y_preds = copy.deepcopy(y_dums)
-y_preds['note'] = df.note
-y_preds.replace([-1,0,1], [np.nan, np.nan, np.nan], inplace = True)
-y_dums.to_csv(f"{outdir}y_dums.csv")
-
-while stopcounter < len(tenotes):
-    if iter % test_rate == 0:
-        rnote = np.random.choice(len(tenotes))
-        tebatch = batchmaker(tenotes[rnote])
-        pred = model(tebatch['x'])
-        osloss = loss_object(tebatch['y'], pred)
-        oslossvec.append(osloss)
-        rmse = tf.keras.losses.mean_squared_error(tebatch['y'], pred)**.5
-        osrmse[iter//test_rate, :] = np.mean(rmse, axis=(1, 2))
-        # weighted averages
-        w_avg_osloss = np.mean(oslossvec[-10:])
-        # update predictions data frame
-        for i in range(5):
-            y_preds.loc[y_preds.note == tenotes[rnote],
-                        [out_varnames[i]+"_"+j for j in ["-1", "0", "1"]]] = np.squeeze(pred[i])
-            y_preds.to_csv(f"{outdir}iterpreds.csv")
-        if w_avg_osloss < best:
-            best = w_avg_osloss
-            bestidx = iter
-            stopcounter = 0
-            model.save_weights(f"{outdir}weights_LSTM_mar26.h5")
+def get_rare_rmse(y, pred):
+    rmsevec = []
+    for i in range(len(y)):
+        idx = np.where(y[i][:, 1] == 0)
+        if len(idx[0]) == 0:
+            rmsevec.append(np.nan)
         else:
-            stopcounter += 1
-        print(f"at {datetime.datetime.now()}")
-        print(f"test loss: {osloss}, "
-              f"test_rmse: {osrmse[iter//test_rate, :]}, "
-              f"stopcounter: {stopcounter}, "
-              f"iter: {iter}")
-        makeplot()
-    batch = batchmaker(trnotes[np.random.choice(len(trnotes))])
-    train(batch['x'], batch['y'])
-    iter+=1
-    print(iter)
+            br = y[i].numpy()[idx[0], :]
+            pr = np.squeeze(pred[i])[idx[0], :]
+            rmsevec.append(np.mean((br - pr) ** 2) ** .5)
+    return rmsevec
 
 
-tf.keras.backend.clear_session()
+# Posting to a Slack channel
+def send_message_to_slack(text):
+    from urllib import request, parse
+    import json
+
+    post = {"text": "{0}".format(text)}
+
+    try:
+        json_data = json.dumps(post)
+        req = request.Request("https://hooks.slack.com/services/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",
+                              data=json_data.encode('ascii'),
+                              headers={'Content-Type': 'application/json'})
+        resp = request.urlopen(req)
+    except Exception as em:
+        print("EXCEPTION: " + str(em))
+
+
+# initialize a df for results
+hpdf = pd.DataFrame(dict(idx=list(range(1000)),
+                         nlayers=np.nan,
+                         nfilters=np.nan,
+                         kernel_size=np.nan,
+                         out_kernel_size=np.nan,
+                         batch_normalization=np.nan,
+                         time_to_convergence=np.nan,
+                         best_loss=np.nan))
+
+model_iteration = 0
+for seed in range(1000):
+    try:
+        np.random.seed(seed)
+
+        model, hps = draw_hps(seed)
+        for i in range(1, 6):
+            hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 1]
+
+        print("\n\n********************************\n\n")
+        print(hpdf.iloc[model_iteration])
+
+        start_time = time.time()
+
+        # initialize the bias terms with the logits of the proportions
+        w = model.get_weights()
+
+        for i in range(5):
+            props = np.array([inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == -1)),
+                              inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == 0)),
+                              inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == 1))])
+            print(props)
+            pos = 9 - i * 2
+            print(pos)
+            print(w[-pos].shape)
+            w[-pos] = w[-pos] * 0 + props
+
+        model.set_weights(w)
+
+        loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=.00005)
+
+
+        # training function
+        @tf.function(experimental_relax_shapes=True)
+        def train(x, y):
+            with tf.GradientTape() as g:
+                pred = model(x)
+                loss = loss_object(y, pred)
+                gradients = g.gradient(loss, model.trainable_variables)
+                optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+
+        def test():
+            lossvec = []
+            wtvec = []
+            for i in tenotes:
+                tebatch = batchmaker(i)
+                pred = model(tebatch['x'])
+                lossvec.append(loss_object(tebatch['y'], pred))
+                wtvec.append(note_lengths[i])
+            avg_loss = sum([float(lossvec[i]) * wtvec[i] for i in range(len(lossvec))]) / sum(wtvec)
+            return avg_loss
+
+
+        # training loop
+        osrmse = np.empty((10000, 5))
+        oslossvec = []
+        test_rate = 75
+        stopcounter = 0
+        best = 9999
+        iter = 0
+
+        while stopcounter < 5:
+            if iter % test_rate == 0:
+                osloss = test()
+                oslossvec.append(osloss)
+                if osloss < best:
+                    best = osloss
+                    bestidx = iter
+                    stopcounter = 0
+                else:
+                    stopcounter += 1
+                print(f"at {datetime.datetime.now()}")
+                print(f"test loss: {osloss}, "
+                      f"stopcounter: {stopcounter}, "
+                      f"iter: {iter // test_rate}")
+            batch = batchmaker(trnotes[np.random.choice(len(trnotes))])
+            train(batch['x'], batch['y'])
+            iter += 1
+
+        tf.keras.backend.clear_session()
+        hpdf.loc[model_iteration, 'best_loss'] = best
+        hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
+        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_results.csv")
+        model_iteration += 1
+    except Exception as e:
+        send_message_to_slack(e)
+        break
+
+# y_preds = copy.deepcopy(y_dums)
+# y_preds['note'] = df.note
+# y_preds.replace([-1, 0, 1], [np.nan, np.nan, np.nan], inplace=True)
+#
+# y_dums['note'] = df.note
+# y_dums.to_csv(f"{outdir}y_dums.csv")
+
+# while stopcounter < len(tenotes):
+#     if iter % test_rate == 0:
+#         rnote = np.random.choice(len(tenotes))
+#         tebatch = batchmaker(tenotes[rnote])
+#         pred = model(tebatch['x'])
+#         osloss = loss_object(tebatch['y'], pred)
+#         oslossvec.append(osloss)
+#         rmse = tf.keras.losses.mean_squared_error(tebatch['y'], pred) ** .5
+#         osrmse[iter // test_rate, :] = np.mean(rmse, axis=(1, 2))
+#         rmse_rare[iter // test_rate, :] = get_rare_rmse(tebatch['y'], pred)
+#         # weighted averages
+#         w_avg_osloss = np.mean(oslossvec[-20:])
+#         # update predictions data frame
+#         # for i in range(5):
+#         #     y_preds.loc[y_preds.note == tenotes[rnote],
+#         #                 [out_varnames[i]+"_"+j for j in ["-1", "0", "1"]]] = np.squeeze(pred[i])
+#         #     y_preds.to_csv(f"{outdir}iterpreds.csv")
+#         if w_avg_osloss < best:
+#             best = w_avg_osloss
+#             bestidx = iter
+#             stopcounter = 0
+#             best_weights = model.get_weights()
+#             # model.save_weights(f"{outdir}weights_LSTM_mar26.h5")
+#         else:
+#             stopcounter += 1
+#         print(f"at {datetime.datetime.now()}")
+#         print(f"test loss: {osloss}, "
+#               f"test_rmse: {osrmse[iter // test_rate, :]}, "
+#               f"stopcounter: {stopcounter}, "
+#               f"iter: {iter}")
+#         makeplot()
+#     batch = batchmaker(trnotes[np.random.choice(len(trnotes))])
+#     train(batch['x'], batch['y'])
+#     iter += 1
+#     print(iter)
+#
+# tf.keras.backend.clear_session()

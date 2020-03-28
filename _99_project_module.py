@@ -7,6 +7,7 @@ import getpass
 import pandas as pd
 import sys
 import os
+import numpy as np
 
 def ask_user_password(prompt):
     return getpass.getpass(prompt + ": ")
@@ -243,3 +244,11 @@ def note_status_mapper(x):
         return d[x]
     else:
         raise Exception("feeding note mapper something it didn't like")
+
+
+def logit(x):
+    return 1 / (1 + np.exp(-x))
+
+
+def inv_logit(x):
+    return np.log(x / (1 - x))
