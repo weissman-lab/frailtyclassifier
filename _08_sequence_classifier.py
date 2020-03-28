@@ -111,15 +111,34 @@ tenotes = [i for i in df.note.unique() if int(i.split("_")[2][1:]) > 12]
 note_lengths = df.note.value_counts()
 
 
-def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalization):
+# nlayers = 10
+# nfilters = 100
+# kernel_size = 10
+# out_kernel_size = 3
+# batch_normalization = True
+# half_dilated = True
+
+
+def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalization, half_dilated):
+    if half_dilated == True:
+        nfilters = nfilters // 2
+        drate = nlayers if 2 ** nlayers < 3000 else 10
     inp = Input(shape=(None, input_dims))
-    lay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(inp)
-    lay = LeakyReLU()(lay)
+    llay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(inp)
+    if half_dilated == True:
+        dlay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same', dilation_rate=2 ** drate)(inp)
+        lay = concatenate([llay, dlay], axis=2)
+        drate = drate - 1 if drate >= 1 else 1
+    lay = LeakyReLU()(lay if half_dilated else llay)
     if batch_normalization == True:
         lay = BatchNormalization()(lay)
     for i in range(nlayers):
-        lay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(lay)
-        lay = LeakyReLU()(lay)
+        llay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(lay)
+        if half_dilated == True:
+            dlay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same', dilation_rate=2 ** drate)(lay)
+            lay = concatenate([llay, dlay], axis=2)
+            drate = drate - 1 if drate >= 2 else 1
+        lay = LeakyReLU()(lay if half_dilated else llay)
         if batch_normalization == True:
             lay = BatchNormalization()(lay)
     outlayers = [Conv1D(filters=3, kernel_size=out_kernel_size, activation="softmax", padding='same', name=i)(lay)
@@ -128,13 +147,32 @@ def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalizati
     return model
 
 
+#
+# def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalization):
+#     inp = Input(shape=(None, input_dims))
+#     lay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(inp)
+#     lay = LeakyReLU()(lay)
+#     if batch_normalization == True:
+#         lay = BatchNormalization()(lay)
+#     for i in range(nlayers):
+#         lay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(lay)
+#         lay = LeakyReLU()(lay)
+#         if batch_normalization == True:
+#             lay = BatchNormalization()(lay)
+#     outlayers = [Conv1D(filters=3, kernel_size=out_kernel_size, activation="softmax", padding='same', name=i)(lay)
+#                  for i in out_varnames]
+#     model = Model(inp, outlayers)
+#     return model
+
+
 def draw_hps(seed):
     np.random.seed(seed)
     hps = (np.random.choice(list(range(2, 21))),  # n layers
            np.random.choice(list(range(10, 201))),  # n filters
            int(np.random.choice(list(range(5, 21)))),  # kernel_size
            int(np.random.choice(list(range(1, 10)))),  # output kernel size
-           bool(np.random.choice(list(range(2)))))  # batch normalization
+           bool(np.random.choice(list(range(2)))),  # batch normalization
+           bool(np.random.choice(list(range(2)))))  # half-dilation
     model = makemodel(*hps)
     return model, hps
 
@@ -224,6 +262,7 @@ hpdf = pd.DataFrame(dict(idx=list(range(1000)),
                          kernel_size=np.nan,
                          out_kernel_size=np.nan,
                          batch_normalization=np.nan,
+                         half_dilated=np.nan,
                          time_to_convergence=np.nan,
                          best_loss=np.nan))
 
@@ -233,7 +272,7 @@ for seed in range(1000):
         np.random.seed(seed)
 
         model, hps = draw_hps(seed)
-        for i in range(1, 6):
+        for i in range(1, 7):
             hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 1]
 
         print("\n\n********************************\n\n")
