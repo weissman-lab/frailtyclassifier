@@ -12,7 +12,8 @@ import pandas as pd
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+if 'crandrew' in os.getcwd():
+    os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import re
 from _99_project_module import inv_logit
 import datetime
