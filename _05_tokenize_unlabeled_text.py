@@ -13,7 +13,6 @@ pd.options.display.max_columns = 4000
 nlp = spacy.load("en", disable=['parser', 'tagger', 'ner'])
 
 outdir = f"{os.getcwd()}/output/"
-anno_dir = f"{os.getcwd()}/annotation/"
 embedded_outdir = f"{outdir}embedded_notes/"
 
 if 'crandrew' in os.getcwd():
@@ -47,7 +46,7 @@ strdat = strdat.merge(elix, how='left')
 
 # add columns for missing values of structured data
 for i in strdat.columns:
-    if any(strdat[[i]].isna()):
+    if (strdat[[i]].isna().astype(int).sum() > 0)[0]:
         strdat[[i + "_miss"]] = strdat[[i]].isna().astype(int)
         strdat[[i]] = strdat[[i]].fillna(0)
 
