@@ -15,7 +15,7 @@ pd.options.display.max_columns = 4000
 if 'crandrew' in os.getcwd():
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import re
-from _99_project_module import inv_logit
+from _99_project_module import inv_logit, send_message_to_slack
 import datetime
 import tensorflow as tf
 import numpy as np
@@ -53,9 +53,22 @@ if 'moddat.pkl' not in os.listdir(outdir):
         strdat = strdat.merge(x, how='left')
         print(strdat.shape)
 
+    # elixhauser
+    elix = pd.read_csv(f"{outdir}elixhauser_scores.csv")
+    elix.LATEST_TIME = pd.to_datetime(elix.LATEST_TIME)
+    elix['month'] = elix.LATEST_TIME.dt.month + (elix.LATEST_TIME.dt.year - 2018) * 12
+    elix = elix.drop(columns=['CSNS', 'LATEST_TIME', 'Unnamed: 0'])
+    strdat = strdat.merge(elix, how='left')
+
+    # n_comorb from conc_notes_df
+    conc_notes_df = pd.read_pickle(f'{outdir}conc_notes_df.pkl')
+    conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (conc_notes_df.LATEST_TIME.dt.year - 2018) * 12
+    mm = conc_notes_df[['PAT_ID', 'month', 'n_comorb']]
+    strdat = strdat.merge(mm, how='left')
+
     # add columns for missing values of structured data
     for i in strdat.columns:
-        if any(strdat[[i]].isna()):
+        if (strdat[[i]].isna().astype(int).sum() > 0)[0]:
             strdat[[i + "_miss"]] = strdat[[i]].isna().astype(int)
             strdat[[i]] = strdat[[i]].fillna(0)
 
@@ -147,23 +160,6 @@ def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalizati
     return model
 
 
-#
-# def makemodel(nlayers, nfilters, kernel_size, out_kernel_size, batch_normalization):
-#     inp = Input(shape=(None, input_dims))
-#     lay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(inp)
-#     lay = LeakyReLU()(lay)
-#     if batch_normalization == True:
-#         lay = BatchNormalization()(lay)
-#     for i in range(nlayers):
-#         lay = Conv1D(filters=nfilters, kernel_size=kernel_size, padding='same')(lay)
-#         lay = LeakyReLU()(lay)
-#         if batch_normalization == True:
-#             lay = BatchNormalization()(lay)
-#     outlayers = [Conv1D(filters=3, kernel_size=out_kernel_size, activation="softmax", padding='same', name=i)(lay)
-#                  for i in out_varnames]
-#     model = Model(inp, outlayers)
-#     return model
-
 
 def draw_hps(seed):
     np.random.seed(seed)
@@ -238,21 +234,6 @@ def get_rare_rmse(y, pred):
     return rmsevec
 
 
-# Posting to a Slack channel
-def send_message_to_slack(text):
-    from urllib import request, parse
-    import json
-
-    post = {"text": "{0}".format(text)}
-
-    try:
-        json_data = json.dumps(post)
-        req = request.Request("https://hooks.slack.com/services/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",
-                              data=json_data.encode('ascii'),
-                              headers={'Content-Type': 'application/json'})
-        resp = request.urlopen(req)
-    except Exception as em:
-        print("EXCEPTION: " + str(em))
 
 
 # initialize a df for results
@@ -356,47 +337,5 @@ for seed in range(1000):
         send_message_to_slack(e)
         break
 
-# y_preds = copy.deepcopy(y_dums)
-# y_preds['note'] = df.note
-# y_preds.replace([-1, 0, 1], [np.nan, np.nan, np.nan], inplace=True)
-#
-# y_dums['note'] = df.note
-# y_dums.to_csv(f"{outdir}y_dums.csv")
 
-# while stopcounter < len(tenotes):
-#     if iter % test_rate == 0:
-#         rnote = np.random.choice(len(tenotes))
-#         tebatch = batchmaker(tenotes[rnote])
-#         pred = model(tebatch['x'])
-#         osloss = loss_object(tebatch['y'], pred)
-#         oslossvec.append(osloss)
-#         rmse = tf.keras.losses.mean_squared_error(tebatch['y'], pred) ** .5
-#         osrmse[iter // test_rate, :] = np.mean(rmse, axis=(1, 2))
-#         rmse_rare[iter // test_rate, :] = get_rare_rmse(tebatch['y'], pred)
-#         # weighted averages
-#         w_avg_osloss = np.mean(oslossvec[-20:])
-#         # update predictions data frame
-#         # for i in range(5):
-#         #     y_preds.loc[y_preds.note == tenotes[rnote],
-#         #                 [out_varnames[i]+"_"+j for j in ["-1", "0", "1"]]] = np.squeeze(pred[i])
-#         #     y_preds.to_csv(f"{outdir}iterpreds.csv")
-#         if w_avg_osloss < best:
-#             best = w_avg_osloss
-#             bestidx = iter
-#             stopcounter = 0
-#             best_weights = model.get_weights()
-#             # model.save_weights(f"{outdir}weights_LSTM_mar26.h5")
-#         else:
-#             stopcounter += 1
-#         print(f"at {datetime.datetime.now()}")
-#         print(f"test loss: {osloss}, "
-#               f"test_rmse: {osrmse[iter // test_rate, :]}, "
-#               f"stopcounter: {stopcounter}, "
-#               f"iter: {iter}")
-#         makeplot()
-#     batch = batchmaker(trnotes[np.random.choice(len(trnotes))])
-#     train(batch['x'], batch['y'])
-#     iter += 1
-#     print(iter)
-#
-# tf.keras.backend.clear_session()
+

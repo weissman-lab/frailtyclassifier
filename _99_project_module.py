@@ -252,3 +252,63 @@ def logit(x):
 
 def inv_logit(x):
     return np.log(x / (1 - x))
+
+# take the file and filter it with the masking function
+def remove_headers(fi):
+    '''
+    This removes metadata tags that are bounded by long sequences of dashes
+    It'll loop through the tokens and make note of places with long such strings.
+    Then it'll check if there is an even number of them.
+    If there is an even number, it will define spans.
+    Inside each span it'll assert that there is something that looks like a timestamp
+    If all that is true, those obs will be removed
+    '''
+    # make sure that all of the separators are the correct number of dashes
+    dash_token_indices = [fi.index[i] for i in fi.index if fi.token[i] == '--------------------------------------------------------------']
+    # make sure that there is an even number of them
+    assert len(dash_token_indices) %2 == 0
+    # make sure that they all have the same distance apart
+    spanlengths = [dash_token_indices[i] - dash_token_indices[i-1] for i in range(1, len(dash_token_indices),2)]
+    if len(list(set(spanlengths))) != 1:
+        breakpoint()
+    assert(len(list(set(spanlengths)))) == 1
+    # make sure there is at least one year inside these spans
+    for i in range(1, len(dash_token_indices),2):
+        jstring = "".join(fi.token[(dash_token_indices[i-1]):(dash_token_indices[i]+1)])
+        assert re.search("(19[789]\d|20[012]\d)", jstring)
+    # if these pass, lose the spans
+    for i in range(1, len(dash_token_indices),2):
+        fi = fi.drop(index=list(range((dash_token_indices[i-1]-1),(dash_token_indices[i]+2))))
+    # now drop the newlines -- they're not in the dictionary
+    fi = fi[fi.token != "\n"]
+    fi = fi[fi.token != "\n "]
+    return fi
+
+
+def embeddings_catcher(tok, embeddings):
+    '''
+    This function is a workaround for the fact that some OOV words throw errors in the OA corpus, because the
+    dictionary wasn't identical to the corpus.
+    Tok is a string and embeddings is a gensim object
+    '''
+    try:
+        return embeddings[tok]
+    except Exception:
+        return np.zeros(embeddings.vector_size)
+
+
+# Posting to a Slack channel
+def send_message_to_slack(text):
+    from urllib import request, parse
+    import json
+
+    post = {"text": "{0}".format(text)}
+
+    try:
+        json_data = json.dumps(post)
+        req = request.Request("https://hooks.slack.com/services/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",
+                              data=json_data.encode('ascii'),
+                              headers={'Content-Type': 'application/json'})
+        resp = request.urlopen(req)
+    except Exception as em:
+        print("EXCEPTION: " + str(em))
