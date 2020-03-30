@@ -87,6 +87,8 @@ def wrapper(i):
 import time
 start = time.time()
 pool = mp.Pool(mp.cpu_count())
-errs = pool.map(wrapper, range(conc_notes_df.shape[0]))
+# errs = pool.map(wrapper, range(conc_notes_df.shape[0]))
+errs = pool.map(wrapper, np.random.choice(conc_notes_df.shape[0], 1000))
+
 pool.close()
 print(time.time() - start)

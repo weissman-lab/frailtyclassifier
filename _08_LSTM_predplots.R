@@ -16,6 +16,36 @@ if (grepl("crandrew", getwd())){
 }
 
 
+df <- read.csv(paste0(outdir, "hyperparameter_gridsearch_results.csv"))
+head(df)
+df$X <- df$idx <- NULL
+m <- lm(best_loss~.-time_to_convergence, data = df)
+summary(m)
+m <- lm(time_to_convergence~.-best_loss, data = df)
+summary(m)
+library(mgcv)
+m <- gam(best_loss~s(nlayers)+s(nfilters)+s(kernel_size)+s(out_kernel_size, k=5)+batch_normalization+half_dilated - time_to_convergence, 
+         method = 'REML',data = df)
+summary(m)
+plot(m, pages = 1)
+
+m <- gam(best_loss~te(nlayers,kernel_size)+s(nfilters)+s(out_kernel_size, k=5)+batch_normalization+half_dilated - time_to_convergence, 
+         method = 'REML',data = df)
+summary(m)
+plot(m, pages = 1, scheme=2)
+
+m <- gam(best_loss~s(nlayers)+ s(nfilters)+te(kernel_size, out_kernel_size, k=c(10,5))+batch_normalization+half_dilated - time_to_convergence, 
+         method = 'REML',data = df)
+summary(m)
+plot(m, pages = 1, scheme=2)
+
+library(ranger)
+m <- ranger(time_to_convergence~.-best_loss, data = df[1:90,], importance = 'permutation')
+m$variable.importance %>% sort
+
+plot(df$time_to_convergence, df$best_loss)
+
+
 yvars <- c("Msk_prob","Nutrition","Resp_imp", "Fall_risk", "Frailty_nos")
 
 ######################
