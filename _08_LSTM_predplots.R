@@ -40,13 +40,16 @@ summary(m)
 plot(m, pages = 1, scheme=2)
 
 library(ranger)
-m <- ranger(time_to_convergence~.-best_loss, data = df[1:90,], importance = 'permutation')
+m <- ranger(best_loss~.-time_to_convergence, data = df[1:90,], importance = 'permutation')
 m$variable.importance %>% sort
 
 plot(df$time_to_convergence, df$best_loss)
 
 
 yvars <- c("Msk_prob","Nutrition","Resp_imp", "Fall_risk", "Frailty_nos")
+
+
+glm(runif(10)~rnorm(10), family = binomial)
 
 ######################
 # GOF plots
