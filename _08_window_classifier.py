@@ -266,7 +266,7 @@ for seed in range(1, 1000):
     best = 9999
     iter = 0
 
-    while stopcounter < 20:
+    while stopcounter < 1:
         shuffle = np.random.choice(ytr[0].shape[0], ytr[0].shape[0], replace = False)
         for i in range(len(shuffle)//256):
             batch = batchmaker(shuffle[(i*256):((i+1)*256)], semipar = hps[-1])
@@ -283,7 +283,7 @@ for seed in range(1, 1000):
         iter += 1
 
     tf.keras.backend.clear_session()
-    hpdf.loc[model_iteration, 'best_loss'] = best
+    hpdf.loc[model_iteration, 'best_loss'] = float(best)
     hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
     hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_11apr_win.csv")
     model_iteration += 1
