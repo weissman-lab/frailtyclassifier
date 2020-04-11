@@ -172,7 +172,7 @@ def make_y_list(y):
     return [y[:, i * 3:(i + 1) * 3] for i in range(len(out_varnames))]
 
 model_iteration = 0
-for seed in range(1, 1000):
+for seed in range(1000):
     # try:
     np.random.seed(seed)
     
@@ -266,7 +266,7 @@ for seed in range(1, 1000):
     best = 9999
     iter = 0
 
-    while stopcounter < 1:
+    while stopcounter < 15:
         shuffle = np.random.choice(ytr[0].shape[0], ytr[0].shape[0], replace = False)
         for i in range(len(shuffle)//256):
             batch = batchmaker(shuffle[(i*256):((i+1)*256)], semipar = hps[-1])
