@@ -75,14 +75,8 @@ input_dims = len(embedding_colnames) + len(str_varnames)
 notes_2018 = [i for i in df.note.unique() if int(i.split("_")[2][1:]) <= 12]
 notes_2019 = [i for i in df.note.unique() if int(i.split("_")[2][1:]) > 12]
 note_lengths = df.note.value_counts()
-
-# nlayers = 10
-# nfilters = 100
-# kernel_size = 10
-# out_kernel_size = 3
-# batch_normalization = True
-# half_dilated = True
-
+trnotes = np.random.choice(notes_2018, len(notes_2018)*2//3, replace = False)
+tenotes = [i for i in notes_2018 if i not in trnotes]
 
 
 def makemodel(window_size, n_dense, nunits,
@@ -171,126 +165,105 @@ def tensormaker(D, notelist, cols, ws):
 def make_y_list(y):
     return [y[:, i * 3:(i + 1) * 3] for i in range(len(out_varnames))]
 
+
+# scaling
+scaler = StandardScaler()
+scaler.fit(df[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
+sdf = copy.deepcopy(df)
+sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+str_varnames])
+
+
+
 model_iteration = 0
 for seed in range(1000):
-    # try:
-    np.random.seed(seed)
-    
-    inbag = np.random.choice(list(range(len(notes_2018))), 
-                                          replace = True, 
-                                          size = len(notes_2018))
-    trnotes = [notes_2018[i] for i in inbag]
-    tenotes = [i for i in notes_2018 if i not in trnotes]
-
-    # scaling
-    scaler = StandardScaler()
-    scaler.fit(df[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
-    sdf = copy.deepcopy(df)
-    sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+str_varnames])
-    
-    model, hps = draw_hps(seed)
-    for i in range(2, 8): # put the hyperparameters in the hpdf
-        hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 2]
-    hpdf.loc[model_iteration, 'oob'] = ",".join(tenotes)
-    
-    # put the data in arrays for modeling, expanding out to the window size
-    # only converting the test into tensors, to facilitate indexing
-    if hps[-1] is False: # corresponds with the semipar argument
-        Xtr = tensormaker(sdf, trnotes, embedding_colnames+str_varnames, hps[0])            
-        Xte = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames+str_varnames, hps[0]), dtype = 'float32')
-    else:
-        Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])            
-        Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, hps[0]), dtype = 'float32')
-        Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
-        Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
-    ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
-    yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
-    yte = [tf.convert_to_tensor(i) for i in yte]
-    
-    print("\n\n********************************\n\n")
-    print(hpdf.iloc[model_iteration])
-
-
-    def batchmaker(idx, semipar):
-        if semipar is True:
-            x = [tf.convert_to_tensor(Xtr_np[idx,:,:], dtype = 'float32'), 
-                 tf.convert_to_tensor(Xtr_p[idx,:], dtype = 'float32')]
+    try:
+        np.random.seed(seed)
+        # shrunk model
+        model, hps = draw_hps(seed)
+        for i in range(2, 8): # put the hyperparameters in the hpdf
+            hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 2]
+        hpdf.loc[model_iteration, 'oob'] = ",".join(tenotes)
+            
+        # put the data in arrays for modeling, expanding out to the window size
+        # only converting the test into tensors, to facilitate indexing
+        if hps[-1] is False: # corresponds with the semipar argument
+            Xtr = tensormaker(sdf, trnotes, embedding_colnames+str_varnames, hps[0])            
+            Xte = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames+str_varnames, hps[0]), dtype = 'float32')
         else:
-            x = tf.convert_to_tensor(Xtr[idx,:,:], dtype = 'float32')
-        y = [tf.convert_to_tensor(i[idx, :]) for i in ytr]
-        return dict(x=x, y=y)
-
-    start_time = time.time()
-
-    # initialize the bias terms with the logits of the proportions
-    w = model.get_weights()
-    # set the bias terms to the proportions
-    for i in range(4):
-        props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
-                          inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
-                          inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
-        # print(props)
-        pos = 7 - i * 2
-        # print(pos)
-        # print(w[-pos].shape)
-        w[-pos] = w[-pos] * 0 + props
-
-    model.set_weights(w)
+            Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])            
+            Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, hps[0]), dtype = 'float32')
+            Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
+            Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
+        ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
+        yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
+        yte = [tf.convert_to_tensor(i) for i in yte]
+        
+        print("\n\n********************************\n\n")
+        print(hpdf.iloc[model_iteration])
+        
+        start_time = time.time()
     
-    # initialize the loss and the optimizer
-    loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=.00005)
+        # # initial overfit
+        # ofm = makemodel(hps[0], hps[1], hps[2], 0, 10**-np.inf, hps[5])
+        # ofm.compile(optimizer=tf.keras.optimizers.Adam(1e-3),
+        #               loss={'Msk_prob':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+        #                     'Nutrition':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+        #                     'Resp_imp':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+        #                     'Fall_risk':tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
+        
 
-    # training function
-    @tf.function()
-    def train(x, y):
-        with tf.GradientTape() as g:
-            pred = model(x)
-            loss = loss_object(y, pred)
-            gradients = g.gradient(loss, model.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-        return loss
+        # ofm.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
+        #         batch_size=256,
+        #         epochs=100)
+        # #transfer    
+        # model.set_weights(ofm.get_weights())
+        
+        # initialize the bias terms with the logits of the proportions
+        w = model.get_weights()
+        # set the bias terms to the proportions
+        for i in range(4):
+            props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
+                              inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
+                              inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
+            # print(props)
+            pos = 7 - i * 2
+            # print(pos)
+            # print(w[-pos].shape)
+            w[-pos] = w[-pos] * 0 + props
+    
+        model.set_weights(w)
 
-    def test(semipar):
-        lossvec = []
-        if semipar is True:
-            pred = model([Xte_np, Xte_p])
-        else:
-            pred = model([Xte])
+        model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
+              loss={'Msk_prob':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                    'Nutrition':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                    'Resp_imp':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                    'Fall_risk':tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
+
+        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
+                                                    patience=5,
+                                                    restore_best_weights = True)
+        model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
+                  batch_size=256,
+                  epochs=1000, 
+                  callbacks = [callback],
+                  validation_data = ([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
+        
+        pred = model.predict([Xtr_np, Xtr_p] if hps[5] is True else Xtr)
+        # initialize the loss and the optimizer
+        loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False) 
         loss = loss_object(yte, pred)
-        return loss
-
-
-    # training loop
-    stopcounter = 0
-    best = 9999
-    iter = 0
-
-    while stopcounter < 15:
-        shuffle = np.random.choice(ytr[0].shape[0], ytr[0].shape[0], replace = False)
-        for i in range(len(shuffle)//256):
-            batch = batchmaker(shuffle[(i*256):((i+1)*256)], semipar = hps[-1])
-            train(batch['x'], batch['y'])
-        osloss = test(hps[-1])
-        if osloss < best:
-            best = osloss
-            stopcounter = 0
-        else:
-            stopcounter += 1
+    
         print(f"at {datetime.datetime.now()}")
-        print(f"test loss: {osloss}, "
-              f"stopcounter: {stopcounter}")
-        iter += 1
-
-    tf.keras.backend.clear_session()
-    hpdf.loc[model_iteration, 'best_loss'] = float(best)
-    hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
-    hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_11apr_win.csv")
-    model_iteration += 1
-    # except Exception as e:
-    #     send_message_to_slack(e)
-    #     break
-
+        print(f"test loss: {loss}")
+    
+        tf.keras.backend.clear_session()
+        hpdf.loc[model_iteration, 'best_loss'] = float(loss)
+        hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
+        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_11apr_win.csv")
+        model_iteration += 1
+    except Exception as e:
+        send_message_to_slack(e)
+        break
 
 
 
@@ -460,3 +433,11 @@ for seed in range(1000):
 
 
 
+        # def batchmaker(idx, semipar):
+        #     if semipar is True:
+        #         x = [tf.convert_to_tensor(Xtr_np[idx,:,:], dtype = 'float32'), 
+        #              tf.convert_to_tensor(Xtr_p[idx,:], dtype = 'float32')]
+        #     else:
+        #         x = tf.convert_to_tensor(Xtr[idx,:,:], dtype = 'float32')
+        #     y = [tf.convert_to_tensor(i[idx, :]) for i in ytr]
+        #     return dict(x=x, y=y)
