@@ -197,7 +197,6 @@ for seed in range(1000):
         ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
         yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
         yte = [tf.convert_to_tensor(i) for i in yte]
-        
         print("\n\n********************************\n\n")
         print(hpdf.iloc[model_iteration])
         
@@ -248,7 +247,7 @@ for seed in range(1000):
                   callbacks = [callback],
                   validation_data = ([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
         
-        pred = model.predict([Xtr_np, Xtr_p] if hps[5] is True else Xtr)
+        pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
         # initialize the loss and the optimizer
         loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False) 
         loss = loss_object(yte, pred)
