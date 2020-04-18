@@ -88,8 +88,10 @@ def makemodel(window_size, n_dense, nunits,
     else:
         base_shape = input_dims
     inp = Input(shape=(window_size, base_shape))
-    LSTM_forward = LSTM(nunits, return_sequences = True)(inp)
-    LSTM_backward = LSTM(nunits, return_sequences = True, go_backwards = True)(inp)
+    LSTM_forward = LSTM(nunits, return_sequences = True, 
+                        kernel_regularizer = l1_l2(pen))(inp)
+    LSTM_backward = LSTM(nunits, return_sequences = True, go_backwards = True, 
+                         kernel_regularizer = l1_l2(pen))(inp)
     LSTM_backward = backend.reverse(LSTM_backward, axes = 1)
     conc = concatenate([LSTM_forward, LSTM_backward], axis = 2)
     # dense
@@ -128,7 +130,6 @@ def draw_hps(seed):
 
 
 loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-optimizer = tf.keras.optimizers.Adam(learning_rate=.00005)
 
 
 # initialize a df for results

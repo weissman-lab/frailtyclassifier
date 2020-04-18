@@ -80,7 +80,8 @@ tokenize_and_label(f'{os.getcwd()}/annotation/',
                    "frailty_phenotype_batch_2_2020-03-02_1325.zip")
 tokenize_and_label(f'{os.getcwd()}/annotation/',
                    "frailty_phenotype_test_batch_1_2020-03-06_1522.zip")
-
+tokenize_and_label(f'{os.getcwd()}/annotation/',
+                   "frailty_phenotype_batch_3_2020-04-18_1444.zip")
 
 
 

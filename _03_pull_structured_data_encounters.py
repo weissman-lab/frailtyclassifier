@@ -139,3 +139,4 @@ rencs_fixed = [i for i in rencs if type(i).__name__ == "dict"]
 encs_6m = pd.DataFrame(rencs_fixed)
 
 encs_6m.to_pickle(f"{outdir}encs_6m.pkl")
+

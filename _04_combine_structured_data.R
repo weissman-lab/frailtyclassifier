@@ -45,8 +45,23 @@ df$MARITAL_STATUS <- factor(df$MARITAL_STATUS)
 
 df$LANGUAGE[df$LANGUAGE == ''] <- NA
 df$LANGUAGE <- factor(df$LANGUAGE)
-df$COUNTY[df$COUNTY == ''] <- NA
-df$COUNTY <- factor(df$COUNTY)
+# df$COUNTY[df$COUNTY == ''] <- NA
+# df$COUNTY <- factor(df$COUNTY)
+options(na.action='na.pass')
+missdat <- model.matrix(~.-PAT_ID-1, data = df, na.rm=F)
+options(na.action='na.omit')
+
+# make data frame of missing values
+mdums <- df
+for (i in colnames(mdums)){
+  mdums[[i]] <- is.na(mdums[[i]])
+  if (all(mdums[[i]] == FALSE)){
+    mdums[[i]] <- NULL
+  }
+}
+print(dim(mdums))
+colnames(mdums) <- paste0("MV_", colnames(mdums))
+
 #missranger
 impdat <- missRanger(df[,2:ncol(df)], returnOOB = T, num.threads = detectCores(), seed = 8675309)
 impdat <- data.frame("PAT_ID" = df$PAT_ID, impdat)
@@ -54,5 +69,32 @@ write.csv(impdat, file = paste0(outdir, 'impdat.csv'))
 
 impdat_dums <- model.matrix(~.-PAT_ID-1, data = impdat)
 impdat_dums <- data.frame("PAT_ID" = df$PAT_ID, impdat_dums)
+impdat_dums <- cbind(impdat_dums, mdums)
 write.csv(impdat_dums, file = paste0(outdir, 'impdat_dums.csv'))
 
+# table
+impdat <- read.csv(paste0(outdir, 'impdat_dums.csv'))
+colnames(impdat) <- gsub(" |[.]", "_", colnames(impdat)) %>% tolower
+colnames(missdat) <- gsub(" |[.]", "_", colnames(missdat)) %>% tolower
+
+colnames(impdat) %in% colnames(missdat)
+colnames(impdat)[colnames(impdat) %ni% colnames(missdat)]
+missdat <- as.data.frame(missdat)
+
+head(impdat)
+sumstats <- foreach(i = colnames(impdat)[4:ncol(impdat)], .combine = 'rbind') %do% {
+  m <- data.frame(term = i, 
+                  nmiss = sum(is.na(missdat[[i]])),
+                  mean = mean(missdat[[i]], na.rm=T),
+                  impmean = mean(impdat[[i]]))
+  m
+}
+
+sumstats$impmean <- prettyNum(signif(sumstats$impmean,2))
+sumstats$mean <- prettyNum(signif(sumstats$mean,2))
+write.csv(sumstats, paste0(figdir, "sumstats_imp.csv"))
+
+# what is up with all of the missing encounters?
+df[is.na(df$n_encs),] %>% head
+
+df[df$PAT_ID == "000059949",] %>% dim

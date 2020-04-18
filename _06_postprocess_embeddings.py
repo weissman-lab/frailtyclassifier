@@ -194,40 +194,49 @@ makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
 os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
           f"{outdir}batch3_data_ft_oa_corp_300d_bw5.csv")
 
+##batch 4
+webanno_output = "frailty_phenotype_batch_3_2020-04-18_1444"
+makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+            embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
+            kernel=np.ones(bandwidth*2),
+            bandwidth=bandwidth,
+            ncores=mp.cpu_count(),
+            lagorder=2))
+os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
+          f"{outdir}batch4_data_ft_oa_corp_300d_bw5.csv")
 
 
+# if platform.uname()[1] == "grace":
+#     # OA embeddings
+#     OA = os.popen("find /proj/cwe/built_models/OA_CR |grep -E 'bin' | grep -v .npy").read().split("\n")
+#     # penn
+#     uphs = os.popen("find /data/penn_cwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
+#     #
+# elif platform.uname()[1] == 'PAIR-ADM-010.local':
+#     # OA embeddings
+#     OA = os.popen("find /Users/crandrew/projects/clinical_word_embeddings |grep -E 'bin' | grep -v .npy").read().split("\n")
+#     # penn
+#     uphs = os.popen("find /Users/crandrew/projects/pwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
+#     #
 
-if platform.uname()[1] == "grace":
-    # OA embeddings
-    OA = os.popen("find /proj/cwe/built_models/OA_CR |grep -E 'bin' | grep -v .npy").read().split("\n")
-    # penn
-    uphs = os.popen("find /data/penn_cwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
-    #
-elif platform.uname()[1] == 'PAIR-ADM-010.local':
-    # OA embeddings
-    OA = os.popen("find /Users/crandrew/projects/clinical_word_embeddings |grep -E 'bin' | grep -v .npy").read().split("\n")
-    # penn
-    uphs = os.popen("find /Users/crandrew/projects/pwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
-    #
 
-
-bandwidth = 10
-Efiles = [i for i in OA + uphs if len(i) > 0]
-print(Efiles)
-print(len(Efiles))
-# remove if already done:
-# BW30
-for e in Efiles:
-    print(e)
-    if f'test_data_{e.split("/")[-1].split(".")[0]}_bw{bandwidth}.csv' not in outdir:
-        start = time.time()
-        makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-                    embeddings=e,
-                    kernel = norm.pdf(np.linspace(-3, 3, bandwidth * 2)),
-                    bandwidth=bandwidth,
-                    ncores=mp.cpu_count(),
-                    lagorder = 2))
-        print(f"done in {(time.time()-start)/60} minutes")
+# bandwidth = 10
+# Efiles = [i for i in OA + uphs if len(i) > 0]
+# print(Efiles)
+# print(len(Efiles))
+# # remove if already done:
+# # BW30
+# for e in Efiles:
+#     print(e)
+#     if f'test_data_{e.split("/")[-1].split(".")[0]}_bw{bandwidth}.csv' not in outdir:
+#         start = time.time()
+#         makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+#                     embeddings=e,
+#                     kernel = norm.pdf(np.linspace(-3, 3, bandwidth * 2)),
+#                     bandwidth=bandwidth,
+#                     ncores=mp.cpu_count(),
+#                     lagorder = 2))
+#         print(f"done in {(time.time()-start)/60} minutes")
 
 
 # bandwidth = 30

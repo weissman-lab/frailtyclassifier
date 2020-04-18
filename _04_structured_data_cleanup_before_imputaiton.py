@@ -6,17 +6,10 @@ import pandas as pd
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
-if 'crandrew' in os.getcwd():
-    os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import re
-from _99_project_module import inv_logit, send_message_to_slack
 import datetime
-import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.keras.layers import concatenate, Conv1D, \
-    LeakyReLU, BatchNormalization
-from tensorflow.keras import Model, Input, backend
 import pickle
 import time
 
@@ -24,7 +17,7 @@ datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
 
-
+start = True
 # output data for R
 for i in [i for i in os.listdir(outdir) if "_6m" in i]:
     x = pd.read_pickle(f"{outdir}{i}")
@@ -52,14 +45,14 @@ strdat = strdat.merge(mm, how='outer')
 
 rawnotes = pd.read_pickle(f"{datadir}raw_notes_df.pkl")
 demogs = rawnotes[['PAT_ID', 'AGE', 'SEX', 'MARITAL_STATUS', 'RELIGION',
-                   'EMPY_STAT', 'RACE', 'LANGUAGE', 'COUNTY']]
+                   'EMPY_STAT', 'RACE', 'LANGUAGE']]#, 'COUNTY']]
 demogs.AGE = demogs.AGE.astype(float)
 demogs.loc[demogs.MARITAL_STATUS == 'Domestic Partner', 'MARITAL_STATUS'] = 'Partner'
 demogs.loc[demogs.RELIGION == 'Church of Jesus Christ of Latter-day Saints', 'RELIGION'] = 'Mormon'
 demogs.loc[~demogs.LANGUAGE.isin(['English', 'Spanish']), 'LANGUAGE'] = 'Other'
 demogs['month'] = rawnotes.NOTE_ENTRY_TIME.dt.month + (rawnotes.NOTE_ENTRY_TIME.dt.year - 2018) * 12
-demogs.loc[~demogs.COUNTY.isin(['PHILADELPHIA', 'CHESTER', 'DELAWARE', 'MONTGOMERY', 'BUCKS', 'CAMDEN',
-                                'GLOUCESTER', 'BURLINGTON', 'MERCER']), 'COUNTY'] = 'other'
+# demogs.loc[~demogs.COUNTY.isin(['PHILADELPHIA', 'CHESTER', 'DELAWARE', 'MONTGOMERY', 'BUCKS', 'CAMDEN',
+#                                 'GLOUCESTER', 'BURLINGTON', 'MERCER']), 'COUNTY'] = 'other'
 demogs = demogs.drop_duplicates(subset=['PAT_ID', 'month'])
 
 strdat = strdat.merge(demogs, how = 'left', on = ['PAT_ID', 'month'])
