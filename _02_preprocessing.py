@@ -550,6 +550,11 @@ for i in range(25):
 
 
 # 25 random notes from 2018
+'''
+NOTE THERE IS A TYPO BELOW.  I specified that the name of each of the files outputted would be "batch_03" when it should have been batch 4.  
+This has no real consequences, but could cause confusion later, hence this note.  
+I've made a post-hoc fix to the naming when the output gets loaded in the window classifier script.'
+'''
 import os
 np.random.seed(266701)
 subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2018]

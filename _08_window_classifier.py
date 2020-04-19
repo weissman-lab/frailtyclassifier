@@ -38,6 +38,12 @@ if 'moddat.pkl' not in os.listdir(outdir):
         pd.read_csv(f"{outdir}batch2_data_ft_oa_corp_300d_bw5.csv"),
         pd.read_csv(f"{outdir}batch3_data_ft_oa_corp_300d_bw5.csv")
     ])
+    # this below is a fix to a naming error that I made when I created batch 4
+    # it's only for clarity:  the train/test split is done based on the month
+    df4 = pd.read_csv(f"{outdir}batch4_data_ft_oa_corp_300d_bw5.csv")
+    df4.note = df4.note.str.replace("batch_03", "batch_04")
+    df = pd.concat([df, df4])
+
     # trim the lag off
     df = df[[i for i in df.columns if ("lag" not in i) and ("wmean" not in i)]]
     
@@ -50,7 +56,7 @@ if 'moddat.pkl' not in os.listdir(outdir):
     # merge on the structured data
     df = df.merge(strdat, how = 'left')
     
-    str_varnames = list(strdat.columns[3:])
+    str_varnames = list(strdat.columns[2:])
     out_varnames = df.columns[7:11]
     
     y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
@@ -117,11 +123,11 @@ def makemodel(window_size, n_dense, nunits,
 
 def draw_hps(seed):
     np.random.seed(seed)
-    hps = (int(np.random.choice(list(range(5, 40)))),  # window size
+    hps = (int(np.random.choice(list(range(4, 40)))),  # window size
            int(np.random.choice(list(range(1, 10)))),  # n dense
            int(np.random.choice(list(range(10, 100)))),  # n units
-           float(np.random.uniform(low = 0.01, high = .5)),  # dropout
-           float(np.random.uniform(low = -6, high = -1)), # l1/l2 penalty
+           float(np.random.uniform(low = 0, high = .5)),  # dropout
+           float(np.random.uniform(low = -8, high = -1)), # l1/l2 penalty
            bool(np.random.choice(list(range(2)))))  # semipar
     model = makemodel(*hps)
     return model, hps
@@ -259,7 +265,7 @@ for seed in range(1000):
         tf.keras.backend.clear_session()
         hpdf.loc[model_iteration, 'best_loss'] = float(loss)
         hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
-        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_11apr_win.csv")
+        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_19apr_win.csv")
         model_iteration += 1
     except Exception as e:
         send_message_to_slack(e)
