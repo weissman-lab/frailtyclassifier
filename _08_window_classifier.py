@@ -124,22 +124,20 @@ def makemodel(window_size, n_dense, nunits,
 def draw_hps(seed):
     np.random.seed(seed)
     hps = (int(np.random.choice(list(range(4, 40)))),  # window size
-           int(np.random.choice(list(range(1, 10)))),  # n dense
-           int(np.random.choice(list(range(10, 100)))),  # n units
-           float(np.random.uniform(low = 0, high = .5)),  # dropout
-           float(np.random.uniform(low = -8, high = -1)), # l1/l2 penalty
-           bool(np.random.choice(list(range(2)))))  # semipar
+            int(np.random.choice(list(range(1, 10)))),  # n dense
+            int(np.random.choice(list(range(10, 100)))),  # n units
+            float(np.random.uniform(low = 0, high = .5)),  # dropout
+            0, # l1/l2 penalty
+            True)  # semipar
     model = makemodel(*hps)
     return model, hps
-
-
 
 
 loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
 
 
 # initialize a df for results
-hpdf = pd.DataFrame(dict(idx=list(range(1000)),
+hpdf = pd.DataFrame(dict(idx=list(range(100)),
                          oob = np.nan,
                          window_size=np.nan,
                          n_dense=np.nan,
@@ -182,7 +180,7 @@ sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+st
 
 
 model_iteration = 0
-for seed in range(1000):
+for seed in range(100):
     try:
         np.random.seed(seed)
         # shrunk model
@@ -265,7 +263,7 @@ for seed in range(1000):
         tf.keras.backend.clear_session()
         hpdf.loc[model_iteration, 'best_loss'] = float(loss)
         hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
-        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_19apr_win.csv")
+        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_21apr_win.csv")
         model_iteration += 1
     except Exception as e:
         send_message_to_slack(e)

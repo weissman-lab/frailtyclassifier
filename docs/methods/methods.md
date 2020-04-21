@@ -126,7 +126,13 @@ As we move through active learning, plots showing the evolution of losses, entro
 --fit models
 
 
+--reduce space of hyperparameters
+--fit 100 models
+
+
 # References
+
+
 
 
 
