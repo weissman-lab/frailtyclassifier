@@ -22,7 +22,7 @@ if (grepl("crandrew", getwd())){
 }
 
 # read in the csv
-df <- read.csv(paste0(outdir, "hyperparameter_gridsearch_19apr_win.csv"))
+df <- read.csv(paste0(outdir, "hyperparameter_gridsearch_21apr_win.csv"))
 
 dim(df)
 head(df)
@@ -31,6 +31,9 @@ oob <- df$oob
 df$oob <- NULL
 head(df)
 df$idx <- df$X <- NULL
+
+
+hist(df$time_to_convergence/60, breaks = 10)
 
 plot(df)
 dev.new()

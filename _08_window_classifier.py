@@ -244,13 +244,14 @@ for seed in range(100):
                     'Fall_risk':tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
 
         callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
-                                                    patience=5,
+                                                    patience=20,
                                                     restore_best_weights = True)
         model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
                   batch_size=256,
                   epochs=1000, 
                   callbacks = [callback],
                   validation_data = ([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
+        model.save_weights(f"{outdir}saved_models/model_{seed}_batch_4")
         
         pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
         # initialize the loss and the optimizer
@@ -270,178 +271,151 @@ for seed in range(100):
         break
 
 
+# '''
+# Finally, fit and save the actual model used
+# '''
+# hpdf = pd.read_csv(f"{outdir}hyperparameter_gridsearch_21apr_win.csv")
+# best= hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
+
+# seed = 92
+# np.random.seed(seed)
+# # shrunk model
+# model, hps = draw_hps(seed)
+    
+# # put the data in arrays for modeling, expanding out to the window size
+# # only converting the test into tensors, to facilitate indexing
+# if hps[-1] is False: # corresponds with the semipar argument
+#     Xtr = tensormaker(sdf, trnotes, embedding_colnames+str_varnames, hps[0])            
+#     Xte = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames+str_varnames, hps[0]), dtype = 'float32')
+# else:
+#     Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])            
+#     Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, hps[0]), dtype = 'float32')
+#     Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
+#     Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
+# ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
+# yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
+# yte = [tf.convert_to_tensor(i) for i in yte]
+
+# start_time = time.time()
+
+
+# # initialize the bias terms with the logits of the proportions
+# w = model.get_weights()
+# # set the bias terms to the proportions
+# for i in range(4):
+#     props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
+#                       inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
+#                       inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
+#     pos = 7 - i * 2
+#     w[-pos] = w[-pos] * 0 + props
+
+# model.set_weights(w)
+
+# model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
+#       loss={'Msk_prob':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+#             'Nutrition':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+#             'Resp_imp':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+#             'Fall_risk':tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
+
+# callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
+#                                             patience=20,
+#                                             restore_best_weights = True)
+# model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
+#           batch_size=256,
+#           epochs=1000, 
+#           callbacks = [callback],
+#           validation_data = ([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
+
+# model.save(f"{outdir}saved_AL_models/model_batch_4.h5")
+# model = tf.keras.models.load_model(f"{outdir}saved_AL_models/model_batch_4.h5")
+# yhat= model.predict([Xte_np, Xte_p])
+
+# loss_object(yte, yhat)
+
+# plt.hist(yhat[3][:,1])
+# yhat[1][:,1].min()
+
+
+# '''
+# Active learning
+# loop through the notes and compute their entropies for all of the phenotypes
+# '''
+# enotes = os.listdir(f"{outdir}embedded_notes")
+# # trim off the ones that are not from 2018
+# enotes = [enotes[i] for i in range(len(enotes)) if int(enotes[i].split("_")[2][1:])<=12]
+# # trim off the ones that are in the training set already
+# screen = [notes_2018[i].split("_")[2]+"_"+notes_2018[i].split("_")[3] for i in range(len(notes_2018))]
+# tocheck = [enotes[i].split("_")[2]+"_"+enotes[i].split("_")[3] for i in range(len(enotes))]
+# enotes_not_yet_used = [enotes[i] for i in range(len(enotes)) if tocheck[i] not in screen]
+# assert len(enotes) > len(enotes_not_yet_used)
+
+# # load the structured data
+# strdat = pd.read_csv(f"{outdir}impdat_dums.csv")
+# strdat = strdat.drop(columns = "Unnamed: 0")
+
+# i = 0
+# # load, merge, scale
+# x = pd.read_pickle(f"{outdir}embedded_notes/{enotes_not_yet_used[i]}")
+# x = x[[i for i in x.columns if i in embedding_colnames+['PAT_ID', 'month']]]
+# x = x.merge(strdat)
+# x[embedding_colnames+str_varnames] = scaler.transform(x[embedding_colnames+str_varnames])
+# # tensorize it
+# x['note'] = "placeholder"
+# xnp = tensormaker(x, ['placeholder'], embedding_colnames, hps[0])
+# xnp.shape
+# xp = np.array(x[str_varnames])
+# pred = model.predict([xnp, xp])
+# len(pred)
+# plt.hist(H(pred[1]))
+
+# H(pred[1]).max()
+
+# w = model.get_weights()
+# plt.hist(w[-2].flatten())
+# model.summary()
+
+# max(pred[0][:,1])
 
 
 
+# def H(p):
+#     '''entropy'''
+#     return -np.sum(p*np.log(p), axis = 1)
+# plt.hist(H(pred[1))
+
+# H(pred[0]).max()
 
 
-# # training function
-# @tf.function()
-# def train(x, y):
-#     with tf.GradientTape() as g:
-#         pred = model(x)
-#         loss = loss_object(y, pred)
-#         gradients = g.gradient(loss, model.trainable_variables)
-#         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+# xp.shape
 
-
-# def test():
-#     lossvec = []
-#     wtvec = []
-#     for i in tenotes:
-#         tebatch = batchmaker(i)
-#         pred = model(tebatch['x'])
-#         lossvec.append(loss_object(tebatch['y'], pred))
-#         wtvec.append(note_lengths[i])
-#     avg_loss = sum([float(lossvec[i]) * wtvec[i] for i in range(len(lossvec))]) / sum(wtvec)
-#     return avg_loss
+#     Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, hps[0]), dtype = 'float32')
 
 
 
-# model_iteration = 0
-# for seed in range(1000):
-#     try:
-#         np.random.seed(seed)
-
-#         model, hps = draw_hps(seed)
-#         for i in range(1, 7):
-#             hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 1]
-
-#         print("\n\n********************************\n\n")
-#         print(hpdf.iloc[model_iteration])
-
-#         start_time = time.time()
-
-#         # initialize the bias terms with the logits of the proportions
-#         w = model.get_weights()
-
-#         for i in range(5):
-#             props = np.array([inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == -1)),
-#                               inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == 0)),
-#                               inv_logit(np.mean(df.loc[df.month <= 12, out_varnames[i]] == 1))])
-#             # print(props)
-#             pos = 9 - i * 2
-#             # print(pos)
-#             # print(w[-pos].shape)
-#             w[-pos] = w[-pos] * 0 + props
-
-#         model.set_weights(w)
-
-#         loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-#         optimizer = tf.keras.optimizers.Adam(learning_rate=.00005)
-
-
-#         # training function
-#         @tf.function(experimental_relax_shapes=True)
-#         def train(x, y):
-#             with tf.GradientTape() as g:
-#                 pred = model(x)
-#                 loss = loss_object(y, pred)
-#                 gradients = g.gradient(loss, model.trainable_variables)
-#                 optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-
-
-#         def test():
-#             lossvec = []
-#             wtvec = []
-#             for i in tenotes:
-#                 tebatch = batchmaker(i)
-#                 pred = model(tebatch['x'])
-#                 lossvec.append(loss_object(tebatch['y'], pred))
-#                 wtvec.append(note_lengths[i])
-#             avg_loss = sum([float(lossvec[i]) * wtvec[i] for i in range(len(lossvec))]) / sum(wtvec)
-#             return avg_loss
-
-
-#         # training loop
-#         osrmse = np.empty((10000, 5))
-#         oslossvec = []
-#         test_rate = 75
-#         stopcounter = 0
-#         best = 9999
-#         iter = 0
-
-#         while stopcounter < 5:
-#             if iter % test_rate == 0:
-#                 osloss = test()
-#                 oslossvec.append(osloss)
-#                 if osloss < best:
-#                     best = osloss
-#                     bestidx = iter
-#                     stopcounter = 0
-#                 else:
-#                     stopcounter += 1
-#                 print(f"at {datetime.datetime.now()}")
-#                 print(f"test loss: {osloss}, "
-#                       f"stopcounter: {stopcounter}, "
-#                       f"iter: {iter // test_rate}")
-#             train(batch['x'], batch['y'])
-#             iter += 1
-
-#         tf.keras.backend.clear_session()
-#         hpdf.loc[model_iteration, 'best_loss'] = best
-#         hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
-#         hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_results.csv")
-#         model_iteration += 1
-#     except Exception as e:
-#         send_message_to_slack(e)
-#         break
+# # scaling
+# scaler = StandardScaler()
+# scaler.fit(df[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
+# sdf = copy.deepcopy(df)
+# sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+str_varnames])
 
 
 
+# def tensormaker(D, notelist, cols, ws):
+#     # take a data frame and a list of notes and a list of columns and a window size and return an array for feeting to tensorflow
+#     note_arrays = [np.array(D.loc[D.note == i, cols]) for i in notelist]
+#     notelist = []
+#     for j in range(len(note_arrays)):
+#         lags, leads = [], []
+#         for i in range(int(np.ceil(ws/2))-1, 0, -1):
+#             li = np.concatenate([np.zeros((i,note_arrays[j].shape[1])), note_arrays[j][:-i]], axis = 0)
+#             lags.append(li)
+#         assert len(set([i.shape for i in lags])) == 1 # make sure they're all the same size                
+#         for i in range(1, int(np.floor(ws/2))+1, 1):
+#             li = np.concatenate([note_arrays[j][i:], np.zeros((i,note_arrays[j].shape[1]))], axis = 0)
+#             leads.append(li)
+#         assert len(set([i.shape for i in leads])) == 1 # make sure they're all the same size                
+#         x = np.squeeze(np.stack([lags+ [note_arrays[j]] + leads]))
+#         notelist.append(np.swapaxes(x, 1, 0))
+#     return np.concatenate(notelist, axis = 0)
 
 
-
-# def cutter_padder(df, note, cols):
-#     di = df.loc[df.note == note, cols]
-#     x = np.array(di).astype('float32')
-#     return x
-
-
-# # batchmaker function
-# def batchmaker(note, return_y_as_list=True, batchsize = 256):
-#     emdat = cutter_padder(df, note, embedding_colnames)
-#     strdat = cutter_padder(df, note, str_varnames)
-#     X = np.concatenate([emdat, strdat], axis=1)
-#     # y variables
-#     yvars = cutter_padder(df, note, y_dums.columns)
-#     if return_y_as_list == True:
-#         # break out the outcomes into a list of tensors
-#         y_list_of_tensors = [tf.convert_to_tensor(yvars[:, i * 3:(i + 1) * 3]) for i in range(5)]
-#         output = dict(x=X,
-#                       y=y_list_of_tensors)
-#     else:
-#         output = dict(x=X,
-#                       y=yvars)
-#     return output
-
-# # make all batches for a given window size
-# mbx, mby = [], []
-# for j in range(len(trnotes)):
-#     b = batchmaker(trnotes[j], return_y_as_list=False)
-#     for i in range(0, b['x'].shape[0], window_size):
-#         xi = b['x'][i:(i + 20), :]
-#         yi = b['y'][i:(i + 20), :]
-#         if xi.shape[0] < 20:
-#             xi = np.concatenate([xi, np.zeros((window_size-xi.shape[0], xi.shape[1]))], axis = 0)
-#             yi = np.concatenate([yi, np.zeros((window_size-yi.shape[0], yi.shape[1]))], axis = 0)
-#         mbx.append(xi)
-#         mby.append(yi)
-
-# X = tf.convert_to_tensor(np.stack(mbx))
-# Y = np.stack(mby)
-
-
-
-# @@expand dims and otherwise clean up
-
-
-
-        # def batchmaker(idx, semipar):
-        #     if semipar is True:
-        #         x = [tf.convert_to_tensor(Xtr_np[idx,:,:], dtype = 'float32'), 
-        #              tf.convert_to_tensor(Xtr_p[idx,:], dtype = 'float32')]
-        #     else:
-        #         x = tf.convert_to_tensor(Xtr[idx,:,:], dtype = 'float32')
-        #     y = [tf.convert_to_tensor(i[idx, :]) for i in ytr]
-        #     return dict(x=x, y=y)
