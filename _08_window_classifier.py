@@ -278,7 +278,7 @@ for seed in range(100):
                   epochs=1000, 
                   callbacks = [callback],
                   sample_weight = tr_caseweights,
-                  validation_data = ([Xte_np, Xte_p], yte, te_caseweights)) if hps[5] is True else (Xte, yte, te_caseweights))
+                  validation_data = ([Xte_np, Xte_p], yte, te_caseweights) if hps[5] is True else (Xte, yte, te_caseweights))
         model.save_weights(f"{outdir}saved_models/model_{seed}_batch_4")
         
         pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
