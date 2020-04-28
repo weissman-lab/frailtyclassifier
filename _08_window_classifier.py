@@ -199,6 +199,7 @@ for seed in range(100):
         np.random.seed(seed+4*100) # the seed should always be the batch number * 100 plus the iter
         # shrunk model
         model, hps = draw_hps(seed+4*100)
+       
         for i in range(2, 8): # put the hyperparameters in the hpdf
             hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 2]
         hpdf.loc[model_iteration, 'oob'] = ",".join(tenotes)
@@ -279,8 +280,9 @@ for seed in range(100):
                   callbacks = [callback],
                   sample_weight = tr_caseweights,
                   validation_data = ([Xte_np, Xte_p], yte, te_caseweights) if hps[5] is True else (Xte, yte, te_caseweights))
-        model.save_weights(f"{outdir}saved_models/model_{seed}_batch_4")
-        
+        model.save(f"{outdir}saved_models/model_{seed}_batch_4.h5")
+
+      
         pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
         # initialize the loss and the optimizer
         loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False) 
@@ -288,7 +290,9 @@ for seed in range(100):
     
         print(f"at {datetime.datetime.now()}")
         print(f"test loss: {loss}")
-    
+        print("quantiles of the common category")
+        print(np.quantile([pred[0][:,1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
+ 
         tf.keras.backend.clear_session()
         hpdf.loc[model_iteration, 'best_loss'] = float(loss)
         hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
@@ -297,6 +301,9 @@ for seed in range(100):
     except Exception as e:
         send_message_to_slack(e)
         break
+
+
+
 
 
 # '''
