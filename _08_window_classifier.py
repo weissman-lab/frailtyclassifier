@@ -142,7 +142,7 @@ def draw_hps(seed):
             int(np.random.choice(list(range(10, 100)))),  # n units
             float(np.random.uniform(low = 0, high = .5)),  # dropout
             0, # l1/l2 penalty
-            True)  # semipar
+            bool(np.random.choice(list(range(2)))))  # semipar
     model = makemodel(*hps)
     return model, hps
 
@@ -273,12 +273,12 @@ for seed in range(100):
         callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
                                                     patience=20,
                                                     restore_best_weights = True)
-        model.fit([Xtr_np, Xtr_p], ytr,
+        model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
                   batch_size=256,
                   epochs=1000, 
                   callbacks = [callback],
                   sample_weight = tr_caseweights,
-                  validation_data = ([Xte_np, Xte_p], yte, te_caseweights))
+                  validation_data = ([Xte_np, Xte_p], yte, te_caseweights)) if hps[5] is True else (Xte, yte, te_caseweights))
         model.save_weights(f"{outdir}saved_models/model_{seed}_batch_4")
         
         pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
