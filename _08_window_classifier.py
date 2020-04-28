@@ -75,14 +75,28 @@ else:
     del moddat
 
 
+
+
 # define some useful constants
 embedding_colnames = [i for i in df.columns if re.match("identity", i)]
 input_dims = len(embedding_colnames) + len(str_varnames)
 notes_2018 = [i for i in df.note.unique() if int(i.split("_")[2][1:]) <= 12]
 notes_2019 = [i for i in df.note.unique() if int(i.split("_")[2][1:]) > 12]
 note_lengths = df.note.value_counts()
+np.random.seed(4) # the seed should be the batch number
 trnotes = np.random.choice(notes_2018, len(notes_2018)*2//3, replace = False)
 tenotes = [i for i in notes_2018 if i not in trnotes]
+# get a vector of non-negatives for case weights
+non_neutral = (np.sum(np.array(y_dums[[i for i in y_dums.columns if "_0" not in i]]), axis = 1)>1).astype('float32')
+tr_caseweights = np.array([non_neutral[i] for i in range(len(non_neutral)) if df.note.iloc[i] in trnotes])
+nnweight = 1/np.mean(tr_caseweights)
+tr_caseweights[tr_caseweights == 1] *= nnweight
+tr_caseweights[tr_caseweights == 0] = 1
+te_caseweights = np.array([non_neutral[i] for i in range(len(non_neutral)) if df.note.iloc[i] in tenotes])
+te_caseweights[te_caseweights == 1] *= nnweight
+te_caseweights[te_caseweights == 0] = 1
+
+
 
 
 def makemodel(window_size, n_dense, nunits,
@@ -182,9 +196,9 @@ sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+st
 model_iteration = 0
 for seed in range(100):
     try:
-        np.random.seed(seed)
+        np.random.seed(seed+4*100) # the seed should always be the batch number * 100 plus the iter
         # shrunk model
-        model, hps = draw_hps(seed)
+        model, hps = draw_hps(seed+4*100)
         for i in range(2, 8): # put the hyperparameters in the hpdf
             hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 2]
         hpdf.loc[model_iteration, 'oob'] = ",".join(tenotes)
@@ -201,10 +215,23 @@ for seed in range(100):
             Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
         ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
         yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
-        yte = [tf.convert_to_tensor(i) for i in yte]
+        # yte = [tf.convert_to_tensor(i) for i in yte]
         print("\n\n********************************\n\n")
         print(hpdf.iloc[model_iteration])
         
+        tr_caseweights = []
+        te_caseweights = []
+        for i in range(len(ytr)):
+            x = (ytr[i][:,1] == 0).astype('float32')
+            wt = 1/np.mean(x)
+            x[x == True] *= wt
+            x[x == 0] = 1
+            tr_caseweights.append(x)
+            x = (yte[i][:,1] == 0).astype('float32')
+            x[x == True] *= wt
+            x[x == 0] = 1
+            te_caseweights.append(x)
+            
         start_time = time.time()
     
         # # initial overfit
@@ -223,19 +250,19 @@ for seed in range(100):
         # model.set_weights(ofm.get_weights())
         
         # initialize the bias terms with the logits of the proportions
-        w = model.get_weights()
-        # set the bias terms to the proportions
-        for i in range(4):
-            props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
-                              inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
-                              inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
-            # print(props)
-            pos = 7 - i * 2
-            # print(pos)
-            # print(w[-pos].shape)
-            w[-pos] = w[-pos] * 0 + props
+        # w = model.get_weights()
+        # # set the bias terms to the proportions
+        # for i in range(4):
+        #     props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
+        #                       inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
+        #                       inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
+        #     # print(props)
+        #     pos = 7 - i * 2
+        #     # print(pos)
+        #     # print(w[-pos].shape)
+        #     w[-pos] = w[-pos] * 0 + props
     
-        model.set_weights(w)
+        # model.set_weights(w)
 
         model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
               loss={'Msk_prob':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
@@ -246,11 +273,12 @@ for seed in range(100):
         callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
                                                     patience=20,
                                                     restore_best_weights = True)
-        model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
+        model.fit([Xtr_np, Xtr_p], ytr,
                   batch_size=256,
                   epochs=1000, 
                   callbacks = [callback],
-                  validation_data = ([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
+                  sample_weight = tr_caseweights,
+                  validation_data = ([Xte_np, Xte_p], yte, te_caseweights))
         model.save_weights(f"{outdir}saved_models/model_{seed}_batch_4")
         
         pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
@@ -264,7 +292,7 @@ for seed in range(100):
         tf.keras.backend.clear_session()
         hpdf.loc[model_iteration, 'best_loss'] = float(loss)
         hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
-        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_21apr_win.csv")
+        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_27apr_win.csv")
         model_iteration += 1
     except Exception as e:
         send_message_to_slack(e)
@@ -330,11 +358,22 @@ for seed in range(100):
 # model = tf.keras.models.load_model(f"{outdir}saved_AL_models/model_batch_4.h5")
 # yhat= model.predict([Xte_np, Xte_p])
 
-# loss_object(yte, yhat)
+
+# np.mean(np.sum(-1*np.array(yte[1])* np.log(yhat[1]), axis = 1))
+
+# np.mean((yte[1].numpy()- yhat[1])**2)
+# yhat[1]
+
+# loss_object(yte[1], yhat[1])
 
 # plt.hist(yhat[3][:,1])
-# yhat[1][:,1].min()
+# yhat[0][:,1].min()
 
+
+# np.max(yhat[1][:,1])
+# np.min(yhat[1][:,1])
+
+# df.to_csv(f"{outdir}foo.csv")
 
 # '''
 # Active learning
