@@ -132,6 +132,42 @@ def makemodel(window_size, n_dense, nunits,
         model = Model(inp, outlayers)
     return model
     
+def makemodel(window_size, n_dense, nunits,
+              dropout, penalty, semipar):
+    pen = 10**penalty
+    if semipar is True:
+        base_shape = input_dims - len(str_varnames)
+        top_shape = input_dims - len(embedding_colnames)
+    else:
+        base_shape = input_dims
+    inp = Input(shape=(window_size, base_shape))
+    # LSTM_forward = LSTM(nunits, return_sequences = True, 
+    #                     kernel_regularizer = l1_l2(pen))(inp)
+    # LSTM_backward = LSTM(nunits, return_sequences = True, go_backwards = True, 
+    #                      kernel_regularizer = l1_l2(pen))(inp)
+    # LSTM_backward = backend.reverse(LSTM_backward, axes = 1)
+    # conc = concatenate([LSTM_forward, LSTM_backward], axis = 2)
+    # # dense
+    for i in range(n_dense):
+        d = Dense(nunits, kernel_regularizer = l1_l2(pen))(inp if i == 0 else drp)
+        lru = LeakyReLU()(d)
+        drp = Dropout(dropout)(lru)
+    fl = Flatten()(drp)
+    if semipar is True:
+        p_inp = Input(shape = (top_shape))
+        conc = concatenate([p_inp, fl])
+    # outlayers = [Dense(3, activation="softmax", name=i, 
+    #                    kernel_regularizer = l1_l2(pen))(conc if semipar is True else fl)
+    #              for i in out_varnames]
+    outlayers = Dense(3, activation="softmax", name=i, 
+                       kernel_regularizer = l1_l2(pen))(conc if semipar is True else fl)
+    if semipar is True:
+        model = Model([inp, p_inp], outlayers)
+    else: 
+        model = Model(inp, outlayers)
+    return model
+
+
 
 
 
@@ -185,12 +221,123 @@ def make_y_list(y):
     return [y[:, i * 3:(i + 1) * 3] for i in range(len(out_varnames))]
 
 
-# scaling
-scaler = StandardScaler()
-scaler.fit(df[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
-sdf = copy.deepcopy(df)
-sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+str_varnames])
+# # scaling
+# scaler = StandardScaler()
+# scaler.fit(df[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
+# sdf = copy.deepcopy(df)
+# sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+str_varnames])
 
+
+# scaling
+sdf = copy.deepcopy(df)
+non_neutral = np.sum(y_dums[[i for i in y_dums.columns if "_0" not in i]], axis = 1)>1
+nndf = sdf.loc[non_neutral]
+nndf = pd.concat([nndf for i in range(int(len(sdf)/len(nndf)))])
+sdf = pd.concat([sdf, nndf])
+
+scaler = StandardScaler()
+scaler.fit(sdf[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
+sdf[embedding_colnames+str_varnames] = scaler.transform(sdf[embedding_colnames+str_varnames])
+
+# Oversampling.  
+
+
+
+
+# from scipy.spatial.distance import cosine
+
+# x = df.loc[df.token == "patient", [i for i in df.columns if "identity" in i]].iloc[0]
+# y = df.loc[df.token == "the_patient", [i for i in df.columns if "identity" in i]].iloc[0]
+# cosine(x,y)
+
+
+# x = df.loc[df.token == "SpO2", [i for i in df.columns if "identity" in i]].iloc[0]
+# y = df.loc[df.token == "breath", [i for i in df.columns if "identity" in i]].iloc[0]
+# cosine(x,y)
+
+# z = df.loc[df.token == "respiratory", [i for i in df.columns if "identity" in i]].iloc[0]
+# cosine(y,z)
+# cosine(x,z)
+
+# a = df.loc[df.token == "copd", [i for i in df.columns if "identity" in i]].iloc[0]
+# cosine(a,x)
+# cosine(x,z)
+
+
+Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, 10)            
+Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, 10), dtype = 'float32')
+Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
+Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
+
+ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
+yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
+
+xn = Xtr_np.reshape(Xtr_np.shape[0], Xtr_np.shape[1]* Xtr_np.shape[2])
+Xtr = np.concatenate([xn, Xtr_p], axis = 1)
+xn = Xte_np.numpy().reshape(Xte_np.shape[0], Xte_np.shape[1]* Xte_np.shape[2])
+Xte = np.concatenate([xn, Xte_p], axis = 1)
+
+yr = sdf.loc[sdf.note.isin(trnotes), out_varnames]
+ye = sdf.loc[sdf.note.isin(tenotes), out_varnames]
+
+
+# dftr = pd.concat([yr, pd.DataFrame(Xtr, columns = embedding_colnames+str_varnames)], axis = 1)
+# dfte = pd.concat([ye, pd.DataFrame(Xte, columns = embedding_colnames+str_varnames)], axis = 1)
+
+
+from sklearn.linear_model import LogisticRegression
+
+def f(lam):
+    clf = LogisticRegression(random_state=0, max_iter = 10000, 
+                             penalty = "elasticnet",
+                             solver = "saga",
+                             l1_ratio = .5,
+                             C = 10**lam,
+                             multi_class = "multinomial").fit(Xtr, yr.Nutrition)
+    pred = clf.predict_proba(Xte)
+    vloss = np.mean(-np.sum(yte[1] * np.log(pred), axis = 1))
+    print(f"reg: 10^{lam}, vloss: {vloss}")
+    return vloss
+    
+
+lams = list(range(-10, 6))
+import multiprocessing as mp
+pool = mp.Pool(mp.cpu_count())
+vlossvec = pool.map(f, lams)
+pool.close()
+
+
+pred.head()
+
+
+
+
+
+
+
+
+
+
+
+
+rs.shape
+b = rs[0,:]
+
+
+plt.hist(b.flatten())
+
+
+np.corrcoef([x, y, z, a])
+
+y = df.loc[df.token == "history", [i for i in df.columns if "identity" in i]].iloc[0]
+
+@@@@
+Capitalized words are all zeros in the embeddings!
+@@@@
+
+np.corrcoef([x, y])
+
+df.token.value_counts()[:200]
 
 
 model_iteration = 0
@@ -199,7 +346,10 @@ for seed in range(100):
         np.random.seed(seed+4*100) # the seed should always be the batch number * 100 plus the iter
         # shrunk model
         model, hps = draw_hps(seed+4*100)
-       
+        
+        model = makemodel(3, 1, 10,
+              0, 0, False)
+        
         for i in range(2, 8): # put the hyperparameters in the hpdf
             hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 2]
         hpdf.loc[model_iteration, 'oob'] = ",".join(tenotes)
@@ -216,22 +366,27 @@ for seed in range(100):
             Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
         ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
         yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
+        
+
+ytr = ytr[1]
+yte = yte[1]
+
         # yte = [tf.convert_to_tensor(i) for i in yte]
         print("\n\n********************************\n\n")
         print(hpdf.iloc[model_iteration])
         
-        tr_caseweights = []
-        te_caseweights = []
-        for i in range(len(ytr)):
-            x = (ytr[i][:,1] == 0).astype('float32')
-            wt = 1/np.mean(x)
-            x[x == True] *= wt
-            x[x == 0] = 1
-            tr_caseweights.append(x)
-            x = (yte[i][:,1] == 0).astype('float32')
-            x[x == True] *= wt
-            x[x == 0] = 1
-            te_caseweights.append(x)
+        # tr_caseweights = []
+        # te_caseweights = []
+        # for i in range(len(ytr)):
+        #     x = (ytr[i][:,1] == 0).astype('float32')
+        #     wt = 1/np.mean(x)
+        #     x[x == True] *= wt
+        #     x[x == 0] = 1
+        #     tr_caseweights.append(x)
+        #     x = (yte[i][:,1] == 0).astype('float32')
+        #     x[x == True] *= wt
+        #     x[x == 0] = 1
+        #     te_caseweights.append(x)
             
         start_time = time.time()
     
@@ -264,8 +419,9 @@ for seed in range(100):
         #     w[-pos] = w[-pos] * 0 + props
     
         # model.set_weights(w)
+        model.compile(optimizer=tf.keras.optimizers.Adam(1e-3),loss = tf.keras.losses.CategoricalCrossentropy(from_logits=False))
 
-        model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
+        model.compile(optimizer=tf.keras.optimizers.Adam(1e-3),
               loss={'Msk_prob':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
                     'Nutrition':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
                     'Resp_imp':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
@@ -277,9 +433,9 @@ for seed in range(100):
         model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
                   batch_size=256,
                   epochs=1000, 
-                  callbacks = [callback],
-                  sample_weight = tr_caseweights,
-                  validation_data = ([Xte_np, Xte_p], yte, te_caseweights) if hps[5] is True else (Xte, yte, te_caseweights))
+                   callbacks = [callback],
+                  # sample_weight = tr_caseweights,
+                  validation_data = ([Xte_np, Xte_p]) if hps[5] is True else (Xte, yte))
         model.save(f"{outdir}saved_models/model_{seed}_batch_4.h5")
 
       
@@ -291,7 +447,7 @@ for seed in range(100):
         print(f"at {datetime.datetime.now()}")
         print(f"test loss: {loss}")
         print("quantiles of the common category")
-        print(np.quantile([pred[0][:,1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
+        print(np.quantile([pred[:,1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
  
         tf.keras.backend.clear_session()
         hpdf.loc[model_iteration, 'best_loss'] = float(loss)
@@ -301,6 +457,10 @@ for seed in range(100):
     except Exception as e:
         send_message_to_slack(e)
         break
+
+
+Xtr.shape
+plt.scatter(Xtr[:,1,2],Xtr[:,1,6])
 
 
 

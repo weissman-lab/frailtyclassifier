@@ -1,22 +1,5 @@
 
-'''
-This script will contain function that will take text that is tokenized by the function in _05_tokenize_and_label.py
-and generate features.
-Rather than building features and saving them to static files, it'll be a function that outputs rows of a dataframe.
-If a static file is desired, the output can be aggregated.
 
-The function will take the following arguments:
-- embeddings:  this is a path to the embeddings to be used.
-- bandwidth:  this is the radius of the window around a centroid word
-- aggfunc: a dictionary of functions to apply to the matrix of embeddings.  If there is more than one function,
-    the results will just get appended to the end of the resultant output
-- kernel:  a vector of length bandwidth*2+1 with relative weights for aggregating within the window
-- file:  the file to pull observations from.  random if none
-- idx: indices to pull.  random if none
-- maskfun:  function to apply to the data frame to preprocess it.  It might be used to remove metadata, or change case
-
-
-'''
 
 import os
 import pandas as pd
@@ -83,22 +66,22 @@ def embeddings_catcher(tok, embeddings):
 
 def featurize(file,  # the name of the token/label file
               anno_dir,  # the location of the annotation output
-              webanno_output,  # the specific webanno object, processed per the function in _05_tokenize_and_label.py
-              bandwidth,  # the bandwidth of the window
-              kernel,  # The weights kernel, for weighted functions
+              # webanno_output,  # the specific webanno object, processed per the function in _05_tokenize_and_label.py
               embeddings,  # this is either the path to the embeddings (in which case they will be loaded) or the filename of the loaded embeddings
-              aggfuncdict,
-              lagorder = 0):  # if idx is not None, this is how many random indices to pull
+              ):  # if idx is not None, this is how many random indices to pull
     # First check and see whether the embeddings object is loaded
     if isinstance(embeddings, str): # load it if it's not
         embeddings = KeyedVectors.load(embeddings, mmap='r')
     assert ("Word2Vec" in type(embeddings).__name__) or ("FastText" in type(embeddings).__name__)
     # now load the file and remove its headers (note concatenation indicators)
-    fi = pd.read_pickle(f"{anno_dir + webanno_output}/labels/{file}")
+    # fi = pd.read_pickle(f"{anno_dir + webanno_output}/labels/{file}")
+    fi = pd.read_pickle(f"{anno_dir}/labeled_text/{file}")
     fi = remove_headers(fi)
     # add metadata
     fi['index'] = fi.index
     fi['note'] = file
+    # lowercase the words
+    fi.token = fi.token.str.lower()
     # now figure out which rows to process
     centers = list(range(nrow(fi)))
     # loop through the words and make an embeddings matrix
@@ -112,28 +95,7 @@ def featurize(file,  # the name of the token/label file
     outlist.append(pd.DataFrame(data = Emat,
                      index = fi.index.tolist(),
                      columns = ["identity_"+ str(i) for i in range(ncol(Emat))]))
-    # lags
-    for lag in range(1, lagorder):
-        x = np.concatenate([np.vstack(Elist[lag:]),
-                            np.zeros((lag, len(Elist[0])))],
-                           axis = 0)
-        outlist.append(pd.DataFrame(data=x,
-                       index=fi.index.tolist(),
-                       columns=["lag_"+str(lag)+"_" + str(i) for i in range(ncol(x))]))
-    # functions in dictionary
-    if aggfuncdict is not None:
-        for fname in list(aggfuncdict.keys()):
-            # pre-allocate a matrix to take the function's input
-            empty = np.zeros((nrow(fi), ncol(Emat)))
-            for center in centers:
-                window = list(range((center - bandwidth), (center + bandwidth)))
-                trwindow = [i for i in window if i >= 0 and i < nrow(fi) and fi.invocab.iloc[i] == 1]
-                # trim the kernel, for cases where the window overlaps the edges of the note
-                ktrim = np.array([kernel[i] for i in range(len(window)) if window[i] in trwindow])
-                empty[center,:] = aggfuncdict['wmean'](Emat[trwindow,:], ktrim)
-            outlist.append(pd.DataFrame(data=empty,
-                                        index=fi.index.tolist(),
-                                        columns=[fname + "_" + str(i) for i in range(ncol(Emat))]))
+
     # construct output
     output = pd.concat([fi]+outlist, axis = 1)
     return output.reset_index(drop=True)
@@ -142,119 +104,108 @@ def featurize(file,  # the name of the token/label file
 def makeds(argsdict):
     tuples_for_starmap = [(i,
                           anno_dir,
-                          webanno_output,
-                          argsdict['bandwidth'],
-                          argsdict['kernel'],
+                          # webanno_output,
                           argsdict['embeddings'],
-                          aggfunc,
-                          argsdict['lagorder']) for i in argsdict['fi']]
+                          ) for i in argsdict['fi']]
     pool = mp.Pool(argsdict['ncores'])
     ll = pool.starmap(featurize, tuples_for_starmap, chunksize=1)
     pool.close()
     outfile = pd.concat(ll)
-    outfile.to_csv(f'{outdir}/test_data_{argsdict["embeddings"].split("/")[-1].split(".")[0]}_bw{argsdict["bandwidth"]}.csv')
-
-# these are functions for putting into the aggfunc dictionary
-def wmean(Emat, kernel):
-    kernel = kernel/sum(kernel)
-    return Emat.T @ kernel
-
-aggfunc = dict(wmean = wmean)
-
-## batch 1 dataset
-bandwidth = 5
-webanno_output = "frailty_phenotype_batch_1_2020-03-02_1328"
-makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-            embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
-            kernel=np.ones(bandwidth*2),
-            bandwidth=bandwidth,
-            ncores=mp.cpu_count(),
-            lagorder=2))
-os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
-          f"{outdir}batch1_data_ft_oa_corp_300d_bw5.csv")
-##batch 2
-webanno_output = "frailty_phenotype_batch_2_2020-03-02_1325"
-makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-            embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
-            kernel=np.ones(bandwidth*2),
-            bandwidth=bandwidth,
-            ncores=mp.cpu_count(),
-            lagorder=2))
-os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
-          f"{outdir}batch2_data_ft_oa_corp_300d_bw5.csv")
-
-##batch 3
-webanno_output = "frailty_phenotype_test_batch_1_2020-03-06_1522"
-makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-            embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
-            kernel=np.ones(bandwidth*2),
-            bandwidth=bandwidth,
-            ncores=mp.cpu_count(),
-            lagorder=2))
-os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
-          f"{outdir}batch3_data_ft_oa_corp_300d_bw5.csv")
-
-##batch 4
-webanno_output = "frailty_phenotype_batch_3_2020-04-18_1444"
-makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-            embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
-            kernel=np.ones(bandwidth*2),
-            bandwidth=bandwidth,
-            ncores=mp.cpu_count(),
-            lagorder=2))
-os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
-          f"{outdir}batch4_data_ft_oa_corp_300d_bw5.csv")
+    return outfile
+    # outfile.to_csv(f'{outdir}/test_data_{argsdict["embeddings"].split("/")[-1].split(".")[0]}_bw{argsdict["bandwidth"]}.csv')
 
 
-# if platform.uname()[1] == "grace":
-#     # OA embeddings
-#     OA = os.popen("find /proj/cwe/built_models/OA_CR |grep -E 'bin' | grep -v .npy").read().split("\n")
-#     # penn
-#     uphs = os.popen("find /data/penn_cwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
-#     #
-# elif platform.uname()[1] == 'PAIR-ADM-010.local':
-#     # OA embeddings
-#     OA = os.popen("find /Users/crandrew/projects/clinical_word_embeddings |grep -E 'bin' | grep -v .npy").read().split("\n")
-#     # penn
-#     uphs = os.popen("find /Users/crandrew/projects/pwe/output/trained_models |grep -E 'wv|ft' | grep -v .npy").read().split("\n")
-#     #
+
+# loop through the embeddings and make the datasets
+if os.uname()[1] != 'PAIR-ADM-010.fios-router.home': # only run this on grace
+    OApaths = []
+    for currentpath, folders, files in os.walk('/proj/cwe/'):
+        for file in files:
+            if ('.bin' in file) and ('300' in file):# and (("OA_CR" in file) or ("oa_corp" in file)):
+                if '.npy' not in file:
+                    OApaths.append(os.path.join(currentpath, file))
+    
+    UPpaths = []
+    for currentpath, folders, files in os.walk('/data/penn_cwe/output/trained_models'):
+        for file in files:
+            if (('.ft' in file) or ('.wv' in file)) and ('300' in file):# and (("OA_CR" in file) or ("oa_corp" in file)):
+                if '.npy' not in file:
+                    UPpaths.append(os.path.join(currentpath, file))
+    print(OApaths)
+    print(UPpaths)
+else:
+    OApaths = []
+    for currentpath, folders, files in os.walk('/Users/crandrew/projects/PWE/'):
+        for file in files:
+            if ('.bin' in file) and ('300' in file):# and (("OA_CR" in file) or ("oa_corp" in file)):
+                if '.npy' not in file:
+                    OApaths.append(os.path.join(currentpath, file))
+
+    UPpaths = []
+    for currentpath, folders, files in os.walk("/Users/crandrew/projects/PWE/"):
+        for file in files:
+            if (('.ft' in file) or ('.wv' in file)) and ('300' in file):# and (("OA_CR" in file) or ("oa_corp" in file)):
+                if '.npy' not in file:
+                    UPpaths.append(os.path.join(currentpath, file))
+    print(UPpaths)
+    print(OApaths)
 
 
-# bandwidth = 10
-# Efiles = [i for i in OA + uphs if len(i) > 0]
-# print(Efiles)
-# print(len(Efiles))
-# # remove if already done:
-# # BW30
-# for e in Efiles:
-#     print(e)
-#     if f'test_data_{e.split("/")[-1].split(".")[0]}_bw{bandwidth}.csv' not in outdir:
-#         start = time.time()
-#         makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-#                     embeddings=e,
-#                     kernel = norm.pdf(np.linspace(-3, 3, bandwidth * 2)),
-#                     bandwidth=bandwidth,
-#                     ncores=mp.cpu_count(),
-#                     lagorder = 2))
-#         print(f"done in {(time.time()-start)/60} minutes")
 
+paths = OApaths + UPpaths
+for i in paths:
+    name = i.split("/")[-1]
+    name = re.sub('.bin|.wv|.ft', '', name)
+    print(name)
+    ds = makeds(dict(fi=os.listdir(f'{anno_dir}/labeled_text/'),
+                embeddings=i,
+                ncores=mp.cpu_count()))
+    ds.to_csv(f"{outdir}diagnostic_{name}.csv")
 
-# bandwidth = 30
-# Efiles = [i for i in OA + uphs if len(i) > 0]
-# print(Efiles)
-# print(len(Efiles))
-# # remove if already done:
-# # BW30
-# for e in Efiles:
-#     print(e)
-#     if f'test_data_{e.split("/")[-1].split(".")[0]}_bw{bandwidth}.csv' not in outdir:
-#         start = time.time()
-#         makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
-#                     embeddings=e,
-#                     kernel = norm.pdf(np.linspace(-3, 3, argsdict['bandwidth'] * 2)),
-#                     bandwidth=bandwidth,
-#                     ncores=mp.cpu_count()))
-#         print(f"done in {(time.time()-start)/60} minutes")
-#
-#
-#
+# def main():
+#     ## batch 1 dataset
+#     bandwidth = 5
+#     webanno_output = "frailty_phenotype_batch_1_2020-03-02_1328"
+#     makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+#                 embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
+#                 kernel=np.ones(bandwidth*2),
+#                 bandwidth=bandwidth,
+#                 ncores=mp.cpu_count(),
+#                 lagorder=2))
+#     os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
+#               f"{outdir}batch1_data_ft_oa_corp_300d_bw5.csv")
+#     ##batch 2
+#     webanno_output = "frailty_phenotype_batch_2_2020-03-02_1325"
+#     makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+#                 embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
+#                 kernel=np.ones(bandwidth*2),
+#                 bandwidth=bandwidth,
+#                 ncores=mp.cpu_count(),
+#                 lagorder=2))
+#     os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
+#               f"{outdir}batch2_data_ft_oa_corp_300d_bw5.csv")
+    
+#     ##batch 3
+#     webanno_output = "frailty_phenotype_test_batch_1_2020-03-06_1522"
+#     makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+#                 embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
+#                 kernel=np.ones(bandwidth*2),
+#                 bandwidth=bandwidth,
+#                 ncores=mp.cpu_count(),
+#                 lagorder=2))
+#     os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
+#               f"{outdir}batch3_data_ft_oa_corp_300d_bw5.csv")
+    
+#     ##batch 4
+#     webanno_output = "frailty_phenotype_batch_3_2020-04-18_1444"
+#     makeds(dict(fi=os.listdir(f'{anno_dir}/{webanno_output}/labels'),
+#                 embeddings="/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin",
+#                 kernel=np.ones(bandwidth*2),
+#                 bandwidth=bandwidth,
+#                 ncores=mp.cpu_count(),
+#                 lagorder=2))
+#     os.system(f"mv {outdir}test_data_ft_oa_corp_300d_bw5.csv "
+#               f"{outdir}batch4_data_ft_oa_corp_300d_bw5.csv")
+
+# if __name__ == "__main__":
+#     main()
