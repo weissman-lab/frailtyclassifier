@@ -79,7 +79,7 @@ def tokenize_and_label(output_file_path, annotator_of_record = "CURATION_USER"):
             span_df['note'] = re.sub(".txt", "", stub)
             span_df['month'] = span_df.note.apply(lambda x: int(x.split("_")[2][1:]))
             span_df['PAT_ID'] = span_df.note.apply(lambda x: x.split("_")[3])
-        outlist.append(span_df)
+            outlist.append(span_df)
     return outlist
 
 def remove_headers(fi):
@@ -160,7 +160,7 @@ def featurize(file,  # the data frame -- a product of the tokenize_and_label fun
     return output.reset_index(drop=True)
 
 
-# zipfile = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/old_misc/frailty_phenotype_batch_1_2020-03-02_1328.zip"
+zipfile = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/frailty_phenotype_batch_2_2020-03-02_1325.zip"
 # embeddings = "/Users/crandrew/projects/pwe/output/trained_models/w2v_oa_all_300d.bin"
 # structured_data_path = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/impdat_dums.csv"
 def main():
@@ -184,6 +184,7 @@ def main():
     # tokenize
     dflist = tokenize_and_label(zipfile)    
     # merge on the structured data
+    [i.columns for i in dflist]
     dflist = [i.merge(strdat, how = "left") for i in dflist]
     # embed
     pool = mp.Pool(8) # hard-coding 8 because the embeddings takes a ton of memory    
