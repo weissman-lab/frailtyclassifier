@@ -3,7 +3,6 @@
 
 from configargparse import ArgParser
 import os
-from _05_tokenize_and_label import tokenize_and_label
 from _99_project_module import read_txt, read_json, nrow, ncol
 import re
 import spacy
@@ -44,7 +43,8 @@ def tokenize_and_label(output_file_path, annotator_of_record = "CURATION_USER"):
     webanno_unzipped_dir = re.sub("\.zip", "", output_file_path)
     os.system(f"mkdir {webanno_unzipped_dir}/labels/")
     outlist = []
-    for stub in os.listdir(webanno_unzipped_dir + "/curation"):
+    stubs = [i for i in os.listdir(webanno_unzipped_dir + "/curation") if '.txt' in i] # do this to avoid crufty DS_store files getting in there
+    for stub in stubs:
         print(stub)
         # get the original note and tokenize it
         note = read_txt(f"{webanno_unzipped_dir}/source/{stub}")
@@ -186,7 +186,7 @@ def main():
     # merge on the structured data
     dflist = [i.merge(strdat, how = "left") for i in dflist]
     # embed
-    pool = mp.Pool(mp.cpu_count())    
+    pool = mp.Pool(8) # hard-coding 8 because the embeddings takes a ton of memory    
     embedded_notes = pool.starmap(featurize, [(i, embeddings) for i in dflist])
     pool.close()
     # save them all
