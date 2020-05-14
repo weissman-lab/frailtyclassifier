@@ -8,7 +8,7 @@ pd.options.display.max_columns = 4000
 if 'crandrew' in os.getcwd():
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import re
-from _99_project_module import inv_logit, send_message_to_slack
+from _99_project_module import inv_logit, send_message_to_slack, write_pickle
 import datetime
 import tensorflow as tf
 import numpy as np
@@ -26,82 +26,44 @@ datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
 
+# load the notes from 2018
+notes_2018 = [i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[3][1:]) < 13]
+df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
+df.drop(columns = 'Unnamed: 0', inplace = True)
 
-if 'moddat.pkl' not in os.listdir(outdir):
-    # import structured data 
-    strdat = pd.read_csv(f"{outdir}impdat_dums.csv")
-    strdat = strdat.drop(columns = "Unnamed: 0")
-    
-    # load the annotations
-    df = pd.concat([
-        pd.read_csv(f"{outdir}batch1_data_ft_oa_corp_300d_bw5.csv"),
-        pd.read_csv(f"{outdir}batch2_data_ft_oa_corp_300d_bw5.csv"),
-        pd.read_csv(f"{outdir}batch3_data_ft_oa_corp_300d_bw5.csv")
-    ])
-    # this below is a fix to a naming error that I made when I created batch 4
-    # it's only for clarity:  the train/test split is done based on the month
-    df4 = pd.read_csv(f"{outdir}batch4_data_ft_oa_corp_300d_bw5.csv")
-    df4.note = df4.note.str.replace("batch_03", "batch_04")
-    df = pd.concat([df, df4])
-
-    # trim the lag off
-    df = df[[i for i in df.columns if ("lag" not in i) and ("wmean" not in i)]]
-    
-    # create patient ID and month variables
-    tm = pd.DataFrame(dict(month=df.note.apply(lambda x: int(x.split("_")[2][1:])),
-                           PAT_ID=df.note.apply(lambda x: x.split("_")[3])))
-    df = pd.concat([tm, df], axis = 1)
-    df = df.drop(columns = "Unnamed: 0")
-    
-    # merge on the structured data
-    df = df.merge(strdat, how = 'left')
-    
-    str_varnames = list(strdat.columns[2:])
-    out_varnames = df.columns[7:11]
-    
-    y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
-    df = pd.concat([y_dums, df], axis=1)
-    moddat = dict(df=df,
-                  str_varnames=str_varnames,
-                  out_varnames=out_varnames,
-                  y_dums=y_dums)
-    pickle.dump(moddat, open(f"{outdir}moddat.pkl", "wb"))
-else:
-    moddat = pickle.load(open(f"{outdir}moddat.pkl", "rb"))
-    df = moddat['df']
-    str_varnames = moddat['str_varnames']
-    out_varnames = moddat['out_varnames']
-    y_dums = moddat['y_dums']
-    del moddat
-
-
+#set the seed and define the training and test sets
+mainseed = 8675309
+np.random.seed(mainseed) # this was the seed used on May 13, after batch 4
+trnotes = np.random.choice(notes_2018, len(notes_2018)*2//3, replace = False)
+tenotes = [i for i in notes_2018 if i not in trnotes]
+trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
+tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
 
 
 # define some useful constants
+str_varnames = df.loc[:,"n_encs":'MV_LANGUAGE'].columns.tolist()
 embedding_colnames = [i for i in df.columns if re.match("identity", i)]
+out_varnames = df.loc[:,"Msk_prob":'Fall_risk'].columns.tolist()
 input_dims = len(embedding_colnames) + len(str_varnames)
-notes_2018 = [i for i in df.note.unique() if int(i.split("_")[2][1:]) <= 12]
-notes_2019 = [i for i in df.note.unique() if int(i.split("_")[2][1:]) > 12]
-note_lengths = df.note.value_counts()
-np.random.seed(4) # the seed should be the batch number
-trnotes = np.random.choice(notes_2018, len(notes_2018)*2//3, replace = False)
-tenotes = [i for i in notes_2018 if i not in trnotes]
+
+
+# dummies for the outcomes
+y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
+df = pd.concat([y_dums, df], axis=1)
+
 # get a vector of non-negatives for case weights
-non_neutral = (np.sum(np.array(y_dums[[i for i in y_dums.columns if "_0" not in i]]), axis = 1)>1).astype('float32')
-tr_caseweights = np.array([non_neutral[i] for i in range(len(non_neutral)) if df.note.iloc[i] in trnotes])
-nnweight = 1/np.mean(tr_caseweights)
-tr_caseweights[tr_caseweights == 1] *= nnweight
-tr_caseweights[tr_caseweights == 0] = 1
-te_caseweights = np.array([non_neutral[i] for i in range(len(non_neutral)) if df.note.iloc[i] in tenotes])
-te_caseweights[te_caseweights == 1] *= nnweight
-te_caseweights[te_caseweights == 0] = 1
-
-
+tr_cw = []
+for v in out_varnames:
+    non_neutral = np.array(np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis = 1)).astype('float32')
+    nnweight = 1/np.mean(non_neutral[df.note.isin(trnotes)])
+    caseweights = np.ones(df.shape[0])
+    caseweights[non_neutral.astype(bool)] *= nnweight
+    tr_caseweights = caseweights[df.note.isin(trnotes)]
+    tr_cw.append(tr_caseweights)
 
 
 def makemodel(window_size, n_dense, nunits,
-              dropout, penalty, semipar):
-    pen = 10**penalty
+              dropout, pen, semipar):
     if semipar is True:
         base_shape = input_dims - len(str_varnames)
         top_shape = input_dims - len(embedding_colnames)
@@ -132,52 +94,14 @@ def makemodel(window_size, n_dense, nunits,
         model = Model(inp, outlayers)
     return model
     
-def makemodel(window_size, n_dense, nunits,
-              dropout, penalty, semipar):
-    pen = 10**penalty
-    if semipar is True:
-        base_shape = input_dims - len(str_varnames)
-        top_shape = input_dims - len(embedding_colnames)
-    else:
-        base_shape = input_dims
-    inp = Input(shape=(window_size, base_shape))
-    # LSTM_forward = LSTM(nunits, return_sequences = True, 
-    #                     kernel_regularizer = l1_l2(pen))(inp)
-    # LSTM_backward = LSTM(nunits, return_sequences = True, go_backwards = True, 
-    #                      kernel_regularizer = l1_l2(pen))(inp)
-    # LSTM_backward = backend.reverse(LSTM_backward, axes = 1)
-    # conc = concatenate([LSTM_forward, LSTM_backward], axis = 2)
-    # # dense
-    for i in range(n_dense):
-        d = Dense(nunits, kernel_regularizer = l1_l2(pen))(inp if i == 0 else drp)
-        lru = LeakyReLU()(d)
-        drp = Dropout(dropout)(lru)
-    fl = Flatten()(drp)
-    if semipar is True:
-        p_inp = Input(shape = (top_shape))
-        conc = concatenate([p_inp, fl])
-    # outlayers = [Dense(3, activation="softmax", name=i, 
-    #                    kernel_regularizer = l1_l2(pen))(conc if semipar is True else fl)
-    #              for i in out_varnames]
-    outlayers = Dense(3, activation="softmax", name=i, 
-                       kernel_regularizer = l1_l2(pen))(conc if semipar is True else fl)
-    if semipar is True:
-        model = Model([inp, p_inp], outlayers)
-    else: 
-        model = Model(inp, outlayers)
-    return model
-
-
-
-
 
 def draw_hps(seed):
     np.random.seed(seed)
     hps = (int(np.random.choice(list(range(4, 40)))),  # window size
             int(np.random.choice(list(range(1, 10)))),  # n dense
-            int(np.random.choice(list(range(10, 100)))),  # n units
+            int(2**np.random.choice(list(range(4, 11)))),  # n units
             float(np.random.uniform(low = 0, high = .5)),  # dropout
-            0, # l1/l2 penalty
+            float(10**np.random.uniform(-5,0)), # l1/l2 penalty
             bool(np.random.choice(list(range(2)))))  # semipar
     model = makemodel(*hps)
     return model, hps
@@ -221,204 +145,49 @@ def make_y_list(y):
     return [y[:, i * 3:(i + 1) * 3] for i in range(len(out_varnames))]
 
 
-# # scaling
-# scaler = StandardScaler()
-# scaler.fit(df[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
-# sdf = copy.deepcopy(df)
-# sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+str_varnames])
-
-
 # scaling
-sdf = copy.deepcopy(df)
-non_neutral = np.sum(y_dums[[i for i in y_dums.columns if "_0" not in i]], axis = 1)>1
-nndf = sdf.loc[non_neutral]
-nndf = pd.concat([nndf for i in range(int(len(sdf)/len(nndf)))])
-sdf = pd.concat([sdf, nndf])
-
 scaler = StandardScaler()
-scaler.fit(sdf[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
-sdf[embedding_colnames+str_varnames] = scaler.transform(sdf[embedding_colnames+str_varnames])
-
-# Oversampling.  
-
+scaler.fit(df[str_varnames+embedding_colnames].loc[df.note.isin(trnotes)])
+sdf = copy.deepcopy(df)
+sdf[str_varnames+embedding_colnames] = scaler.transform(df[str_varnames+embedding_colnames])
 
 
-
-# from scipy.spatial.distance import cosine
-
-# x = df.loc[df.token == "patient", [i for i in df.columns if "identity" in i]].iloc[0]
-# y = df.loc[df.token == "the_patient", [i for i in df.columns if "identity" in i]].iloc[0]
-# cosine(x,y)
-
-
-# x = df.loc[df.token == "SpO2", [i for i in df.columns if "identity" in i]].iloc[0]
-# y = df.loc[df.token == "breath", [i for i in df.columns if "identity" in i]].iloc[0]
-# cosine(x,y)
-
-# z = df.loc[df.token == "respiratory", [i for i in df.columns if "identity" in i]].iloc[0]
-# cosine(y,z)
-# cosine(x,z)
-
-# a = df.loc[df.token == "copd", [i for i in df.columns if "identity" in i]].iloc[0]
-# cosine(a,x)
-# cosine(x,z)
-
-
-Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, 10)            
-Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, 10), dtype = 'float32')
-Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
-Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
-
-ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
-yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
-
-xn = Xtr_np.reshape(Xtr_np.shape[0], Xtr_np.shape[1]* Xtr_np.shape[2])
-Xtr = np.concatenate([xn, Xtr_p], axis = 1)
-xn = Xte_np.numpy().reshape(Xte_np.shape[0], Xte_np.shape[1]* Xte_np.shape[2])
-Xte = np.concatenate([xn, Xte_p], axis = 1)
-
-yr = sdf.loc[sdf.note.isin(trnotes), out_varnames]
-ye = sdf.loc[sdf.note.isin(tenotes), out_varnames]
-
-
-# dftr = pd.concat([yr, pd.DataFrame(Xtr, columns = embedding_colnames+str_varnames)], axis = 1)
-# dfte = pd.concat([ye, pd.DataFrame(Xte, columns = embedding_colnames+str_varnames)], axis = 1)
-
-
-from sklearn.linear_model import LogisticRegression
-
-def f(lam):
-    clf = LogisticRegression(random_state=0, max_iter = 10000, 
-                             penalty = "elasticnet",
-                             solver = "saga",
-                             l1_ratio = .5,
-                             C = 10**lam,
-                             multi_class = "multinomial").fit(Xtr, yr.Nutrition)
-    pred = clf.predict_proba(Xte)
-    vloss = np.mean(-np.sum(yte[1] * np.log(pred), axis = 1))
-    print(f"reg: 10^{lam}, vloss: {vloss}")
-    return vloss
-    
-
-lams = list(range(-10, 6))
-import multiprocessing as mp
-pool = mp.Pool(mp.cpu_count())
-vlossvec = pool.map(f, lams)
-pool.close()
-
-
-pred.head()
-
-
-
-
-
-
-
-
-
-
-
-
-rs.shape
-b = rs[0,:]
-
-
-plt.hist(b.flatten())
-
-
-np.corrcoef([x, y, z, a])
-
-y = df.loc[df.token == "history", [i for i in df.columns if "identity" in i]].iloc[0]
-
-@@@@
-Capitalized words are all zeros in the embeddings!
-@@@@
-
-np.corrcoef([x, y])
-
-df.token.value_counts()[:200]
-
-
-model_iteration = 0
 for seed in range(100):
     try:
-        np.random.seed(seed+4*100) # the seed should always be the batch number * 100 plus the iter
-        # shrunk model
-        model, hps = draw_hps(seed+4*100)
-        
-        model = makemodel(3, 1, 10,
-              0, 0, False)
-        
+        np.random.seed(mainseed + seed)
+        model, hps = draw_hps(seed+mainseed)
         for i in range(2, 8): # put the hyperparameters in the hpdf
-            hpdf.loc[model_iteration, hpdf.columns[i]] = hps[i - 2]
-        hpdf.loc[model_iteration, 'oob'] = ",".join(tenotes)
+            hpdf.loc[seed, hpdf.columns[i]] = hps[i - 2]
+        hpdf.loc[seed, 'oob'] = ",".join(tenotes)
             
         # put the data in arrays for modeling, expanding out to the window size
         # only converting the test into tensors, to facilitate indexing
         if hps[-1] is False: # corresponds with the semipar argument
-            Xtr = tensormaker(sdf, trnotes, embedding_colnames+str_varnames, hps[0])            
-            Xte = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames+str_varnames, hps[0]), dtype = 'float32')
+            Xtr = tensormaker(sdf, trnotes, str_varnames+embedding_colnames, hps[0])            
+            Xte = tensormaker(sdf, tenotes, str_varnames+embedding_colnames, hps[0])
         else:
             Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])            
-            Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, hps[0]), dtype = 'float32')
+            Xte_np = tensormaker(sdf, tenotes, embedding_colnames, hps[0]) 
             Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
-            Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
+            Xte_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes])
         ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
         yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
         
-
-ytr = ytr[1]
-yte = yte[1]
-
-        # yte = [tf.convert_to_tensor(i) for i in yte]
         print("\n\n********************************\n\n")
-        print(hpdf.iloc[model_iteration])
-        
-        # tr_caseweights = []
-        # te_caseweights = []
-        # for i in range(len(ytr)):
-        #     x = (ytr[i][:,1] == 0).astype('float32')
-        #     wt = 1/np.mean(x)
-        #     x[x == True] *= wt
-        #     x[x == 0] = 1
-        #     tr_caseweights.append(x)
-        #     x = (yte[i][:,1] == 0).astype('float32')
-        #     x[x == True] *= wt
-        #     x[x == 0] = 1
-        #     te_caseweights.append(x)
-            
+        print(hpdf.iloc[seed])
+                    
         start_time = time.time()
-    
-        # # initial overfit
-        # ofm = makemodel(hps[0], hps[1], hps[2], 0, 10**-np.inf, hps[5])
-        # ofm.compile(optimizer=tf.keras.optimizers.Adam(1e-3),
-        #               loss={'Msk_prob':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-        #                     'Nutrition':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-        #                     'Resp_imp':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-        #                     'Fall_risk':tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
-        
-
-        # ofm.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
-        #         batch_size=256,
-        #         epochs=100)
-        # #transfer    
-        # model.set_weights(ofm.get_weights())
         
         # initialize the bias terms with the logits of the proportions
-        # w = model.get_weights()
-        # # set the bias terms to the proportions
-        # for i in range(4):
-        #     props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
-        #                       inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
-        #                       inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
-        #     # print(props)
-        #     pos = 7 - i * 2
-        #     # print(pos)
-        #     # print(w[-pos].shape)
-        #     w[-pos] = w[-pos] * 0 + props
-    
-        # model.set_weights(w)
+        w = model.get_weights()
+        # set the bias terms to the proportions
+        for i in range(4):
+            props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
+                              inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
+                              inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
+            pos = 7 - i * 2
+            w[-pos] = w[-pos] * 0 + props    
+        model.set_weights(w)
         model.compile(optimizer=tf.keras.optimizers.Adam(1e-3),loss = tf.keras.losses.CategoricalCrossentropy(from_logits=False))
 
         model.compile(optimizer=tf.keras.optimizers.Adam(1e-3),
@@ -428,40 +197,38 @@ yte = yte[1]
                     'Fall_risk':tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
 
         callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
-                                                    patience=20,
+                                                    patience=10,
                                                     restore_best_weights = True)
         model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
                   batch_size=256,
                   epochs=1000, 
-                   callbacks = [callback],
-                  # sample_weight = tr_caseweights,
-                  validation_data = ([Xte_np, Xte_p]) if hps[5] is True else (Xte, yte))
-        model.save(f"{outdir}saved_models/model_{seed}_batch_4.h5")
-
-      
+                  callbacks = [callback],
+                  sample_weight = tr_cw,
+                  validation_data = ([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
+        outdict = dict(weights = model.get_weights(),
+                       hps = hps)
+        write_pickle(outdict, f"{outdir}/saved_models/model_batch4_{seed}.pkl")
+        
         pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
         # initialize the loss and the optimizer
         loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False) 
         loss = loss_object(yte, pred)
+        
+        catprop = np.mean([np.mean(x[:,1]) for x in pred]    )
     
         print(f"at {datetime.datetime.now()}")
         print(f"test loss: {loss}")
         print("quantiles of the common category")
-        print(np.quantile([pred[:,1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
+        for i in range(4):
+            print(np.quantile([pred[i][:,1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
  
         tf.keras.backend.clear_session()
-        hpdf.loc[model_iteration, 'best_loss'] = float(loss)
-        hpdf.loc[model_iteration, 'time_to_convergence'] = time.time() - start_time
-        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_27apr_win.csv")
-        model_iteration += 1
+        hpdf.loc[seed, 'best_loss'] = float(loss)
+        hpdf.loc[seed, 'time_to_convergence'] = time.time() - start_time
+        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_13may.csv")
     except Exception as e:
         send_message_to_slack(e)
         break
-
-
-Xtr.shape
-plt.scatter(Xtr[:,1,2],Xtr[:,1,6])
-
 
 
 

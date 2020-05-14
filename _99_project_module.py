@@ -8,6 +8,7 @@ import pandas as pd
 import sys
 import os
 import numpy as np
+import pickle
 
 def ask_user_password(prompt):
     return getpass.getpass(prompt + ": ")
@@ -202,18 +203,14 @@ def read_json(path):
     f.close()
     return dict
 
-def process_webanno_output(anno_dir, output_file):
-    output_dir = re.sub('\.zip', '', output_file)
-    os.system(f"mkdir {anno_dir + output_dir}")
-    os.system(f'unzip {anno_dir + output_file} -d {anno_dir + output_dir}')
-    # unzip all of the annotation files in the overall output file
-    for i in os.listdir(anno_dir + output_dir + "/annotation"):  # note that the dirs are named after the text files
-        cmd = f"unzip -n {anno_dir + output_dir}/annotation/{i}/\*.zip -d {anno_dir + output_dir}/annotation/{i}/"
-        os.system(cmd)
-    # same with curation
-    for i in os.listdir(anno_dir + output_dir + "/curation"):  # note that the dirs are named after the text files
-        cmd = f"unzip -n {anno_dir + output_dir}/curation/{i}/\*.zip -d {anno_dir + output_dir}/curation/{i}/"
-        os.system(cmd)
+def write_pickle(file, path):
+    with open(path, 'wb') as handle:
+        pickle.dump(file, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
+def read_pickle(path):
+    with open(path, 'rb') as handle:
+        b = pickle.load(handle)
+    return b
 
 def nrow(x):
     return x.shape[0]
