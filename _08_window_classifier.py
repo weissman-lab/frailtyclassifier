@@ -101,7 +101,7 @@ def draw_hps(seed):
             int(np.random.choice(list(range(1, 10)))),  # n dense
             int(2**np.random.choice(list(range(4, 11)))),  # n units
             float(np.random.uniform(low = 0, high = .5)),  # dropout
-            float(10**np.random.uniform(-5,0)), # l1/l2 penalty
+            float(10**np.random.uniform(-8,-1)), # l1/l2 penalty
             bool(np.random.choice(list(range(2)))))  # semipar
     model = makemodel(*hps)
     return model, hps
