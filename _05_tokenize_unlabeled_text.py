@@ -18,42 +18,17 @@ embedded_outdir = f"{outdir}embedded_notes/"
 if 'crandrew' in os.getcwd():
     embeddings = KeyedVectors.load("/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin", mmap='r')
 else:
-    embeddings = KeyedVectors.load("/proj/cwe/built_models/OA_CR/FT_300/ft_oa_corp_300d.bin", mmap='r')
+    embeddings = KeyedVectors.load("/proj/cwe/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin", mmap='r')
 
 
 # load the concatenated notes
 conc_notes_df = pd.read_pickle(f'{outdir}conc_notes_df.pkl')
 conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (conc_notes_df.LATEST_TIME.dt.year - 2018) * 12
-
+conc_notes_df = conc_notes_df.loc[conc_notes_df.month <=12]
+print(conc_notes_df.shape)
 # load the structured data
-strdat = pd.DataFrame(dict(
-    month=conc_notes_df.LATEST_TIME.dt.month + (conc_notes_df.LATEST_TIME.dt.year - 2018) * 12,
-    PAT_ID=conc_notes_df.PAT_ID,
-    n_comorb=conc_notes_df.n_comorb
-))
-
-for i in [i for i in os.listdir(outdir) if "_6m" in i]:
-    x = pd.read_pickle(f"{outdir}{i}")
-    x = x.drop(columns="PAT_ENC_CSN_ID")
-    strdat = strdat.merge(x, how='left')
-    print(strdat.shape)
-
-elix = pd.read_csv(f"{outdir}elixhauser_scores.csv")
-elix.LATEST_TIME = pd.to_datetime(elix.LATEST_TIME)
-elix['month'] = elix.LATEST_TIME.dt.month + (elix.LATEST_TIME.dt.year - 2018) * 12
-elix = elix.drop(columns=['CSNS', 'LATEST_TIME', 'Unnamed: 0'])
-strdat = strdat.merge(elix, how='left')
-
-# add columns for missing values of structured data
-for i in strdat.columns:
-    if (strdat[[i]].isna().astype(int).sum() > 0)[0]:
-        strdat[[i + "_miss"]] = strdat[[i]].isna().astype(int)
-        strdat[[i]] = strdat[[i]].fillna(0)
-
-# save the column names so that I can find them later
-str_varnames = list(strdat.columns[2:])
-
-
+impdat_dums = pd.read_csv(f"{outdir}impdat_dums.csv")
+impdat_dums.drop(columns = "Unnamed: 0", inplace = True)
 ## tokenize
 def tokenize(i):
     note = conc_notes_df.combined_notes.iloc[i]
@@ -70,9 +45,11 @@ def tokenize(i):
     Emat.columns = ['identity_' + str(i) for i in range(300)]
     span_df = pd.concat([span_df.reset_index(drop=True), Emat], axis=1)
     # add the structured data
-    str_i = strdat.loc[(strdat.PAT_ID == conc_notes_df.PAT_ID.iloc[i]) & (strdat.month == conc_notes_df.month.iloc[i])]
-    str_rep = str_i.iloc[np.full(span_df.shape[0], 0)].reset_index(drop=True)
-    span_df = pd.concat([span_df, str_rep], axis=1)
+    span_df['PAT_ID'] = conc_notes_df.PAT_ID.iloc[i]
+    span_df['month'] = conc_notes_df.month.iloc[i]
+    shp = span_df.shape
+    span_df = span_df.merge(impdat_dums)
+    assert shp[0] == span_df.shape[0]
     return span_df
 
 
@@ -82,13 +59,15 @@ def wrapper(i):
         fn = f"embedded_note_m{conc_notes_df.month.iloc[i]}_{conc_notes_df.PAT_ID.iloc[i]}.pkl"
         x.to_pickle(f"{embedded_outdir}{fn}")
     except Exception as e:
+        print(i)
+        print(e)
         return e
 
 import time
 start = time.time()
 pool = mp.Pool(mp.cpu_count())
-# errs = pool.map(wrapper, range(conc_notes_df.shape[0]))
-errs = pool.map(wrapper, np.random.choice(conc_notes_df.shape[0], 1000))
-
+errs = pool.map(wrapper, range(conc_notes_df.shape[0]))
+# errs = pool.map(wrapper, np.random.choice(conc_notes_df.shape[0], 1000))
 pool.close()
+print(errs)
 print(time.time() - start)
