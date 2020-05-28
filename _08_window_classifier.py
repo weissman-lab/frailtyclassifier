@@ -8,6 +8,7 @@ if 'crandrew' in os.getcwd():
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import re
 from _99_project_module import inv_logit, send_message_to_slack, write_pickle
+from _99_project_module import write_txt
 import datetime
 import tensorflow as tf
 import numpy as np
@@ -289,7 +290,7 @@ def h(x):
 
 
 # now loop through them, normalize, and predict
-def get_entropy_stats(i):
+def get_entropy_stats(i, return_raw = False):
     try:
         note = pd.read_pickle(f"{outdir}embedded_notes/{i}")
         note[str_varnames + embedding_colnames] = scaler.transform(note[str_varnames + embedding_colnames])
@@ -301,18 +302,10 @@ def get_entropy_stats(i):
             Xte_p = np.vstack([note[str_varnames] for i in ['foo']])
 
         pred = model.predict([Xte_np, Xte_p] if best_model['hps'][5] is True else Xte)
-
+        if return_raw:
+            return pred
         hmat = np.stack([h(i) for i in pred])
-        # compute average entropy
-        hmean = np.mean(hmat)
-        # compute average entropy, throwing out lower half
-        hmean_top_half = np.mean(hmat[hmat > np.median(hmat)])
-        # compute average entropy, throwing out those that are below the (skewed) average
-        hmean_top_half = np.mean(hmat[hmat > np.mean(hmat)])
-        # maximum
-        hmax = np.max(hmat)
-        # top decile average
-        hdec = np.mean(hmat[hmat > np.quantile(hmat, .9)])
+
         out = dict(note=i,
                    hmean=np.mean(hmat),
                    # compute average entropy, throwing out lower half
@@ -329,209 +322,72 @@ def get_entropy_stats(i):
         print(e)
         print(i)
 
-
-# try:
-#     res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
-#     haveprev = True
-# except Exception as e:
-#     haveprev = False
-#     res = pd.Dataframe()
-
-edicts = []
-N = 0
-for i in notefiles:
-    # if haveprev:
-    #     if i in res.note.tolist():
-    #         pass
-    #     else:
-    #         r = get_entropy_stats(i)
-    #         edicts.append(r)
-    # else:
-    r = get_entropy_stats(i)
-    print(r)
-    edicts.append(r)
-    print(i)
-    N += 1
-    print(N)
-
-# res = pd.concat([res, pd.DataFrame([i for i in edicts if i is not None])])
-res = pd.DataFrame([i for i in edicts if i is not None])
-res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
+# edicts = []
+# N = 0
+# for i in notefiles[:10]:
+#     # if haveprev:
+#     #     if i in res.note.tolist():
+#     #         pass
+#     #     else:
+#     #         r = get_entropy_stats(i)
+#     #         edicts.append(r)
+#     # else:
+#     r = get_entropy_stats(i)
+#     print(r)
+#     edicts.append(r)
+#     print(i)
+#     N += 1
+#     print(N)
+#
+# # res = pd.concat([res, pd.DataFrame([i for i in edicts if i is not None])])
+# res = pd.DataFrame([i for i in edicts if i is not None])
+# res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
 
 
 res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
+#
+# colnames = res.columns[1:].tolist()
+# fig, ax = plt.subplots(ncols = 5, nrows = 5, figsize = (10,10))
+# for i in range(5):
+#     for j in range(5):
+#         if i == j:
+#             ax[i,j].hist(res[colnames[i]])
+#             ax[i,j].set_xlabel(colnames[i])
+#         elif i>j:
+#             ax[i,j].scatter(res[colnames[i]], [res[colnames[j]]], s = .5)
+#             ax[i,j].set_xlabel(colnames[i])
+#             ax[i,j].set_ylabel(colnames[j])
+# plt.tight_layout()
+# fig.savefig(f"{ALdir}entropy_summaries.pdf")
+# plt.show()
+#
+#
+# # pull the best notes
+# cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
+# cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
+# cndf.shape
+# best = res.sort_values("hmean_above_average").tail(25)
+# best['PAT_ID'] = best.note.apply(lambda x: x.split("_")[3][:-4])
+# best['month'] = best.note.apply(lambda x: x.split("_")[2][1:])
+# cndf['month'] = cndf.LATEST_TIME.dt.month
+#
+# selected_notes = []
+# for i in range(len(best)):
+#     ni = cndf.combined_notes.loc[(cndf.month == int(best.month.iloc[i])) & (cndf.PAT_ID == best.PAT_ID.iloc[i])]
+#     assert len(ni) == 1
+#     selected_notes.append(ni)
+#
+# for i, n in enumerate(selected_notes):
+#     fn = f"AL01_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
+#     write_txt(n.iloc[0], f"{outdir}notes_output/AL_01/{fn}")
 
-colnames = res.columns[1:].tolist()
-fig, ax = plt.subplots(ncols = 5, nrows = 5, figsize = (10,10))
-for i in range(5):
-    for j in range(5):
-        if i == j:
-            ax[i,j].hist(res[colnames[i]])
-            ax[i,j].set_xlabel(colnames[i])
-        elif i>j:
-            ax[i,j].scatter(res[colnames[i]], [res[colnames[j]]], s = .5)
-            ax[i,j].set_xlabel(colnames[i])
-            ax[i,j].set_ylabel(colnames[j])
-plt.tight_layout()
-fig.savefig(f"{ALdir}entropy_summaries.pdf")
+# now plot the entropies of the selected notes over tokens
+prediction_dict = {}
+for note in best.note:
+    plist = get_entropy_stats(note, return_raw = True)
+    prediction_dict[note] = plist
+
+
+plt.plot(plist[3][:,0])
+plt.plot(plist[3][:,2])
 plt.show()
-
-
-
--np.sum(np.array([.333, .333, .333])* np.log(np.array([.333, .333, .333])))
-
-
-# '''
-# Finally, fit and save the actual model used
-# '''
-# hpdf = pd.read_csv(f"{outdir}hyperparameter_gridsearch_21apr_win.csv")
-# best= hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
-
-# seed = 92
-# np.random.seed(seed)
-# # shrunk model
-# model, hps = draw_hps(seed)
-
-# # put the data in arrays for modeling, expanding out to the window size
-# # only converting the test into tensors, to facilitate indexing
-# if hps[-1] is False: # corresponds with the semipar argument
-#     Xtr = tensormaker(sdf, trnotes, embedding_colnames+str_varnames, hps[0])            
-#     Xte = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames+str_varnames, hps[0]), dtype = 'float32')
-# else:
-#     Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])            
-#     Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, hps[0]), dtype = 'float32')
-#     Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
-#     Xte_p = tf.convert_to_tensor(np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes]), dtype = 'float32')
-# ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
-# yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
-# yte = [tf.convert_to_tensor(i) for i in yte]
-
-# start_time = time.time()
-
-
-# # initialize the bias terms with the logits of the proportions
-# w = model.get_weights()
-# # set the bias terms to the proportions
-# for i in range(4):
-#     props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
-#                       inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
-#                       inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
-#     pos = 7 - i * 2
-#     w[-pos] = w[-pos] * 0 + props
-
-# model.set_weights(w)
-
-# model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
-#       loss={'Msk_prob':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-#             'Nutrition':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-#             'Resp_imp':tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-#             'Fall_risk':tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
-
-# callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
-#                                             patience=20,
-#                                             restore_best_weights = True)
-# model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
-#           batch_size=256,
-#           epochs=1000, 
-#           callbacks = [callback],
-#           validation_data = ([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
-
-# model.save(f"{outdir}saved_AL_models/model_batch_4.h5")
-# model = tf.keras.models.load_model(f"{outdir}saved_AL_models/model_batch_4.h5")
-# yhat= model.predict([Xte_np, Xte_p])
-
-
-# np.mean(np.sum(-1*np.array(yte[1])* np.log(yhat[1]), axis = 1))
-
-# np.mean((yte[1].numpy()- yhat[1])**2)
-# yhat[1]
-
-# loss_object(yte[1], yhat[1])
-
-# plt.hist(yhat[3][:,1])
-# yhat[0][:,1].min()
-
-
-# np.max(yhat[1][:,1])
-# np.min(yhat[1][:,1])
-
-# df.to_csv(f"{outdir}foo.csv")
-
-# '''
-# Active learning
-# loop through the notes and compute their entropies for all of the phenotypes
-# '''
-# enotes = os.listdir(f"{outdir}embedded_notes")
-# # trim off the ones that are not from 2018
-# enotes = [enotes[i] for i in range(len(enotes)) if int(enotes[i].split("_")[2][1:])<=12]
-# # trim off the ones that are in the training set already
-# screen = [notes_2018[i].split("_")[2]+"_"+notes_2018[i].split("_")[3] for i in range(len(notes_2018))]
-# tocheck = [enotes[i].split("_")[2]+"_"+enotes[i].split("_")[3] for i in range(len(enotes))]
-# enotes_not_yet_used = [enotes[i] for i in range(len(enotes)) if tocheck[i] not in screen]
-# assert len(enotes) > len(enotes_not_yet_used)
-
-# # load the structured data
-# strdat = pd.read_csv(f"{outdir}impdat_dums.csv")
-# strdat = strdat.drop(columns = "Unnamed: 0")
-
-# i = 0
-# # load, merge, scale
-# x = pd.read_pickle(f"{outdir}embedded_notes/{enotes_not_yet_used[i]}")
-# x = x[[i for i in x.columns if i in embedding_colnames+['PAT_ID', 'month']]]
-# x = x.merge(strdat)
-# x[embedding_colnames+str_varnames] = scaler.transform(x[embedding_colnames+str_varnames])
-# # tensorize it
-# x['note'] = "placeholder"
-# xnp = tensormaker(x, ['placeholder'], embedding_colnames, hps[0])
-# xnp.shape
-# xp = np.array(x[str_varnames])
-# pred = model.predict([xnp, xp])
-# len(pred)
-# plt.hist(H(pred[1]))
-
-# H(pred[1]).max()
-
-# w = model.get_weights()
-# plt.hist(w[-2].flatten())
-# model.summary()
-
-# max(pred[0][:,1])
-
-
-# def H(p):
-#     '''entropy'''
-#     return -np.sum(p*np.log(p), axis = 1)
-# plt.hist(H(pred[1))
-
-# H(pred[0]).max()
-
-
-# xp.shape
-
-#     Xte_np = tf.convert_to_tensor(tensormaker(sdf, tenotes, embedding_colnames, hps[0]), dtype = 'float32')
-
-
-# # scaling
-# scaler = StandardScaler()
-# scaler.fit(df[embedding_colnames+str_varnames].loc[df.note.isin(trnotes)])
-# sdf = copy.deepcopy(df)
-# sdf[embedding_colnames+str_varnames] = scaler.transform(df[embedding_colnames+str_varnames])
-
-
-# def tensormaker(D, notelist, cols, ws):
-#     # take a data frame and a list of notes and a list of columns and a window size and return an array for feeting to tensorflow
-#     note_arrays = [np.array(D.loc[D.note == i, cols]) for i in notelist]
-#     notelist = []
-#     for j in range(len(note_arrays)):
-#         lags, leads = [], []
-#         for i in range(int(np.ceil(ws/2))-1, 0, -1):
-#             li = np.concatenate([np.zeros((i,note_arrays[j].shape[1])), note_arrays[j][:-i]], axis = 0)
-#             lags.append(li)
-#         assert len(set([i.shape for i in lags])) == 1 # make sure they're all the same size                
-#         for i in range(1, int(np.floor(ws/2))+1, 1):
-#             li = np.concatenate([note_arrays[j][i:], np.zeros((i,note_arrays[j].shape[1]))], axis = 0)
-#             leads.append(li)
-#         assert len(set([i.shape for i in leads])) == 1 # make sure they're all the same size                
-#         x = np.squeeze(np.stack([lags+ [note_arrays[j]] + leads]))
-#         notelist.append(np.swapaxes(x, 1, 0))
-#     return np.concatenate(notelist, axis = 0)
