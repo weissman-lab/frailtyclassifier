@@ -366,9 +366,9 @@ res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
 # cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
 # cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
 # cndf.shape
-# best = res.sort_values("hmean_above_average").tail(25)
-# best['PAT_ID'] = best.note.apply(lambda x: x.split("_")[3][:-4])
-# best['month'] = best.note.apply(lambda x: x.split("_")[2][1:])
+best = res.sort_values("hmean_above_average").tail(25)
+best['PAT_ID'] = best.note.apply(lambda x: x.split("_")[3][:-4])
+best['month'] = best.note.apply(lambda x: x.split("_")[2][1:])
 # cndf['month'] = cndf.LATEST_TIME.dt.month
 #
 # selected_notes = []
