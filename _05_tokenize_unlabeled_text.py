@@ -16,7 +16,7 @@ outdir = f"{os.getcwd()}/output/"
 embedded_outdir = f"{outdir}embedded_notes/"
 
 if 'crandrew' in os.getcwd():
-    embeddings = KeyedVectors.load("/Users/crandrew/projects/clinical_word_embeddings/ft_oa_corp_300d.bin", mmap='r')
+    embeddings = KeyedVectors.load("/Users/crandrew/projects/clinical_word_embeddings/w2v_oa_all_300d.bin", mmap='r')
 else:
     embeddings = KeyedVectors.load("/proj/cwe/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin", mmap='r')
 
@@ -71,3 +71,6 @@ errs = pool.map(wrapper, range(conc_notes_df.shape[0]))
 pool.close()
 print(errs)
 print(time.time() - start)
+
+
+

@@ -1,4 +1,3 @@
-
 import os
 import pandas as pd
 
@@ -7,7 +6,7 @@ pd.options.display.max_columns = 4000
 if 'crandrew' in os.getcwd():
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import re
-from _99_project_module import inv_logit, send_message_to_slack, write_pickle
+from _99_project_module import inv_logit, send_message_to_slack, write_pickle, read_pickle
 from _99_project_module import write_txt
 import datetime
 import tensorflow as tf
@@ -25,27 +24,36 @@ import copy
 datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
+ALbatch = "00"
+ALdir = f"{outdir}saved_models/AL{ALbatch}/"
+try:
+    os.mkdir(ALdir)
+except Exception:
+    pass
+
+try:
+    os.mkdir(f"{ALdir}ospreds")
+except Exception:
+    pass
 
 # load the notes from 2018
 notes_2018 = [i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[3][1:]) < 13]
 df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
-df.drop(columns = 'Unnamed: 0', inplace = True)
+df.drop(columns='Unnamed: 0', inplace=True)
 
 # set the seed and define the training and test sets
 mainseed = 8675309
-np.random.seed(mainseed) # this was the seed used on May 13, after batch 4
-trnotes = np.random.choice(notes_2018, len(notes_2018) * 2//3, replace = False)
+np.random.seed(mainseed)  # this was the seed used on May 13, after batch 4
+trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
 tenotes = [i for i in notes_2018 if i not in trnotes]
 trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
 tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
 
-
 # define some useful constants
-str_varnames = df.loc[: ,"n_encs":'MV_LANGUAGE'].columns.tolist()
+str_varnames = df.loc[:, "n_encs":'MV_LANGUAGE'].columns.tolist()
 embedding_colnames = [i for i in df.columns if re.match("identity", i)]
-out_varnames = df.loc[: ,"Msk_prob":'Fall_risk'].columns.tolist()
+out_varnames = df.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
 input_dims = len(embedding_colnames) + len(str_varnames)
-
 
 # dummies for the outcomes
 y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
@@ -54,9 +62,9 @@ df = pd.concat([y_dums, df], axis=1)
 # get a vector of non-negatives for case weights
 tr_cw = []
 for v in out_varnames:
-    non_neutral = np.array(np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis = 1)).astype \
+    non_neutral = np.array(np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
         ('float32')
-    nnweight = 1/ np.mean(non_neutral[df.note.isin(trnotes)])
+    nnweight = 1 / np.mean(non_neutral[df.note.isin(trnotes)])
     caseweights = np.ones(df.shape[0])
     caseweights[non_neutral.astype(bool)] *= nnweight
     tr_caseweights = caseweights[df.note.isin(trnotes)]
@@ -154,22 +162,18 @@ sdf[str_varnames + embedding_colnames] = scaler.transform(df[str_varnames + embe
 
 # look for hpdf
 try:
-    hpdf = pd.read_csv(f"{outdir}hyperparameter_gridsearch_18may.csv")
+    hpdf = pd.read_json(f"{ALdir}hpdf.json")
     startpos = hpdf.dropna().idx.max() + 1
 except Exception:
     startpos = 0
 
-
-startpos = 100
-
 for seed in range(startpos, 100):
-    print("yo")
     try:
         np.random.seed(mainseed + seed)
         model, hps = draw_hps(seed + mainseed)
         for i in range(2, 8):  # put the hyperparameters in the hpdf
             hpdf.loc[seed, hpdf.columns[i]] = hps[i - 2]
-        hpdf.loc[seed, 'oob'] = ",".join(tenotes)
+        # hpdf.loc[seed, 'oob'] = ",".join(tenotes)
 
         # put the data in arrays for modeling, expanding out to the window size
         # only converting the test into tensors, to facilitate indexing
@@ -218,7 +222,7 @@ for seed in range(startpos, 100):
                   validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
         outdict = dict(weights=model.get_weights(),
                        hps=hps)
-        write_pickle(outdict, f"{outdir}/saved_models/model_batch4_{seed}.pkl")
+        write_pickle(outdict, f"{ALdir}/model_batch4_{seed}.pkl")
 
         pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
         # initialize the loss and the optimizer
@@ -236,7 +240,7 @@ for seed in range(startpos, 100):
         tf.keras.backend.clear_session()
         hpdf.loc[seed, 'best_loss'] = float(loss)
         hpdf.loc[seed, 'time_to_convergence'] = time.time() - start_time
-        hpdf.to_csv(f"{outdir}hyperparameter_gridsearch_18may.csv")
+        hpdf.to_json(f"{ALdir}hpdf.json")
     except Exception as e:
         send_message_to_slack(e)
         break
@@ -247,27 +251,7 @@ Now figure out the winner and ingest the unlabeled notes
 
 print('starting entropy search')
 
-ALdir = f"{outdir}saved_models/AL01/"
-
-# hpdf = pd.read_csv(f"{ALdir}hyperparameter_gridsearch_18may.csv")
-#
-# pkls = [i for i in os.listdir(ALdir) if '.pkl' in i]
-# stub = "_".join(pkls[0].split("_")[:2]) + "_"
-#
-# terms = ['window_size', 'n_dense', 'n_units', 'dropout', 'penalty', 'semipar']
-# rows = []
-# for i in range(len(pkls)):
-#     mdi = pd.read_pickle(f"{ALdir}{stub}{i}.pkl")
-#     rowi = {}
-#     for j, term in enumerate(terms):
-#         rowi[term] = mdi['hps'][j]
-#     rows.append(rowi)
-#
-# tm = pd.DataFrame(rows)
-# hpdf = pd.concat([hpdf, tm], axis=1)
-# hpdf.to_csv(f"{ALdir}hpdf.csv")
-hpdf = pd.read_csv(f"{ALdir}hpdf.csv")
-
+# hpdf = pd.read_json(f"{ALdir}hpdf.json")
 winner = hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
 
 # load it
@@ -290,7 +274,7 @@ def h(x):
 
 
 # now loop through them, normalize, and predict
-def get_entropy_stats(i, return_raw = False):
+def get_entropy_stats(i, return_raw=False):
     try:
         note = pd.read_pickle(f"{outdir}embedded_notes/{i}")
         note[str_varnames + embedding_colnames] = scaler.transform(note[str_varnames + embedding_colnames])
@@ -302,8 +286,6 @@ def get_entropy_stats(i, return_raw = False):
             Xte_p = np.vstack([note[str_varnames] for i in ['foo']])
 
         pred = model.predict([Xte_np, Xte_p] if best_model['hps'][5] is True else Xte)
-        if return_raw:
-            return pred
         hmat = np.stack([h(i) for i in pred])
 
         out = dict(note=i,
@@ -315,79 +297,107 @@ def get_entropy_stats(i, return_raw = False):
                    # maximum
                    hmax=np.max(hmat),
                    # top decile average
-                   hdec=np.mean(hmat[hmat > np.quantile(hmat, .9)])
+                   hdec=np.mean(hmat[hmat > np.quantile(hmat, .9)]),
+                   # the raw predictions
+                   pred=pred
                    )
         return out
     except Exception as e:
         print(e)
         print(i)
 
-# edicts = []
-# N = 0
-# for i in notefiles[:10]:
-#     # if haveprev:
-#     #     if i in res.note.tolist():
-#     #         pass
-#     #     else:
-#     #         r = get_entropy_stats(i)
-#     #         edicts.append(r)
-#     # else:
-#     r = get_entropy_stats(i)
-#     print(r)
-#     edicts.append(r)
-#     print(i)
-#     N += 1
-#     print(N)
-#
-# # res = pd.concat([res, pd.DataFrame([i for i in edicts if i is not None])])
-# res = pd.DataFrame([i for i in edicts if i is not None])
-# res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
 
+edicts = []
+N = 0
+for i in notefiles:
+    if f"pred{i}.pkl" not in os.listdir(f"{ALdir}ospreds/"):
+        r = get_entropy_stats(i)
+        write_pickle(r, f"{ALdir}ospreds/pred{i}.pkl")
+    else:
+        r = read_pickle(f"{ALdir}ospreds/pred{i}.pkl")
+    r.pop("pred")
+    print(r)
+    edicts.append(r)
+    print(i)
+    N += 1
+    print(N)
+
+# res = pd.concat([res, pd.DataFrame([i for i in edicts if i is not None])])
+res = pd.DataFrame([i for i in edicts if i is not None])
+res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
 
 res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
-#
-# colnames = res.columns[1:].tolist()
-# fig, ax = plt.subplots(ncols = 5, nrows = 5, figsize = (10,10))
-# for i in range(5):
-#     for j in range(5):
-#         if i == j:
-#             ax[i,j].hist(res[colnames[i]])
-#             ax[i,j].set_xlabel(colnames[i])
-#         elif i>j:
-#             ax[i,j].scatter(res[colnames[i]], [res[colnames[j]]], s = .5)
-#             ax[i,j].set_xlabel(colnames[i])
-#             ax[i,j].set_ylabel(colnames[j])
-# plt.tight_layout()
-# fig.savefig(f"{ALdir}entropy_summaries.pdf")
-# plt.show()
-#
-#
-# # pull the best notes
-# cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
-# cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
-# cndf.shape
+
+colnames = res.columns[1:].tolist()
+fig, ax = plt.subplots(ncols=5, nrows=5, figsize=(10, 10))
+for i in range(5):
+    for j in range(5):
+        if i == j:
+            ax[i, j].hist(res[colnames[i]])
+            ax[i, j].set_xlabel(colnames[i])
+        elif i > j:
+            ax[i, j].scatter(res[colnames[i]], [res[colnames[j]]], s=.5)
+            ax[i, j].set_xlabel(colnames[i])
+            ax[i, j].set_ylabel(colnames[j])
+plt.tight_layout()
+fig.savefig(f"{ALdir}entropy_summaries.pdf")
+plt.show()
+
+# pull the best notes
+cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
+cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
+
 best = res.sort_values("hmean_above_average").tail(25)
 best['PAT_ID'] = best.note.apply(lambda x: x.split("_")[3][:-4])
 best['month'] = best.note.apply(lambda x: x.split("_")[2][1:])
-# cndf['month'] = cndf.LATEST_TIME.dt.month
+cndf['month'] = cndf.LATEST_TIME.dt.month
+
+selected_notes = []
+for i in range(len(best)):
+    ni = cndf.combined_notes.loc[(cndf.month == int(best.month.iloc[i])) & (cndf.PAT_ID == best.PAT_ID.iloc[i])]
+    assert len(ni) == 1
+    selected_notes.append(ni)
+
+for i, n in enumerate(selected_notes):
+    fn = f"AL{ALbatch}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
+    write_txt(n.iloc[0], f"{ALdir}{fn}")
+
+# # now plot the entropies of the selected notes over tokens
+# prediction_dict = {}
+# for note in best.note:
+#     print(note)
+#     plist = get_entropy_stats(note, return_raw=True)
+#     prediction_dict[note] = plist
 #
-# selected_notes = []
-# for i in range(len(best)):
-#     ni = cndf.combined_notes.loc[(cndf.month == int(best.month.iloc[i])) & (cndf.PAT_ID == best.PAT_ID.iloc[i])]
-#     assert len(ni) == 1
-#     selected_notes.append(ni)
+# write_pickle(prediction_dict, f"{ALdir}raw_predictions.pkl")
+# # from _99_project_module import read_pickle
+# prediction_dict_grace = read_pickle(f"{ALdir}raw_predictions_grace.pkl")
+# prediction_dict_hpc = read_pickle(f"{ALdir}raw_predictions.pkl")
 #
-# for i, n in enumerate(selected_notes):
-#     fn = f"AL01_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
-#     write_txt(n.iloc[0], f"{outdir}notes_output/AL_01/{fn}")
-
-# now plot the entropies of the selected notes over tokens
-prediction_dict = {}
-for note in best.note:
-    plist = get_entropy_stats(note, return_raw = True)
-    prediction_dict[note] = plist
-
-
-plt.plot(plist[3][:,0])
-plt.plot(plist[3][:,2])
-plt.show()
+# keys = list(prediction_dict_hpc.keys())
+#
+# j = 0
+#
+# key = keys[j]
+# fig, ax = plt.subplots(nrows=4, figsize=(20, 10))
+# for i in range(4):
+#     hpc = prediction_dict_hpc[key][i][:, 2]
+#     gr = prediction_dict_grace[key][i][:, 2]
+#     di = hpc - gr
+#     ax[i].plot(hpc, label='hpc')
+#     ax[i].plot(gr, label='grace')
+#     ax[i].plot(di, label='difference')
+#     ax[i].legend()
+# # fig.suptitle(key)
+# fig.tight_layout()
+# plt.show()
+# j += 1
+#
+# x = prediction_dict_grace['embedded_note_m10_000048983.pkl'][0][:, 1]
+# y = prediction_dict_hpc['embedded_note_m10_000048983.pkl'][0][:, 1]
+# plt.scatter(x, y)
+# plt.show()
+#
+# # plot the prediction dict
+# # loop through the phenotypes
+# prediction_dict.keys()
