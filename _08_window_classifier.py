@@ -173,7 +173,7 @@ for seed in range(startpos, 100):
         model, hps = draw_hps(seed + mainseed)
         for i in range(2, 8):  # put the hyperparameters in the hpdf
             hpdf.loc[seed, hpdf.columns[i]] = hps[i - 2]
-        # hpdf.loc[seed, 'oob'] = ",".join(tenotes)
+        hpdf.loc[seed, 'oob'] = ",".join(tenotes)
 
         # put the data in arrays for modeling, expanding out to the window size
         # only converting the test into tensors, to facilitate indexing
