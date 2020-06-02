@@ -409,24 +409,3 @@ for j in range(len(predfiles)):
     plt.show()
     fig.savefig(f"{ALdir}best_notes_embedded/predplot_w_best_span_{enotes[j]}.pdf")
 
-x = prediction_dict_grace['embedded_note_m10_000048983.pkl'][0][:, 1]
-y = prediction_dict_hpc['embedded_note_m10_000048983.pkl'][0][:, 1]
-plt.scatter(x, y)
-plt.show()
-
-# plot the prediction dict
-# loop through the phenotypes
-prediction_dict.keys()
-fi = os.listdir(f"{ALdir}ospreds/")
-xx = read_pickle(f"{ALdir}ospreds/{fi[1]}")
-
-fig, ax = plt.subplots(nrows=4, figsize=(20, 10))
-for i in range(4):
-    ax[i].plot(xx['pred'][i][:,0], label='neg')
-    ax[i].plot(xx['pred'][i][:,2], label='pos')
-    hx = h(xx['pred'][i])
-    ax[i].plot(hx+1, label='entropy')
-    ax[i].legend()
-# fig.suptitle(key)
-fig.tight_layout()
-plt.show()
