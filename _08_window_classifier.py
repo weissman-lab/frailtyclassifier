@@ -115,12 +115,10 @@ def draw_hps(seed):
     model = makemodel(*hps)
     return model, hps
 
-
 loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
 
 # initialize a df for results
 hpdf = pd.DataFrame(dict(idx=list(range(100)),
-                         oob=np.nan,
                          window_size=np.nan,
                          n_dense=np.nan,
                          n_units=np.nan,
@@ -163,17 +161,18 @@ sdf[str_varnames + embedding_colnames] = scaler.transform(df[str_varnames + embe
 # look for hpdf
 try:
     hpdf = pd.read_json(f"{ALdir}hpdf.json")
+    # hpdf.drop(columns = 'oob', inplace = True)
     startpos = hpdf.dropna().idx.max() + 1
 except Exception:
     startpos = 0
+
 
 for seed in range(startpos, 100):
     try:
         np.random.seed(mainseed + seed)
         model, hps = draw_hps(seed + mainseed)
-        for i in range(2, 8):  # put the hyperparameters in the hpdf
-            hpdf.loc[seed, hpdf.columns[i]] = hps[i - 2]
-        hpdf.loc[seed, 'oob'] = ",".join(tenotes)
+        for i in range(1, 7):  # put the hyperparameters in the hpdf
+            hpdf.loc[seed, hpdf.columns[i]] = hps[i - 1]
 
         # put the data in arrays for modeling, expanding out to the window size
         # only converting the test into tensors, to facilitate indexing
@@ -251,8 +250,10 @@ Now figure out the winner and ingest the unlabeled notes
 
 print('starting entropy search')
 
-# hpdf = pd.read_json(f"{ALdir}hpdf.json")
+hpdf = pd.read_json(f"{ALdir}hpdf.json")
 winner = hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
+# best3 = hpdf.loc[hpdf.best_loss/hpdf.best_loss.min() < 1.03]
+# winner = best3.loc[best3.time_to_convergence == best3.time_to_convergence.min()]
 
 # load it
 best_model = pd.read_pickle(f"{ALdir}model_batch4_{int(winner.idx)}.pkl")
@@ -266,7 +267,6 @@ trstubs = ["_".join(i.split("_")[2:]) for i in trnotes]
 notefiles = [i for i in notefiles if i not in trstubs]
 # and lose the ones that aren't 2018
 notefiles = [i for i in notefiles if int(i.split("_")[2][1:]) <= 12]
-
 
 def h(x):
     """entropy"""
@@ -362,42 +362,71 @@ for i, n in enumerate(selected_notes):
     fn = f"AL{ALbatch}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
     write_txt(n.iloc[0], f"{ALdir}{fn}")
 
-# # now plot the entropies of the selected notes over tokens
-# prediction_dict = {}
-# for note in best.note:
-#     print(note)
-#     plist = get_entropy_stats(note, return_raw=True)
-#     prediction_dict[note] = plist
-#
-# write_pickle(prediction_dict, f"{ALdir}raw_predictions.pkl")
-# # from _99_project_module import read_pickle
-# prediction_dict_grace = read_pickle(f"{ALdir}raw_predictions_grace.pkl")
-# prediction_dict_hpc = read_pickle(f"{ALdir}raw_predictions.pkl")
-#
-# keys = list(prediction_dict_hpc.keys())
-#
-# j = 0
-#
-# key = keys[j]
-# fig, ax = plt.subplots(nrows=4, figsize=(20, 10))
-# for i in range(4):
-#     hpc = prediction_dict_hpc[key][i][:, 2]
-#     gr = prediction_dict_grace[key][i][:, 2]
-#     di = hpc - gr
-#     ax[i].plot(hpc, label='hpc')
-#     ax[i].plot(gr, label='grace')
-#     ax[i].plot(di, label='difference')
-#     ax[i].legend()
-# # fig.suptitle(key)
-# fig.tight_layout()
-# plt.show()
-# j += 1
-#
-# x = prediction_dict_grace['embedded_note_m10_000048983.pkl'][0][:, 1]
-# y = prediction_dict_hpc['embedded_note_m10_000048983.pkl'][0][:, 1]
-# plt.scatter(x, y)
-# plt.show()
-#
-# # plot the prediction dict
-# # loop through the phenotypes
-# prediction_dict.keys()
+
+# post-analysis
+hpdf.to_csv(f"{ALdir}hpdf_for_R.csv")
+
+# get the files
+if 'crandrew' in os.getcwd():
+    for note in best.note:
+        cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/saved_models/AL00/ospreds/pred{note}.pkl" \
+              f" {ALdir}ospreds/"
+        os.system(cmd)
+    try:
+        os.mkdir(f"{ALdir}best_notes_embedded")
+    except Exception:
+        pass
+    for note in best.note:
+        cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/embedded_notes/{note}" \
+              f" {ALdir}best_notes_embedded/"
+        os.system(cmd)
+
+predfiles = os.listdir(f"{ALdir}ospreds")
+predfiles = [i for i in predfiles if ".pkl" in i]
+enotes = os.listdir(f"{ALdir}best_notes_embedded")
+enotes = [i for i in enotes if ".pkl" in i]
+
+j = 0
+for j in range(len(predfiles)):
+    p = read_pickle(f"{ALdir}ospreds/pred{enotes[j]}.pkl")
+    emat = np.stack([h(x) for x in p['pred']]).T
+    emb_note = read_pickle(f"{ALdir}best_notes_embedded/{enotes[j]}")
+    fig, ax = plt.subplots(nrows=4, figsize=(20, 10))
+    for i in range(4):
+        ax[i].plot(p['pred'][i][:,0], label='neg')
+        ax[i].plot(p['pred'][i][:,2], label='pos')
+        hx = h(p['pred'][i])
+        ax[i].plot(hx+1, label='entropy')
+        ax[i].legend()
+        ax[i].axhline(1)
+        ax[i].set_ylabel(out_varnames[i])
+        ax[i].set_ylim(0, 2.1)
+        maxH = np.argmax(emat[:,i])
+        span = emb_note.token.iloc[(maxH - best_model['hps'][0]//2):(maxH + best_model['hps'][0]//2)]
+        string = " ".join(span.tolist())
+        ax[i].text(maxH, 2.1, string, horizontalalignment='center')
+    plt.tight_layout()
+    plt.show()
+    fig.savefig(f"{ALdir}best_notes_embedded/predplot_w_best_span_{enotes[j]}.pdf")
+
+x = prediction_dict_grace['embedded_note_m10_000048983.pkl'][0][:, 1]
+y = prediction_dict_hpc['embedded_note_m10_000048983.pkl'][0][:, 1]
+plt.scatter(x, y)
+plt.show()
+
+# plot the prediction dict
+# loop through the phenotypes
+prediction_dict.keys()
+fi = os.listdir(f"{ALdir}ospreds/")
+xx = read_pickle(f"{ALdir}ospreds/{fi[1]}")
+
+fig, ax = plt.subplots(nrows=4, figsize=(20, 10))
+for i in range(4):
+    ax[i].plot(xx['pred'][i][:,0], label='neg')
+    ax[i].plot(xx['pred'][i][:,2], label='pos')
+    hx = h(xx['pred'][i])
+    ax[i].plot(hx+1, label='entropy')
+    ax[i].legend()
+# fig.suptitle(key)
+fig.tight_layout()
+plt.show()
