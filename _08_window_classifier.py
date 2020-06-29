@@ -24,7 +24,7 @@ import copy
 
 #########################################
 # set some globals
-batchsting = "01"
+batchstring = "01"
 # set the seed and define the training and test sets
 #mainseed = 8675309
 mainseed= 29062020 # 29 June 2020
@@ -34,7 +34,7 @@ mainseed= 29062020 # 29 June 2020
 datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
-ALdir = f"{outdir}saved_models/AL{batchsting}/"
+ALdir = f"{outdir}saved_models/AL{batchstring}/"
 
 
 try:
@@ -370,7 +370,7 @@ for i in range(len(best)):
     selected_notes.append(ni)
 
 for i, n in enumerate(selected_notes):
-    fn = f"AL{batchsting}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
+    fn = f"AL{batchstring}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
     write_txt(n.iloc[0], f"{ALdir}{fn}")
 
 
