@@ -21,11 +21,22 @@ import time
 from sklearn.preprocessing import StandardScaler
 import copy
 
+
+#########################################
+# set some globals
+batchsting = "01"
+# set the seed and define the training and test sets
+#mainseed = 8675309
+mainseed= 29062020 # 29 June 2020
+##########################################
+
+
 datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
-ALbatch = "00"
-ALdir = f"{outdir}saved_models/AL{ALbatch}/"
+ALdir = f"{outdir}saved_models/AL{batchsting}/"
+
+
 try:
     os.mkdir(ALdir)
 except Exception:
@@ -37,13 +48,12 @@ except Exception:
     pass
 
 # load the notes from 2018
-notes_2018 = [i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[3][1:]) < 13]
+notes_2018 = [i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
 df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
 df.drop(columns='Unnamed: 0', inplace=True)
 
-# set the seed and define the training and test sets
-mainseed = 8675309
-np.random.seed(mainseed)  # this was the seed used on May 13, after batch 4
+
+np.random.seed(mainseed) 
 trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
 tenotes = [i for i in notes_2018 if i not in trnotes]
 trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
@@ -252,8 +262,7 @@ print('starting entropy search')
 
 hpdf = pd.read_json(f"{ALdir}hpdf.json")
 winner = hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
-# best3 = hpdf.loc[hpdf.best_loss/hpdf.best_loss.min() < 1.03]
-# winner = best3.loc[best3.time_to_convergence == best3.time_to_convergence.min()]
+
 
 # load it
 best_model = pd.read_pickle(f"{ALdir}model_batch4_{int(winner.idx)}.pkl")
@@ -263,8 +272,10 @@ model.set_weights(best_model['weights'])
 # find all the notes to check
 notefiles = [i for i in os.listdir(f"{outdir}embedded_notes/")]
 # lose the ones that are in the trnotes:
-trstubs = ["_".join(i.split("_")[2:]) for i in trnotes]
-notefiles = [i for i in notefiles if i not in trstubs]
+trstubs = ["_".join(i.split("_")[-2:]) for i in trnotes]
+testubs = ["_".join(i.split("_")[-2:]) for i in tenotes]
+
+notefiles = [i for i in notefiles if (i not in trstubs) and (i not in testubs) and ("DS_Store" not in i)]
 # and lose the ones that aren't 2018
 notefiles = [i for i in notefiles if int(i.split("_")[2][1:]) <= 12]
 
@@ -359,7 +370,7 @@ for i in range(len(best)):
     selected_notes.append(ni)
 
 for i, n in enumerate(selected_notes):
-    fn = f"AL{ALbatch}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
+    fn = f"AL{batchsting}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
     write_txt(n.iloc[0], f"{ALdir}{fn}")
 
 
@@ -369,7 +380,7 @@ hpdf.to_csv(f"{ALdir}hpdf_for_R.csv")
 # get the files
 if 'crandrew' in os.getcwd():
     for note in best.note:
-        cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/saved_models/AL00/ospreds/pred{note}.pkl" \
+        cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/saved_models/AL{batchstring}/ospreds/pred{note}.pkl" \
               f" {ALdir}ospreds/"
         os.system(cmd)
     try:

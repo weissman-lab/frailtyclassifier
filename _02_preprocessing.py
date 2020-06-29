@@ -228,9 +228,6 @@ assert len(errs) == 0
 
 # do the cutting
 def highlight_stuff_to_cut(i, do_cutting = False):
-    '''
-    THis function returns notes with the sections to cut hilighted notes.  It doesn't actually do the cutting
-    '''
     # take the spans and turn them into a dataframe
     dfl = [] #data frame list
     for k in list(spanslist[i].keys()):

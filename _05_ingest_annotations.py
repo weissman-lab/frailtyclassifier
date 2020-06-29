@@ -77,8 +77,9 @@ def tokenize_and_label(output_file_path, annotator_of_record = "CURATION_USER"):
                             (span_df.start < tag_df.end.iloc[i]), var] = tag_df.value.iloc[i]
             # add important variables
             span_df['note'] = re.sub(".txt", "", stub)
-            span_df['month'] = span_df.note.apply(lambda x: int(x.split("_")[2][1:]))
-            span_df['PAT_ID'] = span_df.note.apply(lambda x: x.split("_")[3])
+            # span_df['month'] = span_df.note.apply(lambda x: int(x.split("_")[2][1:]))
+            span_df['month'] = span_df.note.apply(lambda x: int(re.sub("m", "", x.split("_")[-2])))
+            span_df['PAT_ID'] = span_df.note.apply(lambda x: x.split("_")[-1])
             outlist.append(span_df)
     return outlist
 
@@ -160,9 +161,10 @@ def featurize(file,  # the data frame -- a product of the tokenize_and_label fun
     return output.reset_index(drop=True)
 
 
-# zipfile = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/frailty_phenotype_batch_2_2020-03-02_1325.zip"
+# zipfile = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/frailty_phenotype_AL_00_2020-06-29_0939.zip"
 # embeddings = "/Users/crandrew/projects/pwe/output/trained_models/w2v_oa_all_300d.bin"
 # structured_data_path = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/impdat_dums.csv"
+# outdir = f"{os.getcwd()}output/notes_labeled_embedded/"
 def main():
     p = ArgParser()
     p.add("-z", "--zipfile", help="zip file to ingest")
