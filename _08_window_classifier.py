@@ -317,27 +317,27 @@ def get_entropy_stats(i, return_raw=False):
         print(e)
         print(i)
 
-
-edicts = []
-N = 0
-for i in notefiles:
-    if f"pred{i}.pkl" not in os.listdir(f"{ALdir}ospreds/"):
-        r = get_entropy_stats(i)
-        write_pickle(r, f"{ALdir}ospreds/pred{i}.pkl")
-    else:
-        r = read_pickle(f"{ALdir}ospreds/pred{i}.pkl")
-    r.pop("pred")
-    print(r)
-    edicts.append(r)
-    print(i)
-    N += 1
-    print(N)
-
-# res = pd.concat([res, pd.DataFrame([i for i in edicts if i is not None])])
-res = pd.DataFrame([i for i in edicts if i is not None])
-res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
-
-res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
+if "entropies_of_unlableled_notes.pkl" not in os.listdir(ALdir):
+    edicts = []
+    N = 0
+    for i in notefiles:
+        if f"pred{i}.pkl" not in os.listdir(f"{ALdir}ospreds/"):
+            r = get_entropy_stats(i)
+            write_pickle(r, f"{ALdir}ospreds/pred{i}.pkl")
+        else:
+            r = read_pickle(f"{ALdir}ospreds/pred{i}.pkl")
+        r.pop("pred")
+        print(r)
+        edicts.append(r)
+        print(i)
+        N += 1
+        print(N)
+    
+    # res = pd.concat([res, pd.DataFrame([i for i in edicts if i is not None])])
+    res = pd.DataFrame([i for i in edicts if i is not None])
+    res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
+else:
+    res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
 
 colnames = res.columns[1:].tolist()
 fig, ax = plt.subplots(ncols=5, nrows=5, figsize=(10, 10))
@@ -378,24 +378,35 @@ for i, n in enumerate(selected_notes):
 hpdf.to_csv(f"{ALdir}hpdf_for_R.csv")
 
 # get the files
+try:
+    os.mkdir(f"{ALdir}best_notes_embedded")
+except Exception:
+    pass
 if 'crandrew' in os.getcwd():
+    assert 5==0 # if you ver need to make this work again, fix it to not rely on grace
     for note in best.note:
         cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/saved_models/AL{batchstring}/ospreds/pred{note}.pkl" \
               f" {ALdir}ospreds/"
         os.system(cmd)
-    try:
-        os.mkdir(f"{ALdir}best_notes_embedded")
-    except Exception:
-        pass
     for note in best.note:
         cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/embedded_notes/{note}" \
               f" {ALdir}best_notes_embedded/"
         os.system(cmd)
+elif 'hipaa_garywlab' in os.getcwd():
+    for note in best.note:
+        cmd = f"cp {ALdir}/ospreds/pred{note}.pkl" \
+              f" {ALdir}best_notes_embedded/"
+        os.system(cmd)
+    for note in best.note:
+        cmd = f"cp /project/hipaa_garywlab/frailty/output/embedded_notes/{note}" \
+              f" {ALdir}best_notes_embedded/"
+        os.system(cmd)
+
 
 predfiles = os.listdir(f"{ALdir}ospreds")
-predfiles = [i for i in predfiles if ".pkl" in i]
+predfiles = [i for i in predfiles if "predembedded" in i]
 enotes = os.listdir(f"{ALdir}best_notes_embedded")
-enotes = [i for i in enotes if ".pkl" in i]
+enotes = [i for i in enotes if "embedded_note_m" in i]
 
 j = 0
 for j in range(len(predfiles)):
