@@ -225,7 +225,6 @@ errs = [i for i in range(df.shape[0]) if isinstance(spanslist[i], Exception)]
 assert len(errs) == 0
 
 
-
 # do the cutting
 def highlight_stuff_to_cut(i, do_cutting = False):
     # take the spans and turn them into a dataframe
@@ -425,7 +424,23 @@ conc_notes_df['highprob'] = hp.values
 conc_notes_df['lowprob'] = lp.values
 
 
+'''
+July 14 2020:
+    remove all concatenated notes that do not have one of the qualifying dx in 
+    the 12 months before the latest date in the conc_notes_df
+'''
 
+diagnosis_df = pd.read_pickle(f"{datadir}diagnosis_df.pkl")
+tm = conc_notes_df[['PAT_ID', 'LATEST_TIME']]
+yy= tm.merge(diagnosis_df, how = 'left')
+yy.head()
+yy['diff'] = yy['LATEST_TIME'] - yy['dx_date']
+yy['year'] = (yy['diff'].dt.days > 0) & (yy['diff'].dt.days < 365)
+yy = yy.loc[yy.year == True]
+yy = yy[["PAT_ID", "LATEST_TIME"]].drop_duplicates()
+conc_notes_df = yy.merge(conc_notes_df)
+
+# save
 conc_notes_df.to_pickle(f'{outdir}conc_notes_df.pkl')
 conc_notes_df = pd.read_pickle(f'{outdir}conc_notes_df.pkl')
 
@@ -434,180 +449,181 @@ conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
 months = list(set(conc_notes_df.month))
 months.sort()
 
-def plotfun(var, yaxt, q=False):
-    f = plt.figure()
-    axes = plt.gca()
-    if q:
-        qvec = [np.quantile(conc_notes_df[var][conc_notes_df.month == i], [.25, .5, .75]).reshape(1, 3) for i in months]
-        qmat = np.concatenate(qvec, axis=0)
-        axes.set_ylim([0, np.max(qmat)])
-        plt.plot(months, qmat[:, 1], "C1", label="median")
-        plt.plot(months, qmat[:, 0], "C2", label="first quartile")
-        plt.plot(months, qmat[:, 2], "C2", label="third quartile")
-    else:
-        sdvec = [np.std(conc_notes_df[var][conc_notes_df.month == i]) for i in months]
-        muvec = [np.mean(conc_notes_df[var][conc_notes_df.month == i]) for i in months]
-        axes.set_ylim([0, max(np.array(muvec) + np.array(sdvec))])
-        plt.plot(months, muvec, "C1", label="mean")
-        plt.plot(months, np.array(muvec) + np.array(sdvec), "C2", label="+/- 1 sd")
-        plt.plot(months, np.array(muvec) - np.array(sdvec), "C2")
-    plt.xlabel("Months since Jan 2018")
-    plt.ylabel(yaxt)
-    axes.legend()
-    # plt.show()
-    plt.figure(figsize=(8, 8))
-    f.savefig(f'{figdir}{var}.pdf')
+# def plotfun(var, yaxt, q=False):
+#     f = plt.figure()
+#     axes = plt.gca()
+#     if q:
+#         qvec = [np.quantile(conc_notes_df[var][conc_notes_df.month == i], [.25, .5, .75]).reshape(1, 3) for i in months]
+#         qmat = np.concatenate(qvec, axis=0)
+#         axes.set_ylim([0, np.max(qmat)])
+#         plt.plot(months, qmat[:, 1], "C1", label="median")
+#         plt.plot(months, qmat[:, 0], "C2", label="first quartile")
+#         plt.plot(months, qmat[:, 2], "C2", label="third quartile")
+#     else:
+#         sdvec = [np.std(conc_notes_df[var][conc_notes_df.month == i]) for i in months]
+#         muvec = [np.mean(conc_notes_df[var][conc_notes_df.month == i]) for i in months]
+#         axes.set_ylim([0, max(np.array(muvec) + np.array(sdvec))])
+#         plt.plot(months, muvec, "C1", label="mean")
+#         plt.plot(months, np.array(muvec) + np.array(sdvec), "C2", label="+/- 1 sd")
+#         plt.plot(months, np.array(muvec) - np.array(sdvec), "C2")
+#     plt.xlabel("Months since Jan 2018")
+#     plt.ylabel(yaxt)
+#     axes.legend()
+#     # plt.show()
+#     plt.figure(figsize=(8, 8))
+#     f.savefig(f'{figdir}{var}.pdf')
 
 
-plotfun("n_notes", "Number of notes per combined note")
-plotfun("n_words", "Number of words per combined note", q=True)
-plotfun("u_words", "Number of unique words per combined note", q=True)
+# plotfun("n_notes", "Number of notes per combined note")
+# plotfun("n_words", "Number of words per combined note", q=True)
+# plotfun("u_words", "Number of unique words per combined note", q=True)
 
 
-# numbers of words by number of conc notes
-f, ax = plt.subplots()
-nnn = list(set(conc_notes_df.n_notes))
-pltlist = [conc_notes_df.u_words[conc_notes_df.n_notes == i] for i in nnn if i < 15]
-ax.set_title('Unique words by number of concatenated notes')
-ax.boxplot(pltlist)
-plt.xlabel("Number of notes concatenated together")
-plt.ylabel("Number of unique words")
-plt.figure(figsize=(8, 8))
-f.savefig(f'{figdir}nnotes_by_uwords.pdf')
+# # numbers of words by number of conc notes
+# f, ax = plt.subplots()
+# nnn = list(set(conc_notes_df.n_notes))
+# pltlist = [conc_notes_df.u_words[conc_notes_df.n_notes == i] for i in nnn if i < 15]
+# ax.set_title('Unique words by number of concatenated notes')
+# ax.boxplot(pltlist)
+# plt.xlabel("Number of notes concatenated together")
+# plt.ylabel("Number of unique words")
+# plt.figure(figsize=(8, 8))
+# f.savefig(f'{figdir}nnotes_by_uwords.pdf')
 
-# pull some random notes
-np.random.seed(8675309)
-kind = "lp"
-for i in conc_notes_df.month.unique():
-    if kind == "lp":
-        sampdf = conc_notes_df[(conc_notes_df.month == i) &
-                               (conc_notes_df.lowprob == True) &
-                               (conc_notes_df.highprob == False) &
-                               (conc_notes_df.n_comorb <5)]
-        samp = np.random.choice(sampdf.shape[0], 1)
-        towrite = sampdf.combined_notes.iloc[int(samp)]
-        fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-        with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
-            f.write(towrite)
-        kind = "hp"
-    elif kind == "hp":
-        sampdf = conc_notes_df[(conc_notes_df.month == i) &
-                               (conc_notes_df.lowprob == False) &
-                               (conc_notes_df.highprob == True) &
-                               (conc_notes_df.n_comorb >15)]
-        samp = np.random.choice(sampdf.shape[0], 1)
-        towrite = sampdf.combined_notes.iloc[int(samp)]
-        fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-        with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
-            f.write(towrite)
-        kind = "lp"
+# # pull some random notes
+# np.random.seed(8675309)
+# kind = "lp"
+# for i in conc_notes_df.month.unique():
+#     if kind == "lp":
+#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
+#                                (conc_notes_df.lowprob == True) &
+#                                (conc_notes_df.highprob == False) &
+#                                (conc_notes_df.n_comorb <5)]
+#         samp = np.random.choice(sampdf.shape[0], 1)
+#         towrite = sampdf.combined_notes.iloc[int(samp)]
+#         fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
+#         with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
+#             f.write(towrite)
+#         kind = "hp"
+#     elif kind == "hp":
+#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
+#                                (conc_notes_df.lowprob == False) &
+#                                (conc_notes_df.highprob == True) &
+#                                (conc_notes_df.n_comorb >15)]
+#         samp = np.random.choice(sampdf.shape[0], 1)
+#         towrite = sampdf.combined_notes.iloc[int(samp)]
+#         fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
+#         with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
+#             f.write(towrite)
+#         kind = "lp"
 
-# second batch of random notes
-# pull some random notes
-np.random.seed(5555555)
-kind = "lp"
-for i in conc_notes_df.month.unique():
-    if kind == "lp":
-        sampdf = conc_notes_df[(conc_notes_df.month == i) &
-                               (conc_notes_df.lowprob == True) &
-                               (conc_notes_df.highprob == False) &
-                               (conc_notes_df.n_comorb <5)]
-        samp = np.random.choice(sampdf.shape[0], 1)
-        towrite = sampdf.combined_notes.iloc[int(samp)]
-        fi = f"batch_02_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-        with open(f'{outdir}/notes_output/batch_02/{fi}', "w") as f:
-            f.write(towrite)
-        kind = "hp"
-    elif kind == "hp":
-        sampdf = conc_notes_df[(conc_notes_df.month == i) &
-                               (conc_notes_df.lowprob == False) &
-                               (conc_notes_df.highprob == True) &
-                               (conc_notes_df.n_comorb >15)]
-        samp = np.random.choice(sampdf.shape[0], 1)
-        towrite = sampdf.combined_notes.iloc[int(samp)]
-        fi = f"batch_02_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-        with open(f'{outdir}/notes_output/batch_02/{fi}', "w") as f:
-            f.write(towrite)
-        kind = "lp"
-
-
-# 25 random notes from 2019
-import os
-np.random.seed(5446)
-subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
-previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02")
-previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
-subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
-subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 25)]
-for i in range(25):
-    towrite = subsubsubset.combined_notes.iloc[i]
-    fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    with open(f'{outdir}/notes_output/batch_03/{fi}', "w") as f:
-        f.write(towrite)
+# # second batch of random notes
+# # pull some random notes
+# np.random.seed(5555555)
+# kind = "lp"
+# for i in conc_notes_df.month.unique():
+#     if kind == "lp":
+#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
+#                                (conc_notes_df.lowprob == True) &
+#                                (conc_notes_df.highprob == False) &
+#                                (conc_notes_df.n_comorb <5)]
+#         samp = np.random.choice(sampdf.shape[0], 1)
+#         towrite = sampdf.combined_notes.iloc[int(samp)]
+#         fi = f"batch_02_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
+#         with open(f'{outdir}/notes_output/batch_02/{fi}', "w") as f:
+#             f.write(towrite)
+#         kind = "hp"
+#     elif kind == "hp":
+#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
+#                                (conc_notes_df.lowprob == False) &
+#                                (conc_notes_df.highprob == True) &
+#                                (conc_notes_df.n_comorb >15)]
+#         samp = np.random.choice(sampdf.shape[0], 1)
+#         towrite = sampdf.combined_notes.iloc[int(samp)]
+#         fi = f"batch_02_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
+#         with open(f'{outdir}/notes_output/batch_02/{fi}', "w") as f:
+#             f.write(towrite)
+#         kind = "lp"
 
 
-# 25 random notes from 2018
-'''
-NOTE THERE IS A TYPO BELOW.  I specified that the name of each of the files outputted would be "batch_03" when it should have been batch 4.  
-This has no real consequences, but could cause confusion later, hence this note.  
-I've made a post-hoc fix to the naming when the output gets loaded in the window classifier script.'
-'''
-import os
-np.random.seed(266701)
-subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2018]
-previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
-           os.listdir(f"{outdir}notes_output/batch_03")
-previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
-subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
-subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
-for i in range(30):
-    towrite = subsubsubset.combined_notes.iloc[i]
-    fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    if i < 25:
-        fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    else:
-        fi = f"batch_03_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    with open(f'{outdir}/notes_output/batch_04/{fi}', "w") as f:
-        f.write(towrite)
-
-# 25 random notes from 2019
-import os
-np.random.seed(999)
-subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
-previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
-           os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04")
-previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
-subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
-subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
-for i in range(30):
-    towrite = subsubsubset.combined_notes.iloc[i]
-    fi = f"batch_05_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    if i < 25:
-        fi = f"batch_05_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    else:
-        fi = f"batch_05_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    with open(f'{outdir}/notes_output/batch_05/{fi}', "w") as f:
-        f.write(towrite)
+# # 25 random notes from 2019
+# import os
+# np.random.seed(5446)
+# subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
+# previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02")
+# previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+# subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+# subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 25)]
+# for i in range(25):
+#     towrite = subsubsubset.combined_notes.iloc[i]
+#     fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     with open(f'{outdir}/notes_output/batch_03/{fi}', "w") as f:
+#         f.write(towrite)
 
 
-# 25 random notes from 2019
-# batch 6
-import os
-np.random.seed(224)
-subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
-previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
-           os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04") + \
-           os.listdir(f"{outdir}notes_output/batch_04")
-previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
-subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
-subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
-for i in range(30):
-    towrite = subsubsubset.combined_notes.iloc[i]
-    fi = f"batch_06_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    if i < 25:
-        fi = f"batch_06_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    else:
-        fi = f"batch_06_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-    with open(f'{outdir}/notes_output/batch_06/{fi}', "w") as f:
-        f.write(towrite)
+# # 25 random notes from 2018
+# '''
+# NOTE THERE IS A TYPO BELOW.  I specified that the name of each of the files outputted would be "batch_03" when it should have been batch 4.  
+# This has no real consequences, but could cause confusion later, hence this note.  
+# I've made a post-hoc fix to the naming when the output gets loaded in the window classifier script.'
+# '''
+# import os
+# np.random.seed(266701)
+# subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2018]
+# previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
+#            os.listdir(f"{outdir}notes_output/batch_03")
+# previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+# subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+# subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
+# for i in range(30):
+#     towrite = subsubsubset.combined_notes.iloc[i]
+#     fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     if i < 25:
+#         fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     else:
+#         fi = f"batch_03_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     with open(f'{outdir}/notes_output/batch_04/{fi}', "w") as f:
+#         f.write(towrite)
+
+# # 25 random notes from 2019
+# import os
+# np.random.seed(999)
+# subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
+# previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
+#            os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04")
+# previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+# subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+# subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
+# for i in range(30):
+#     towrite = subsubsubset.combined_notes.iloc[i]
+#     fi = f"batch_05_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     if i < 25:
+#         fi = f"batch_05_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     else:
+#         fi = f"batch_05_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     with open(f'{outdir}/notes_output/batch_05/{fi}', "w") as f:
+#         f.write(towrite)
+
+
+# # 25 random notes from 2019
+# # batch 6
+# import os
+# np.random.seed(224)
+# subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
+# previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
+#            os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04") + \
+#            os.listdir(f"{outdir}notes_output/batch_04")
+# previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+# subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+# subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
+# for i in range(30):
+#     towrite = subsubsubset.combined_notes.iloc[i]
+#     fi = f"batch_06_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     if i < 25:
+#         fi = f"batch_06_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     else:
+#         fi = f"batch_06_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+#     with open(f'{outdir}/notes_output/batch_06/{fi}', "w") as f:
+#         f.write(towrite)
+
 

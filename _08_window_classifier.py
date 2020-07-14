@@ -403,16 +403,17 @@ elif 'hipaa_garywlab' in os.getcwd():
         os.system(cmd)
 
 
-predfiles = os.listdir(f"{ALdir}ospreds")
+predfiles = os.listdir(f"{ALdir}best_notes_embedded")
 predfiles = [i for i in predfiles if "predembedded" in i]
 enotes = os.listdir(f"{ALdir}best_notes_embedded")
-enotes = [i for i in enotes if "embedded_note_m" in i]
+enotes = [i for i in enotes if "predembedded" not in i]
 
 j = 0
-for j in range(len(predfiles)):
-    p = read_pickle(f"{ALdir}ospreds/pred{enotes[j]}.pkl")
+for j, k in enumerate(predfiles):
+    p = read_pickle(f"{ALdir}best_notes_embedded/{predfiles[j]}")
+    ID = re.sub('.pkl', '', "_".join(predfiles[j].split("_")[2:]))
     emat = np.stack([h(x) for x in p['pred']]).T
-    emb_note = read_pickle(f"{ALdir}best_notes_embedded/{enotes[j]}")
+    emb_note = read_pickle(f"{ALdir}best_notes_embedded/{[x for x in enotes if ID in x][0]}")
     fig, ax = plt.subplots(nrows=4, figsize=(20, 10))
     for i in range(4):
         ax[i].plot(p['pred'][i][:,0], label='neg')

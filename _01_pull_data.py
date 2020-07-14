@@ -204,16 +204,20 @@ else:
 
 
 
-bq = """
-SELECT id.IDENTITY_ID EMPI
-FROM IDENTITY_ID id
-WHERE id.PAT_ID = :ids AND id.IDENTITY_TYPE_ID = 105 -- EMPI
-"""
-IDlist = []
-for i in raw_notes_df.PAT_ID.unique():
-    q = re.sub(":ids", "'"+i+"'", bq)
-    empi = get_from_clarity_then_save(q, clar_conn = clar_conn)
-/pro    IDlist.append(empi.EMPI.iloc[0])
+
+
+
+
+# bq = """
+# SELECT id.IDENTITY_ID EMPI
+# FROM IDENTITY_ID id
+# WHERE id.PAT_ID = :ids AND id.IDENTITY_TYPE_ID = 105 -- EMPI
+# """
+# IDlist = []
+# for i in raw_notes_df.PAT_ID.unique():
+#     q = re.sub(":ids", "'"+i+"'", bq)
+#     empi = get_from_clarity_then_save(q, clar_conn = clar_conn)
+# /pro    IDlist.append(empi.EMPI.iloc[0])
 
 
 
