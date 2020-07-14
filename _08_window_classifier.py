@@ -263,7 +263,6 @@ print('starting entropy search')
 hpdf = pd.read_json(f"{ALdir}hpdf.json")
 winner = hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
 
-
 # load it
 best_model = pd.read_pickle(f"{ALdir}model_batch4_{int(winner.idx)}.pkl")
 model = makemodel(*best_model['hps'])
@@ -274,10 +273,17 @@ notefiles = [i for i in os.listdir(f"{outdir}embedded_notes/")]
 # lose the ones that are in the trnotes:
 trstubs = ["_".join(i.split("_")[-2:]) for i in trnotes]
 testubs = ["_".join(i.split("_")[-2:]) for i in tenotes]
-
 notefiles = [i for i in notefiles if (i not in trstubs) and (i not in testubs) and ("DS_Store" not in i)]
 # and lose the ones that aren't 2018
 notefiles = [i for i in notefiles if int(i.split("_")[2][1:]) <= 12]
+# lose the ones that aren't in the cndf
+# the cndf was cut on July 14, 2020 to only include notes from PTs with qualifying ICD codes from the 12 months previous
+cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
+cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
+cndf['month'] = cndf.LATEST_TIME.dt.month + (
+    cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
+cndf_notes = ("embedded_note_m"+cndf.month.astype(str)+"_"+cndf.PAT_ID+".pkl").tolist()
+notefiles = list(set(notefiles) & set(cndf_notes))
 
 def h(x):
     """entropy"""
@@ -339,6 +345,7 @@ if "entropies_of_unlableled_notes.pkl" not in os.listdir(ALdir):
 else:
     res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
 
+
 colnames = res.columns[1:].tolist()
 fig, ax = plt.subplots(ncols=5, nrows=5, figsize=(10, 10))
 for i in range(5):
@@ -355,8 +362,8 @@ fig.savefig(f"{ALdir}entropy_summaries.pdf")
 plt.show()
 
 # pull the best notes
-cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
-cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
+cndf['note'] = "embedded_note_m"+cndf.month.astype(str)+"_"+cndf.PAT_ID+".pkl"
+res = res.merge(cndf[['note', 'combined_notes']])
 
 best = res.sort_values("hmean_above_average").tail(25)
 best['PAT_ID'] = best.note.apply(lambda x: x.split("_")[3][:-4])

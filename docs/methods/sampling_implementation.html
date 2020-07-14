@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>sampling_implementation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+<h1 id="implementation-of-sampling-strategy-for-frailty-classifier-project">Implementation of sampling strategy for frailty classifier project</h1>
+<h2 id="andrew-crane-droesch">Andrew Crane-Droesch</h2>
+<h2 id="july-2020">14 July 2020</h2>
+<p>This doc will walk through the first two scripts in the <code>frailty</code> repo, as of 14 July, and explain how relevant pieces of them implement the sampling strategy. The goal is to surface any non-shared understanding of the eligibility criteria for the study, so that understanding can be harmonized.</p>
+<p>I’ll quote long sections of code, reverting to plain text where there is something to emphasize or note. With that:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1"></a><span class="co">&#39;&#39;&#39;</span></span>
+<span id="cb1-2"><a href="#cb1-2"></a><span class="co">This script pulls the data.</span></span>
+<span id="cb1-3"><a href="#cb1-3"></a><span class="co">It begins by getting a list of all patient IDs who have ever had one of our target diagnoses.</span></span>
+<span id="cb1-4"><a href="#cb1-4"></a><span class="co">Armed with that list, the next query pulls all of the notes from their qualifying encounters.</span></span>
+<span id="cb1-5"><a href="#cb1-5"></a><span class="co">Finally, we pull info on transplants, and use that to filter-out encounters that happened post-transplant.</span></span>
+<span id="cb1-6"><a href="#cb1-6"></a><span class="co">&#39;&#39;&#39;</span></span>
+<span id="cb1-7"><a href="#cb1-7"></a></span>
+<span id="cb1-8"><a href="#cb1-8"></a><span class="co"># libraries and imports</span></span>
+<span id="cb1-9"><a href="#cb1-9"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-10"><a href="#cb1-10"></a><span class="im">import</span> os</span>
+<span id="cb1-11"><a href="#cb1-11"></a><span class="im">from</span> _99_project_module <span class="im">import</span> get_clarity_conn, get_from_clarity_then_save, combine_notes_by_type, <span class="op">\</span></span>
+<span id="cb1-12"><a href="#cb1-12"></a>    query_filtered_with_temp_tables, write_txt</span>
+<span id="cb1-13"><a href="#cb1-13"></a><span class="im">import</span> re</span>
+<span id="cb1-14"><a href="#cb1-14"></a><span class="im">import</span> time</span>
+<span id="cb1-15"><a href="#cb1-15"></a><span class="im">import</span> multiprocessing <span class="im">as</span> mp</span>
+<span id="cb1-16"><a href="#cb1-16"></a><span class="im">import</span> copy</span>
+<span id="cb1-17"><a href="#cb1-17"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-18"><a href="#cb1-18"></a></span>
+<span id="cb1-19"><a href="#cb1-19"></a><span class="co"># preferences</span></span>
+<span id="cb1-20"><a href="#cb1-20"></a>pd.options.display.max_rows <span class="op">=</span> <span class="dv">4000</span></span>
+<span id="cb1-21"><a href="#cb1-21"></a>pd.options.display.max_columns <span class="op">=</span> <span class="dv">4000</span></span>
+<span id="cb1-22"><a href="#cb1-22"></a></span>
+<span id="cb1-23"><a href="#cb1-23"></a><span class="co"># connect to the database</span></span>
+<span id="cb1-24"><a href="#cb1-24"></a>clar_conn <span class="op">=</span> get_clarity_conn(<span class="st">&quot;/Users/crandrew/Documents/clarity_creds_ACD.yaml&quot;</span>)</span>
+<span id="cb1-25"><a href="#cb1-25"></a></span>
+<span id="cb1-26"><a href="#cb1-26"></a><span class="co"># set a global data dir for PHI</span></span>
+<span id="cb1-27"><a href="#cb1-27"></a>datadir <span class="op">=</span> <span class="st">&quot;/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/&quot;</span></span>
+<span id="cb1-28"><a href="#cb1-28"></a>outdir <span class="op">=</span> <span class="st">&quot;/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/&quot;</span></span>
+<span id="cb1-29"><a href="#cb1-29"></a></span>
+<span id="cb1-30"><a href="#cb1-30"></a></span>
+<span id="cb1-31"><a href="#cb1-31"></a><span class="co"># get the diagnoses data frame.  look first in the data directory.</span></span>
+<span id="cb1-32"><a href="#cb1-32"></a><span class="cf">if</span> <span class="st">&quot;diagnosis_df.pkl&quot;</span> <span class="kw">in</span> os.listdir(datadir):</span>
+<span id="cb1-33"><a href="#cb1-33"></a>    diagnosis_df <span class="op">=</span> pd.read_pickle(<span class="ss">f&quot;</span><span class="sc">{</span>datadir<span class="sc">}</span><span class="ss">diagnosis_df.pkl&quot;</span>)</span>
+<span id="cb1-34"><a href="#cb1-34"></a><span class="cf">else</span>:</span>
+<span id="cb1-35"><a href="#cb1-35"></a>    diagnosis_df <span class="op">=</span> get_from_clarity_then_save(</span>
+<span id="cb1-36"><a href="#cb1-36"></a>        query<span class="op">=</span><span class="bu">open</span>(<span class="st">&quot;_8_diagnosis_query.sql&quot;</span>).read(),</span>
+<span id="cb1-37"><a href="#cb1-37"></a>        clar_conn<span class="op">=</span>clar_conn</span>
+<span id="cb1-38"><a href="#cb1-38"></a>    )</span>
+<span id="cb1-39"><a href="#cb1-39"></a>    <span class="co"># subset them to the correct set of diagnostic codes</span></span>
+<span id="cb1-40"><a href="#cb1-40"></a>    chronic_regex <span class="op">=</span> <span class="st">&#39;^(J44\.[0,1,9]|J43\.[0,1,2,8,9]|J41\.[0,1,8]|J42|J84\.10|D86|J84|M34\.81|J99\.[0,1])&#39;</span></span>
+<span id="cb1-41"><a href="#cb1-41"></a>    diagnosis_df <span class="op">=</span> diagnosis_df[diagnosis_df[<span class="st">&#39;icd10&#39;</span>].<span class="bu">str</span>.contains(chronic_regex)]</span>
+<span id="cb1-42"><a href="#cb1-42"></a>    diagnosis_df.to_pickle(<span class="ss">f&quot;</span><span class="sc">{</span>datadir<span class="sc">}</span><span class="ss">diagnosis_df.pkl&quot;</span>)</span></code></pre></div>
+</body>
+</html>

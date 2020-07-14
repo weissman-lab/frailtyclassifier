@@ -1,4 +1,246 @@
 
+# Implementation of sampling strategy for frailty classifier project
+## Andrew Crane-Droesch
+## 14 July 2020
+
+This doc will walk through the first two scripts in the `frailty` repo, as of 14 July, and explain how relevant pieces of them implement the sampling strategy.  The goal is to surface any non-shared understanding of the eligibility criteria for the study, so that understanding can be harmonized.
+
+I'll quote long sections of code, reverting to plain text where there is something to emphasize or note.  With that:
+
+## `_01_pull_data.py`
+
+This script pulls the data.
+
+```python
+'''
+This script pulls the data.
+It begins by getting a list of all patient IDs who have ever had one of our target diagnoses.
+Armed with that list, the next query pulls all of the notes from their qualifying encounters.
+Finally, we pull info on transplants, and use that to filter-out encounters that happened post-transplant.
+'''
+
+# libraries and imports
+import pandas as pd
+import os
+from _99_project_module import get_clarity_conn, get_from_clarity_then_save, combine_notes_by_type, \
+    query_filtered_with_temp_tables, write_txt
+import re
+import time
+import multiprocessing as mp
+import copy
+import numpy as np
+
+# preferences
+pd.options.display.max_rows = 4000
+pd.options.display.max_columns = 4000
+
+# connect to the database
+clar_conn = get_clarity_conn("/Users/crandrew/Documents/clarity_creds_ACD.yaml")
+
+# set a global data dir for PHI
+datadir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/data/"
+outdir = "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/"
+
+
+# get the diagnoses data frame.  look first in the data directory.
+if "diagnosis_df.pkl" in os.listdir(datadir):
+    diagnosis_df = pd.read_pickle(f"{datadir}diagnosis_df.pkl")
+else:
+    diagnosis_df = get_from_clarity_then_save(
+        query=open("_8_diagnosis_query.sql").read(),
+        clar_conn=clar_conn
+    )
+    # subset them to the correct set of diagnostic codes
+    chronic_regex = '^(J44\.[0,1,9]|J43\.[0,1,2,8,9]|J41\.[0,1,8]|J42|J84\.10|D86|J84|M34\.81|J99\.[0,1])'
+    diagnosis_df = diagnosis_df[diagnosis_df['icd10'].str.contains(chronic_regex)]
+    diagnosis_df.to_pickle(f"{datadir}diagnosis_df.pkl")
+```
+
+Note above the `chronic_regex` -- this defines the ICD's that get pulled.  The diagnosis query itself (see the GH repo) pulls a slightly more expansive set of ICDs, which the `chronic_regex` winnows down.  
+
+Below, I load the notes query (see GH), and then create a dictionary with the specialties, note types, encounter types, and note statuses that we agreed upon.  Note statuses "2" and "3" correspond to "signed" and "addended".
+
+```python
+
+# now get the notes
+unique_PIDs = diagnosis_df.PAT_ID.unique().tolist()
+unique_PIDs.sort()
+base_query = open("_8_patient_notes_query.sql").read()
+fdict = dict(PAT_ID={"vals": [], "foreign_table":"pe",
+                          "foreign_key":"PAT_ID"},
+             SPECIALTY={"vals": ['INTERNAL MEDICINE', 'PULMONARY', 'FAMILY PRACTICE', 'GERONTOLOGY',
+                                 'CARDIOLOGY', 'RHEUMATOLOGY', 'Neurology'],
+                        "foreign_table": "cd",
+                          "foreign_key":"SPECIALTY"},
+             NOTE_TYPE={"vals": ['Progress Notes'],
+                        "foreign_table": "znti",
+                          "foreign_key":"NAME"},
+             ENCOUNTER_TYPE={"vals":['Appointment', 'Office Visit', 'Post Hospitalization'],
+                             "foreign_table":"zdet",
+                          "foreign_key":"NAME"},
+             NOTE_STATUS={"vals": ['2', '3'],
+                        "foreign_table": "nei",
+                          "foreign_key":"note_status_c"}
+             )
+```
+
+The following does the actual downloading of notes:
+
+```python
+# download the notes in small batches, using multiprocessing
+# save them to a temp directory, and then concatenate them when done
+# to enable this to be restarted, let the function first check and see what's already been done
+def get_tbd():
+    already_got = [i for i in os.listdir(f"{outdir}/tmp/") if 'notes_' in i]
+    gotlist = []
+    for i in already_got:
+        got = re.sub("notes_|\.pkl", "", i).split("_")
+        for j in got:
+            gotlist += [j]
+    tbd = [i for i in unique_PIDs if i not in gotlist]
+    return tbd
+
+tbd = get_tbd()
+
+def wrapper(ids):
+    if type(ids).__name__ == 'list':
+        assert len(ids) < 6
+    if type(ids).__name__ == 'str':
+        ids = [ids]
+    fd = copy.deepcopy(fdict)
+    fd['PAT_ID']['vals'] = ids
+    q = query_filtered_with_temp_tables(base_query, fd, rstring=str(np.random.choice(10000000000)))
+    q += "where pe.ENTRY_TIME >= '2017-01-01'"
+    out = get_from_clarity_then_save(q, clar_conn=clar_conn)
+    out.to_pickle(f"{outdir}tmp/notes_{'_'.join(ids)}.pkl")
+
+
+
+pool = mp.Pool(mp.cpu_count())
+start = time.time()
+pool.map(wrapper, tbd, chunksize=1)
+print(time.time() - start)
+pool.close()
+
+# now combine them into a single data  frame, and then split-off a metadata frame,
+# it should be smaller and simpler to work with
+if "raw_notes_df.pkl" not in os.listdir(datadir):
+    tbd = get_tbd()
+    assert len(tbd) == 0
+    already_got = [i for i in os.listdir(f"{outdir}/tmp/") if 'notes_' in i]
+    def proc(path):
+        try:
+            df = pd.read_pickle(path)
+            if df.shape != (0, 0):
+                df = combine_notes_by_type(df, CSN = 'CSN', note_type="NOTE_TYPE")
+                return df
+        except Exception as e:
+            message = f"ERROR AT {path}"
+            return message
+
+    pool = mp.Pool(mp.cpu_count())
+    start = time.time()
+    raw_notes_df = pool.map(proc, [outdir + "tmp/" + i for i in already_got], chunksize=1)
+    print(time.time() - start)
+    pool.close()
+
+    errs = [i for i in raw_notes_df if type(i).__name__ == "str"]
+    assert len(errs)==0
+    raw_notes_df = pd.concat(raw_notes_df)
+    raw_notes_df.to_pickle(f"{datadir}raw_notes_df.pkl")
+
+    # now pull out transplants -- figure out who had a transplant and lose any encounters from before the transplant
+    unique_PIDs = raw_notes_df.PAT_ID.unique().tolist()
+    unique_PIDs.sort()
+    base_query = open("_8_transplant_query.sql").read()
+    fdict = dict(PAT_ID={"vals": [], "foreign_table":"ti",
+                              "foreign_key":"PAT_ID"}
+                 )
+
+    def wrapper(ids):
+        if type(ids).__name__ == 'str':
+            ids = [ids]
+        fd = copy.deepcopy(fdict)
+        fd['PAT_ID']['vals'] = ids
+        q = query_filtered_with_temp_tables(base_query, fd, rstring=str(np.random.choice(10000000000)))
+        q+="\nwhere tc.TX_CLASS_C = 2 and ti.TX_SURG_DT is not NULL"
+        out = get_from_clarity_then_save(q, clar_conn=clar_conn)
+        return out
+
+    chunks = [i * 1000 for i in list(range(len(unique_PIDs)//1000+1))]
+    chunkids = [unique_PIDs[i:(i+1000)] for i in chunks]
+    pool = mp.Pool(1)
+    start = time.time()
+    txplists = pool.map(wrapper, chunkids, chunksize=1)
+    print(time.time() - start)
+    pool.close()
+    txpdf = pd.concat(txplists)
+    txpdf.shape
+
+    raw_notes_df = raw_notes_df.merge(txpdf, how = "left")
+    raw_notes_df = raw_notes_df[(raw_notes_df.TX_SURG_DT > raw_notes_df.ENC_DATE) | (raw_notes_df.TX_SURG_DT.isnull())]
+
+    # Keep the ones with at least three visits within the past 12 months
+    # so, first sort by MRN and then by date.  then you can proceed linearly.
+    raw_notes_df = raw_notes_df.sort_values(["PAT_ID", "ENC_DATE"])
+
+```
+Note below:  here is where I implement the criterion that a patient must have at least two qualifying encounters within the past year for them the be "plugged in" to UPHS.  I did it by adding a `time_condition` equal to one where the encounter before last must be within 12 months.  I don't delete those notes.  Rather, I delete unique patients who don't have at least one case where the condition is true.
+
+```python
+
+    # two conditions:
+    same_patient_conditon = (raw_notes_df.PAT_ID.shift(periods=2) == raw_notes_df.PAT_ID).astype(int)
+    time_conditon = ((raw_notes_df.ENC_DATE - raw_notes_df.ENC_DATE.shift(periods=2)). \
+                     dt.total_seconds() / 60 / 60 / 24 / 365 < 1).astype(int)
+    # unify them
+    condition = same_patient_conditon * time_conditon
+    print(raw_notes_df.PAT_ID[condition.astype(bool)].nunique())
+    print(raw_notes_df.PAT_ID.nunique())
+    raw_notes_df = raw_notes_df[raw_notes_df.PAT_ID.isin(raw_notes_df.PAT_ID[condition.astype(bool)].unique())]
+
+    # pull the dx associated with each CSN
+    base_query = open("_8_diagnosis_query_all.sql").read()
+    fdict = dict(CSN={"vals": [], "foreign_table": "dx",
+                      "foreign_key": "CSN"}
+                 )
+    def wrapper(ids):
+        fd = copy.deepcopy(fdict)
+        fd['CSN']['vals'] = ids
+        q = query_filtered_with_temp_tables(base_query, fd, rstring=str(np.random.choice(10000000000)))
+        out = get_from_clarity_then_save(q, clar_conn=clar_conn)
+        l = []
+        for i in out.CSN.unique().tolist():
+            l.append(dict(CSN=i, dxs=','.join(out.icd10[out.CSN == i].unique().tolist())))
+        return pd.DataFrame(l)
+
+
+    csnlist = raw_notes_df.CSN.unique().astype(int).tolist()
+    chunks = [i * 1000 for i in list(range(len(csnlist) // 1000 + 1))]
+    chunkids = [csnlist[i:(i + 1000)] for i in chunks]
+    pool = mp.Pool(mp.cpu_count())
+    start = time.time()
+    dxdflist = pool.map(wrapper, chunkids, chunksize=1)
+    print(time.time() - start)
+    pool.close()
+
+    dxdf = pd.concat(dxdflist)
+    raw_notes_df = raw_notes_df.merge(dxdf, how='left')
+    raw_notes_df.drop(columns="TX_SURG_DT", inplace=True)
+
+    raw_notes_df.to_pickle(f"{outdir}raw_notes_df.pkl")
+else:
+    raw_notes_df = pd.read_pickle(f"{datadir}raw_notes_df.pkl")
+
+
+```
+
+## `_preprocessing.py`
+
+This script processes it.
+
+Everything in the next code chunk does cutting of nuisance text:
+```python
 '''
 This script takes the data frame of raw notes generated by the previous script and does the following:
 1.  Removes medication lists and other cruft
@@ -295,6 +537,11 @@ cut_notes = pool.starmap(highlight_stuff_to_cut, ((i, True) for i in range(df.sh
 pool.close()
 
 df['NOTE_TEXT'] = cut_notes
+```
+
+Here is where I implement the windowing:
+
+```python
 '''
 initialize two empty data frames with patient ID and time columns.  
     - the first is the windower
@@ -420,8 +667,12 @@ lp = conc_notes_df.combined_notes.str.contains(low_prob_regex)
 hp = conc_notes_df.combined_notes.str.contains(high_prob_regex)
 conc_notes_df['highprob'] = hp.values
 conc_notes_df['lowprob'] = lp.values
+```
+
+And finally, here's what I added today to window out the ICD codes.
 
 
+```python
 '''
 July 14 2020:
     remove all concatenated notes that do not have one of the qualifying dx in 
@@ -440,188 +691,4 @@ conc_notes_df = yy.merge(conc_notes_df)
 
 # save
 conc_notes_df.to_pickle(f'{outdir}conc_notes_df.pkl')
-conc_notes_df = pd.read_pickle(f'{outdir}conc_notes_df.pkl')
-
-conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
-        conc_notes_df.LATEST_TIME.dt.year - min(conc_notes_df.LATEST_TIME.dt.year)) * 12
-months = list(set(conc_notes_df.month))
-months.sort()
-
-# def plotfun(var, yaxt, q=False):
-#     f = plt.figure()
-#     axes = plt.gca()
-#     if q:
-#         qvec = [np.quantile(conc_notes_df[var][conc_notes_df.month == i], [.25, .5, .75]).reshape(1, 3) for i in months]
-#         qmat = np.concatenate(qvec, axis=0)
-#         axes.set_ylim([0, np.max(qmat)])
-#         plt.plot(months, qmat[:, 1], "C1", label="median")
-#         plt.plot(months, qmat[:, 0], "C2", label="first quartile")
-#         plt.plot(months, qmat[:, 2], "C2", label="third quartile")
-#     else:
-#         sdvec = [np.std(conc_notes_df[var][conc_notes_df.month == i]) for i in months]
-#         muvec = [np.mean(conc_notes_df[var][conc_notes_df.month == i]) for i in months]
-#         axes.set_ylim([0, max(np.array(muvec) + np.array(sdvec))])
-#         plt.plot(months, muvec, "C1", label="mean")
-#         plt.plot(months, np.array(muvec) + np.array(sdvec), "C2", label="+/- 1 sd")
-#         plt.plot(months, np.array(muvec) - np.array(sdvec), "C2")
-#     plt.xlabel("Months since Jan 2018")
-#     plt.ylabel(yaxt)
-#     axes.legend()
-#     # plt.show()
-#     plt.figure(figsize=(8, 8))
-#     f.savefig(f'{figdir}{var}.pdf')
-
-
-# plotfun("n_notes", "Number of notes per combined note")
-# plotfun("n_words", "Number of words per combined note", q=True)
-# plotfun("u_words", "Number of unique words per combined note", q=True)
-
-
-# # numbers of words by number of conc notes
-# f, ax = plt.subplots()
-# nnn = list(set(conc_notes_df.n_notes))
-# pltlist = [conc_notes_df.u_words[conc_notes_df.n_notes == i] for i in nnn if i < 15]
-# ax.set_title('Unique words by number of concatenated notes')
-# ax.boxplot(pltlist)
-# plt.xlabel("Number of notes concatenated together")
-# plt.ylabel("Number of unique words")
-# plt.figure(figsize=(8, 8))
-# f.savefig(f'{figdir}nnotes_by_uwords.pdf')
-
-# # pull some random notes
-# np.random.seed(8675309)
-# kind = "lp"
-# for i in conc_notes_df.month.unique():
-#     if kind == "lp":
-#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
-#                                (conc_notes_df.lowprob == True) &
-#                                (conc_notes_df.highprob == False) &
-#                                (conc_notes_df.n_comorb <5)]
-#         samp = np.random.choice(sampdf.shape[0], 1)
-#         towrite = sampdf.combined_notes.iloc[int(samp)]
-#         fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-#         with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
-#             f.write(towrite)
-#         kind = "hp"
-#     elif kind == "hp":
-#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
-#                                (conc_notes_df.lowprob == False) &
-#                                (conc_notes_df.highprob == True) &
-#                                (conc_notes_df.n_comorb >15)]
-#         samp = np.random.choice(sampdf.shape[0], 1)
-#         towrite = sampdf.combined_notes.iloc[int(samp)]
-#         fi = f"batch_01_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-#         with open(f'{outdir}/notes_output/batch_01/{fi}', "w") as f:
-#             f.write(towrite)
-#         kind = "lp"
-
-# # second batch of random notes
-# # pull some random notes
-# np.random.seed(5555555)
-# kind = "lp"
-# for i in conc_notes_df.month.unique():
-#     if kind == "lp":
-#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
-#                                (conc_notes_df.lowprob == True) &
-#                                (conc_notes_df.highprob == False) &
-#                                (conc_notes_df.n_comorb <5)]
-#         samp = np.random.choice(sampdf.shape[0], 1)
-#         towrite = sampdf.combined_notes.iloc[int(samp)]
-#         fi = f"batch_02_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-#         with open(f'{outdir}/notes_output/batch_02/{fi}', "w") as f:
-#             f.write(towrite)
-#         kind = "hp"
-#     elif kind == "hp":
-#         sampdf = conc_notes_df[(conc_notes_df.month == i) &
-#                                (conc_notes_df.lowprob == False) &
-#                                (conc_notes_df.highprob == True) &
-#                                (conc_notes_df.n_comorb >15)]
-#         samp = np.random.choice(sampdf.shape[0], 1)
-#         towrite = sampdf.combined_notes.iloc[int(samp)]
-#         fi = f"batch_02_m{sampdf.month.iloc[int(samp)]}_{sampdf.PAT_ID.iloc[int(samp)]}.txt"
-#         with open(f'{outdir}/notes_output/batch_02/{fi}', "w") as f:
-#             f.write(towrite)
-#         kind = "lp"
-
-
-# # 25 random notes from 2019
-# import os
-# np.random.seed(5446)
-# subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
-# previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02")
-# previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
-# subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
-# subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 25)]
-# for i in range(25):
-#     towrite = subsubsubset.combined_notes.iloc[i]
-#     fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     with open(f'{outdir}/notes_output/batch_03/{fi}', "w") as f:
-#         f.write(towrite)
-
-
-# # 25 random notes from 2018
-# '''
-# NOTE THERE IS A TYPO BELOW.  I specified that the name of each of the files outputted would be "batch_03" when it should have been batch 4.  
-# This has no real consequences, but could cause confusion later, hence this note.  
-# I've made a post-hoc fix to the naming when the output gets loaded in the window classifier script.'
-# '''
-# import os
-# np.random.seed(266701)
-# subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2018]
-# previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
-#            os.listdir(f"{outdir}notes_output/batch_03")
-# previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
-# subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
-# subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
-# for i in range(30):
-#     towrite = subsubsubset.combined_notes.iloc[i]
-#     fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     if i < 25:
-#         fi = f"batch_03_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     else:
-#         fi = f"batch_03_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     with open(f'{outdir}/notes_output/batch_04/{fi}', "w") as f:
-#         f.write(towrite)
-
-# # 25 random notes from 2019
-# import os
-# np.random.seed(999)
-# subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
-# previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
-#            os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04")
-# previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
-# subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
-# subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
-# for i in range(30):
-#     towrite = subsubsubset.combined_notes.iloc[i]
-#     fi = f"batch_05_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     if i < 25:
-#         fi = f"batch_05_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     else:
-#         fi = f"batch_05_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     with open(f'{outdir}/notes_output/batch_05/{fi}', "w") as f:
-#         f.write(towrite)
-
-
-# # 25 random notes from 2019
-# # batch 6
-# import os
-# np.random.seed(224)
-# subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
-# previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
-#            os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04") + \
-#            os.listdir(f"{outdir}notes_output/batch_04")
-# previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
-# subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
-# subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
-# for i in range(30):
-#     towrite = subsubsubset.combined_notes.iloc[i]
-#     fi = f"batch_06_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     if i < 25:
-#         fi = f"batch_06_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     else:
-#         fi = f"batch_06_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
-#     with open(f'{outdir}/notes_output/batch_06/{fi}', "w") as f:
-#         f.write(towrite)
-
-
+```
