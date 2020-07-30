@@ -16,7 +16,7 @@ import os
 os.chdir("/Users/crandrew/projects/GW_PAIR_frailty_classifier/")
 import pandas as pd
 import matplotlib.pyplot as plt
-from flashtext import KeywordProcessor
+# from flashtext import KeywordProcessor
 import pickle
 import re
 import multiprocessing as mp
@@ -624,4 +624,25 @@ months.sort()
 #     with open(f'{outdir}/notes_output/batch_06/{fi}', "w") as f:
 #         f.write(towrite)
 
+# 25 random notes from 2019
+# batch 7
+import os
+os.mkdir(f'{outdir}/notes_output/batch_07/')
+subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
+previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
+           os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04") + \
+           os.listdir(f"{outdir}notes_output/batch_05") + os.listdir(f"{outdir}notes_output/batch_06")
+previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+np.random.seed(20200727)
+subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
+for i in range(30):
+    towrite = subsubsubset.combined_notes.iloc[i]
+    fi = f"batch_07_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    if i < 25:
+        fi = f"batch_07_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    else:
+        fi = f"batch_07_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    with open(f'{outdir}/notes_output/batch_07/{fi}', "w") as f:
+        f.write(towrite)
 

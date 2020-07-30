@@ -49,10 +49,28 @@ except Exception:
 
 # load the notes from 2018
 notes_2018 = [i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
+
+# drop the notes that aren't in the concatenated notes data frame
+# some notes got labeled and embedded but were later removed from the pipeline 
+# on July 14 2020, due to the inclusion of the 12-month ICD lookback
+cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
+cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
+cndf['month'] = cndf.LATEST_TIME.dt.month + (
+    cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
+uidstr = ("m"+cndf.month.astype(str)+"_"+cndf.PAT_ID+".csv").tolist()
+
+notes_2018_in_cndf = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) in uidstr]
+notes_excluded = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) not in uidstr]
+assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
+
+# write_txt(",".join(["_".join(i.split("_")[-2:]) for i in notes_excluded]), f"{outdir}cull_list_15jul.txt")
+
+
 df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
 df.drop(columns='Unnamed: 0', inplace=True)
 
 
+# split into training and validation
 np.random.seed(mainseed) 
 trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
 tenotes = [i for i in notes_2018 if i not in trnotes]
@@ -365,7 +383,7 @@ plt.show()
 cndf['note'] = "embedded_note_m"+cndf.month.astype(str)+"_"+cndf.PAT_ID+".pkl"
 res = res.merge(cndf[['note', 'combined_notes']])
 
-best = res.sort_values("hmean_above_average").tail(25)
+best = res.sort_values("hmean_above_average", ascending = False).head(30)
 best['PAT_ID'] = best.note.apply(lambda x: x.split("_")[3][:-4])
 best['month'] = best.note.apply(lambda x: x.split("_")[2][1:])
 cndf['month'] = cndf.LATEST_TIME.dt.month
@@ -377,7 +395,9 @@ for i in range(len(best)):
     selected_notes.append(ni)
 
 for i, n in enumerate(selected_notes):
-    fn = f"AL{batchstring}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
+    # assert 5==0, 'SET THIS BACK TO 25 NEXT TIME YOU RUN IT'
+    fn = f"AL{batchstring}_v2{'ALTERNATE' if i >24 else ''}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
+    print(fn)
     write_txt(n.iloc[0], f"{ALdir}{fn}")
 
 
@@ -438,4 +458,5 @@ for j, k in enumerate(predfiles):
     plt.tight_layout()
     plt.show()
     fig.savefig(f"{ALdir}best_notes_embedded/predplot_w_best_span_{enotes[j]}.pdf")
+
 
