@@ -24,18 +24,17 @@ import copy
 
 #########################################
 # set some globals
-batchstring = "01"
+batchstring = "02"
 # set the seed and define the training and test sets
 #mainseed = 8675309
-mainseed= 29062020 # 29 June 2020
+# mainseed= 29062020 # 29 June 2020
+mainseed = 20200813 # 13 August 2020
 ##########################################
-
 
 datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
 ALdir = f"{outdir}saved_models/AL{batchstring}/"
-
 
 try:
     os.mkdir(ALdir)
@@ -65,13 +64,11 @@ assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 
 # write_txt(",".join(["_".join(i.split("_")[-2:]) for i in notes_excluded]), f"{outdir}cull_list_15jul.txt")
 
-
 df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
 df.drop(columns='Unnamed: 0', inplace=True)
 
-
 # split into training and validation
-np.random.seed(mainseed) 
+np.random.seed(mainseed)
 trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
 tenotes = [i for i in notes_2018 if i not in trnotes]
 trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]

@@ -19,4 +19,5 @@
 *.ipynb
 *.docx
 .Rproj.user
+.Rhistory
 frailty.tar.gz
