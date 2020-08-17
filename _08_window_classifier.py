@@ -308,6 +308,7 @@ def h(x):
 # now loop through them, normalize, and predict
 def get_entropy_stats(i, return_raw=False):
     try:
+        start = time.time()
         note = pd.read_pickle(f"{outdir}embedded_notes/{i}")
         note[str_varnames + embedding_colnames] = scaler.transform(note[str_varnames + embedding_colnames])
         note['note'] = "foo"
@@ -319,6 +320,7 @@ def get_entropy_stats(i, return_raw=False):
 
         pred = model.predict([Xte_np, Xte_p] if best_model['hps'][5] is True else Xte)
         hmat = np.stack([h(i) for i in pred])
+        end = time.time()
 
         out = dict(note=i,
                    hmean=np.mean(hmat),
@@ -331,7 +333,9 @@ def get_entropy_stats(i, return_raw=False):
                    # top decile average
                    hdec=np.mean(hmat[hmat > np.quantile(hmat, .9)]),
                    # the raw predictions
-                   pred=pred
+                   pred=pred,
+                   # time
+                   time = end-start
                    )
         return out
     except Exception as e:
