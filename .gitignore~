@@ -4,7 +4,7 @@
 /data
 /.idea
 /output
-/.DS_store
+/.DS_Store
 /old_misc
 /figures
 /notebooks
@@ -19,4 +19,5 @@
 *.ipynb
 *.docx
 .Rproj.user
+.Rhistory
 frailty.tar.gz

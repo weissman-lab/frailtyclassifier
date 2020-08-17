@@ -4,7 +4,8 @@
 /data
 /.idea
 /output
-/.DS_store
+/.DS_Store
+**/.DS_Store
 /old_misc
 /figures
 /notebooks
