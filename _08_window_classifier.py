@@ -136,15 +136,15 @@ def get_entropy_stats(i, return_raw=False):
 
 if __name__ == '__main__':
 
-    #########################################
-    # set some globals
-    batchstring = "02"
-    # set the seed and define the training and test sets
-    # mainseed = 8675309
-    # mainseed= 29062020 # 29 June 2020
-    mainseed = 20200813  # 13 August 2020
-    initialize_inprog = True
-    ##########################################
+    # #########################################
+    # # set some globals
+    # batchstring = "02"
+    # # set the seed and define the training and test sets
+    # # mainseed = 8675309
+    # # mainseed= 29062020 # 29 June 2020
+    # mainseed = 20200813  # 13 August 2020
+    # initialize_inprog = True
+    # ##########################################
     p = ArgParser()
     p.add("--batchstring", help="the batch number", type=str)
     p.add("--mainseed", help="path to the embeddings file", type=int)
