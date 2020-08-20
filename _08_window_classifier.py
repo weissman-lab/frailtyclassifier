@@ -327,7 +327,7 @@ if __name__ == '__main__':
                       epochs=1000,
                       callbacks=[callback],
                       sample_weight=tr_cw,
-                      verbose=0,
+                      verbose=1,
                       validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
             outdict = dict(weights=model.get_weights(),
                            hps=hps)
