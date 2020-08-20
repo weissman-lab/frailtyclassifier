@@ -150,7 +150,7 @@ if __name__ == '__main__':
     p.add("--mainseed", help="path to the embeddings file", type=int)
     p.add("--init", help="initialize_inprog?", action="store_true")
     options = p.parse_args()
-    batchstring = options.batchsting
+    batchstring = options.batchstring
     mainseed = options.mainseed
     initialize_inprog = options.init
 
