@@ -157,9 +157,12 @@ if __name__ == '__main__':
     datadir = f"{os.getcwd()}/data/"
     outdir = f"{os.getcwd()}/output/"
     figdir = f"{os.getcwd()}/figures/"
+    logdir = f"{os.getcwd()}/logs/"
     ALdir = f"{outdir}saved_models/AL{batchstring}/"
 
     sheepish_mkdir(figdir)
+    sheepish_mkdir(logdir)
+
     sheepish_mkdir(ALdir)
 
     try:
@@ -356,6 +359,9 @@ if __name__ == '__main__':
             pd.DataFrame({"seed": i}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
             send_message_to_slack(e)
             print(e)
+            logf = open(f"{logdir}seed{seed}_{re.sub('-', '', date)}.log", "w")
+            logf.write(str(e))
+            logf.close()
         n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
 
     """
