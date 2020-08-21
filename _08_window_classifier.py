@@ -268,6 +268,7 @@ if __name__ == '__main__':
         os.mkdir(f"{ALdir}/TBD")
         for i in [i for i in range(100) if i not in hpdf.idx.loc[~hpdf.window_size.isna()]]:
             pd.DataFrame({"seed": i}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
+        print(f"INIT IS DONE.  THERE ARE {len([i for i in range(100) if i not in hpdf.idx.loc[~hpdf.window_size.isna()]])} models to fit")
 
     n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
     while n_remaining > 0:
@@ -354,7 +355,7 @@ if __name__ == '__main__':
             # put the borken job back on the shelf
             pd.DataFrame({"seed": i}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
             send_message_to_slack(e)
-            break
+            print(e)
         n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
 
     """
