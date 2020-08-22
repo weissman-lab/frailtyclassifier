@@ -21,6 +21,8 @@ import copy
 from configargparse import ArgParser
 
 
+# pip install sqlalchemy pymssql pyyaml configargparse
+# python _08_window_classifier.py --batchstring 02 --mainseed 20200813 --init
 def sheepish_mkdir(path):
     import os
     try:
