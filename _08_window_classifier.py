@@ -286,44 +286,48 @@ if __name__ == '__main__':
             seed = int(job[3:])
 
             np.random.seed(mainseed + seed)
-            model, hps = draw_hps(seed + mainseed)
-            for i in range(1, 7):  # put the hyperparameters in the hpdf
-                hpdf.loc[seed, hpdf.columns[i]] = hps[i - 1]
+            mirrored_strategy = tf.distribute.MirroredStrategy()
 
-            # put the data in arrays for modeling, expanding out to the window size
-            # only converting the test into tensors, to facilitate indexing
-            if hps[-1] is False:  # corresponds with the semipar argument
-                Xtr = tensormaker(sdf, trnotes, str_varnames + embedding_colnames, hps[0])
-                Xte = tensormaker(sdf, tenotes, str_varnames + embedding_colnames, hps[0])
-            else:
-                Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])
-                Xte_np = tensormaker(sdf, tenotes, embedding_colnames, hps[0])
-                Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
-                Xte_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes])
-            ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
-            yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
+            with mirrored_strategy.scope():
+                model, hps = draw_hps(seed + mainseed)
 
-            print("\n\n********************************\n\n")
-            print(hpdf.iloc[seed])
+                for i in range(1, 7):  # put the hyperparameters in the hpdf
+                    hpdf.loc[seed, hpdf.columns[i]] = hps[i - 1]
 
-            start_time = time.time()
+                # put the data in arrays for modeling, expanding out to the window size
+                # only converting the test into tensors, to facilitate indexing
+                if hps[-1] is False:  # corresponds with the semipar argument
+                    Xtr = tensormaker(sdf, trnotes, str_varnames + embedding_colnames, hps[0])
+                    Xte = tensormaker(sdf, tenotes, str_varnames + embedding_colnames, hps[0])
+                else:
+                    Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])
+                    Xte_np = tensormaker(sdf, tenotes, embedding_colnames, hps[0])
+                    Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
+                    Xte_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes])
+                ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
+                yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
 
-            # initialize the bias terms with the logits of the proportions
-            w = model.get_weights()
-            # set the bias terms to the proportions
-            for i in range(4):
-                props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
-                                  inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
-                                  inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
-                pos = 7 - i * 2
-                w[-pos] = w[-pos] * 0 + props
-            model.set_weights(w)
+                print("\n\n********************************\n\n")
+                print(hpdf.iloc[seed])
 
-            model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
-                          loss={'Msk_prob': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-                                'Nutrition': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-                                'Resp_imp': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-                                'Fall_risk': tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
+                start_time = time.time()
+
+                # initialize the bias terms with the logits of the proportions
+                w = model.get_weights()
+                # set the bias terms to the proportions
+                for i in range(4):
+                    props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
+                                      inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
+                                      inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
+                    pos = 7 - i * 2
+                    w[-pos] = w[-pos] * 0 + props
+                model.set_weights(w)
+
+                model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
+                              loss={'Msk_prob': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                                    'Nutrition': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                                    'Resp_imp': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                                    'Fall_risk': tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
 
             callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                         patience=20,
