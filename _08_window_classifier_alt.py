@@ -1,8 +1,10 @@
 import os
 from copy import deepcopy
-
+import re
 import pandas as pd
 import numpy as np
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -81,13 +83,108 @@ df3['window'] = window2
 # check work:
 print(df3.iloc[0:10])
 print(df3.iloc[len(df3)-10:len(df3)])
-# implement tf-idf
+
+# convert text into matrix of tf-idf features
+def preserve_token(text):
+    # above, separated original tokens with whitespace when processing generator output
+    # now, return original tokens using whitespace
+    return re.split("\\s+",text)
+# id documents
+docs = df3['window'].tolist()
+# instantiate countvectorizer with our tokenizer and other default behavior (lowercase=True, remove default stop words)
+cv = CountVectorizer(tokenizer=preserve_token, lowercase=True)
+# compute tf
+tf=cv.fit_transform(docs)
+    # check shape (215097 windows and 20270 tokens)
+    tf.shape
+    len(df3)
+    #print first 10 docs again
+    print(df3.iloc[0:10])
+    #print count matrix for first 10 windows to visualize
+    df_tf = pd.DataFrame(tf.toarray(),
+                     columns=cv.get_feature_names())
+    df_tf.loc[1:10, ['#','progress', 'notes']]
+# compute idf
+tfidf_transformer=TfidfTransformer()
+tfidf_transformer.fit(tf)
+    # sort and print idf
+    df_idf = pd.DataFrame(tfidf_transformer.idf_, index=cv.get_feature_names(), columns=["idf"])
+    df_idf.sort_values(by=['idf'])
+# compute tfidf
+tf_idf=tfidf_transformer.transform(tf)
+    # print example
+    df_tf_idf = pd.DataFrame(tf_idf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
+    df_tf_idf.sort_values(by=['tfidf'], ascending=False)
+    #compare to window
+    docs[0]
+    #visualize another way
+    df_tf_idf2 = pd.DataFrame(tf_idf[0].todense(), columns=cv.get_feature_names())
+    #print sparse matrix for window 1
+    print(df_tf_idf2)
+
+# get rid of additional stopwords:
+# medlist_was_here_but_got_cut
+# meds_was_here_but_got_cut
+# catv2_was_here_but_got_cut
+# dates? times? '03:50:00' '04/05/2017'
+from sklearn.feature_extraction import text
+stop_words = text.ENGLISH_STOP_WORDS.union(my_additional_stop_words)
+
 # add back the structured data
 # models
 
 
 
 
+# split into training and validation
+np.random.seed(mainseed)
+trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
+tenotes = [i for i in notes_2018 if i not in trnotes]
+trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
+tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
+
+# define some useful constants
+str_varnames = df.loc[:, "n_encs":'MV_LANGUAGE'].columns.tolist()
+embedding_colnames = [i for i in df.columns if re.match("identity", i)]
+out_varnames = df.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
+input_dims = len(embedding_colnames) + len(str_varnames)
+
+# dummies for the outcomes
+y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
+df = pd.concat([y_dums, df], axis=1)
+
+# get a vector of non-negatives for case weights
+tr_cw = []
+for v in out_varnames:
+    non_neutral = np.array(np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
+        ('float32')
+    nnweight = 1 / np.mean(non_neutral[df.note.isin(trnotes)])
+    caseweights = np.ones(df.shape[0])
+    caseweights[non_neutral.astype(bool)] *= nnweight
+    tr_caseweights = caseweights[df.note.isin(trnotes)]
+    tr_cw.append(tr_caseweights)
+
+
+
+
+
+
+
+
+
+
+
+
+print(tf_idf[0])
+
+#print counts as an array
+print(tf.toarray())
+#print tokens
+print(cv.get_feature_names())
+#print count matrix
+df_tf = pd.DataFrame(tf.toarray(),
+                     columns=cv.get_feature_names())
+df_tf.loc[1:10, ['progress', 'notes']]
 
 
 # fix windowing (center it on the center word; will need to chop off hte first 5 or so rows first then add them back on + repeats like i did at the end
@@ -445,33 +542,6 @@ data[1:]
 data.iloc([0],[0])
 data.loc([0], ['Country'])
 
-# split into training and validation
-np.random.seed(mainseed)
-trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
-tenotes = [i for i in notes_2018 if i not in trnotes]
-trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
-tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
-
-# define some useful constants
-str_varnames = df.loc[:, "n_encs":'MV_LANGUAGE'].columns.tolist()
-embedding_colnames = [i for i in df.columns if re.match("identity", i)]
-out_varnames = df.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
-input_dims = len(embedding_colnames) + len(str_varnames)
-
-# dummies for the outcomes
-y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
-df = pd.concat([y_dums, df], axis=1)
-
-# get a vector of non-negatives for case weights
-tr_cw = []
-for v in out_varnames:
-    non_neutral = np.array(np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
-        ('float32')
-    nnweight = 1 / np.mean(non_neutral[df.note.isin(trnotes)])
-    caseweights = np.ones(df.shape[0])
-    caseweights[non_neutral.astype(bool)] *= nnweight
-    tr_caseweights = caseweights[df.note.isin(trnotes)]
-    tr_cw.append(tr_caseweights)
 
 #AL pipeline (uses output from _08_window_classifier.py neural net:
 """
