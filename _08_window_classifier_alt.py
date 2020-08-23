@@ -1,4 +1,6 @@
 import os
+from copy import deepcopy
+
 import pandas as pd
 import numpy as np
 
@@ -29,8 +31,8 @@ assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
 df.drop(columns='Unnamed: 0', inplace=True)
 
-# 1.) make new "documents". Each "document" contains a 10-token window (sliding window - every token is the center word of a 10-token window)
-# 2.) Use the frailty label for the center word as the label for the document (10-token window)
+# 1.) make new "documents". Each "document" contains a 11-token window (sliding window - 5 tokens on either side of center word)
+# 2.) Use the frailty label for the center word as the label for the document (11-token window)
 # 3.) process the documents with the standard scikit-learn tf-idf strategy (I think you can capture Zach's tokenization
 # by manually setting the tokens to be separated by spaces, carriage returns, and punctuation)
 
@@ -39,10 +41,127 @@ df.drop(columns='Unnamed: 0', inplace=True)
 df2 = df.reset_index()
 df2 = df2.iloc[:, 0:2]
 
-# fix windowing (center it on the center word; will need to chop off hte first 5 or so rows first then add them back on + repeats like i did at the end
+def slidingWindow(sequence, winSize, step=1):
+    """Returns a generator that will iterate through
+    the defined chunks of input sequence.  Input sequence
+    must be iterable."""
+    # Verify the inputs
+    try:
+        it = iter(sequence)
+    except TypeError:
+        raise Exception("**ERROR** sequence must be iterable.")
+    if not ((type(winSize) == type(0)) and (type(step) == type(0))):
+        raise Exception("**ERROR** type(winSize) and type(step) must be int.")
+    if step > winSize:
+        raise Exception("**ERROR** step must not be larger than winSize.")
+    if winSize > len(sequence):
+        raise Exception("**ERROR** winSize must not be larger than sequence length.")
+    # Pre-compute number of chunks to emit
+    numOfChunks = int((len(sequence) - winSize) / step)
+    # Start half a window into the text
+    # Center the window with 5 words on either side of the center word
+    for i in range(int(winSize/2)+1, (int(winSize/2)+numOfChunks+1) * step, step):
+        yield sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
+
+#generator output
+chunks = slidingWindow(df2['token'].tolist(),winSize=10)
+#now take output from generator and concatenate into a 'document'
+window = []
+for each in chunks:
+    window.append(' '.join(each))
+#repeat the first and final windows (first 5 and last 5 tokens will have off-center windows)
+repeats_start = list(np.repeat(window[0], 5))
+repeats_start.extend(window)
+window2=repeats_start
+repeats_end = list(np.repeat(window2[len(window2)-1], 5))
+window2.extend(repeats_end)
+#add windows to df
+df3 = deepcopy(df2)
+df3['window'] = window2
+# check work:
+print(df3.iloc[0:10])
+print(df3.iloc[len(df3)-10:len(df3)])
 # implement tf-idf
 # add back the structured data
 # models
+
+
+
+
+
+
+# fix windowing (center it on the center word; will need to chop off hte first 5 or so rows first then add them back on + repeats like i did at the end
+def slidingWindow(sequence, winSize, step=1):
+    """Returns a generator that will iterate through
+    the defined chunks of input sequence.  Input sequence
+    must be iterable."""
+    # Verify the inputs
+    try:
+        it = iter(sequence)
+    except TypeError:
+        raise Exception("**ERROR** sequence must be iterable.")
+    if not ((type(winSize) == type(0)) and (type(step) == type(0))):
+        raise Exception("**ERROR** type(winSize) and type(step) must be int.")
+    if step > winSize:
+        raise Exception("**ERROR** step must not be larger than winSize.")
+    if winSize > len(sequence):
+        raise Exception("**ERROR** winSize must not be larger than sequence length.")
+    # Pre-compute number of chunks to emit
+    numOfChunks = int((len(sequence) - winSize) / step)
+    # Start half a window into the text
+    # Center the window with 5 words on either side of the center word
+    for i in range(int(winSize/2)+1, (int(winSize/2)+numOfChunks+1) * step, step):
+        yield sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
+
+sequence = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15']
+chunks = slidingWindow(sequence,winSize=10)
+for each in chunks:
+    print(each)
+
+sequence = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15']
+winSize = 10
+step = 1
+numOfChunks = int((len(sequence) - winSize) / step)
+range(int(winSize/2)+1, (int(winSize/2)+numOfChunks) * step, step)
+i = 10
+sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
+# 0 1 2 3 4 5 6 7 8  9 10 11 12 13 14 <- index
+# 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 <- sequence
+#           ^start   ^end
+# first window:
+# 1 2 3 4 5 6 7 8 9 10 11
+#         last window:
+#         5 6 7 8 9 10 11 12 13 14 15
+
+
+chunks = slidingWindow(df2['token'].tolist(),winSize=10)
+#now take output from generator and concatenate into a 'document'
+window = []
+for each in chunks:
+    window.append(' '.join(each))
+len(window)
+len(df2)
+window[1]
+window[215086]
+#repeat the first and final windows (first 5 and last 5 tokens will have off-center windows)
+repeats_start = list(np.repeat(window[0], 5))
+repeats_end = list(np.repeat(window[215086], 5))
+repeats_start.extend(window)
+repeats_start[0]
+repeats_start[6]
+repeats_start[215091]
+len(repeats_start)
+window=repeats_start
+window.extend(repeats_end)
+window[0]
+window[5]
+window[6]
+len(window)
+window[215090]
+window[215091]
+window[215096]
+df3 = df2
+df3['window'] = window
 
 #old version
 # make window (from: https://scipher.wordpress.com/2010/12/02/simple-sliding-window-iterator-in-python/)
