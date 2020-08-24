@@ -39,9 +39,12 @@ df.drop(columns='Unnamed: 0', inplace=True)
 # by manually setting the tokens to be separated by spaces, carriage returns, and punctuation)
 
 # Making new documents
-# Start by resetting the index, then drop everything except index & token
+# Start by resetting the index
 df2 = df.reset_index()
+# Drop everything except index & token
 df2 = df2.iloc[:, 0:2]
+# Later, switch back to just dropping embeddings
+# df2 = df.loc[:, ~df.columns.str.startswith('identity')]
 
 def slidingWindow(sequence, winSize, step=1):
     """Returns a generator that will iterate through
@@ -80,30 +83,36 @@ window2.extend(repeats_end)
 #add windows to df
 df3 = deepcopy(df2)
 df3['window'] = window2
-# check work:
-print(df3.iloc[0:10])
-print(df3.iloc[len(df3)-10:len(df3)])
+    # check work:
+    print(df3.iloc[0:10])
+    print(df3.iloc[len(df3)-10:len(df3)])
 
-# convert text into matrix of tf-idf features
-def preserve_token(text):
-    # above, separated original tokens with whitespace when processing generator output
-    # now, return original tokens using whitespace
-    return re.split("\\s+",text)
+# Convert text into matrix of tf-idf features:
 # id documents
 docs = df3['window'].tolist()
-# instantiate countvectorizer with our tokenizer and other default behavior (lowercase=True, remove default stop words)
-cv = CountVectorizer(tokenizer=preserve_token, lowercase=True)
+# instantiate countvectorizer with default behavior (lowercase=True, remove default stop words)
+cv = CountVectorizer(analyzer='word')
 # compute tf
-tf=cv.fit_transform(docs)
+tf = cv.fit_transform(docs)
     # check shape (215097 windows and 20270 tokens)
     tf.shape
     len(df3)
-    #print first 10 docs again
+    # print first 10 docs again
     print(df3.iloc[0:10])
-    #print count matrix for first 10 windows to visualize
-    df_tf = pd.DataFrame(tf.toarray(),
-                     columns=cv.get_feature_names())
-    df_tf.loc[1:10, ['#','progress', 'notes']]
+    # print count matrix for first 10 windows to visualize
+    df_tf = pd.DataFrame(tf.toarray(), columns=cv.get_feature_names())
+    df_tf.loc[1:10, :]
+# id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
+cuttext = '_was_here_but_got_cut'
+stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
+#import ntlk stopwords and add stopw
+from nltk.corpus import stopwords
+en_stopwords = stopwords.words('english')
+en_stopwords.extend(stopw)
+len(en_stopwords)
+cv = CountVectorizer(analyzer='word', stop_words=en_stopwords)
+# compute tf
+tf = cv.fit_transform(docs)
 # compute idf
 tfidf_transformer=TfidfTransformer()
 tfidf_transformer.fit(tf)
@@ -122,16 +131,6 @@ tf_idf=tfidf_transformer.transform(tf)
     #print sparse matrix for window 1
     print(df_tf_idf2)
 
-# get rid of additional stopwords:
-# medlist_was_here_but_got_cut
-# meds_was_here_but_got_cut
-# catv2_was_here_but_got_cut
-# dates? times? '03:50:00' '04/05/2017'
-from sklearn.feature_extraction import text
-stop_words = text.ENGLISH_STOP_WORDS.union(my_additional_stop_words)
-
-# add back the structured data
-# models
 
 
 
@@ -163,6 +162,61 @@ for v in out_varnames:
     caseweights[non_neutral.astype(bool)] *= nnweight
     tr_caseweights = caseweights[df.note.isin(trnotes)]
     tr_cw.append(tr_caseweights)
+
+
+# models
+
+
+
+
+
+
+cuttext = '(medlist_was_here_but_got_cut|meds_was_here_but_got_cut|catv2_was_here_but_got_cut)'
+
+# create tokenizer to preserve original tokens (which are currently separated with whitespace)
+# also, instate default tokenizing behavior (select tokens of 2 or more alphanumeric characters; punctuation is completely ignored and always treated as a token separator)
+def preserve_token(text):
+    return (w for w in re.split('\\s+',text)
+            if re.match('(?u)\b\w\w+\b', w))
+
+return (w for w in re.match('(?u)\b\w\w+\b', df2['token'].tolist()))
+
+tokens = preserve_token(docs)
+toklist = []
+for each in tokens:
+    toklist.append(each)
+
+#
+def preserve_token(text):
+    return re.split("\\s+",text)
+
+# instantiate countvectorizer with our tokenizer and other default behavior (lowercase=True, remove default stop words)
+cv = CountVectorizer(tokenizer=preserve_token,
+                     lowercase=True,
+                     analyzer='word')
+
+stopword
+
+
+cuttext = 'medlist_was_here_but_got_cut'
+full_list =
+test_list = ['medlist_was_here_but_got_cut_1', 'medlist_was_here_but_got_cut_2']
+res = [x for x in test_list if re.search(cuttext, x)]
+# initializing list
+test_list = ['GeeksforGeeks', 'Geeky', 'Computers', 'Algorithms']
+# initializing substring
+subs = 'Geek'
+# using re + search()
+# to get string with substring
+res = [x for x in test_list if re.search(subs, x)]
+# printing result
+print("All strings with given substring are : " + str(res))
+
+
+
+
+
+
 
 
 
