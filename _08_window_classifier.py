@@ -323,13 +323,19 @@ if __name__ == '__main__':
                                 'Resp_imp': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
                                 'Fall_risk': tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
 
-            callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
-                                                        patience=20,
-                                                        restore_best_weights=True)
+            earlystopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                                      patience=20,
+                                                                      restore_best_weights=True)
+            log_dir = outdir + "/logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            sheepish_mkdir(log_dir)
+            pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{log_dir}/job{i}")
+
+            tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
             model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
                       batch_size=256,
                       epochs=1000,
-                      callbacks=[callback],
+                      callbacks=[earlystopping_callback, tensorboard_callback],
                       sample_weight=tr_cw,
                       verbose=1,
                       validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
