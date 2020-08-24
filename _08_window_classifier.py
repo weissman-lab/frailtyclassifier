@@ -165,18 +165,25 @@ if __name__ == '__main__':
 
     sheepish_mkdir(figdir)
     sheepish_mkdir(logdir)
-
     sheepish_mkdir(ALdir)
+    sheepish_mkdir(f"{ALdir}/ospreds")
 
-    try:
-        os.mkdir(ALdir)
-    except Exception:
-        pass
-
-    try:
-        os.mkdir(f"{ALdir}ospreds")
-    except Exception:
-        pass
+    # this is a CLI arg.  one worker per swarm initializes the inprog  right now I'll do this manually from one of the VMs
+    if initialize_inprog == True:
+        # Separate script to initialize the inprog
+        os.system(f" rm -rf {ALdir}/TBD")
+        os.mkdir(f"{ALdir}/TBD")
+        # list of done files
+        mods_done = [i for i in os.listdir(ALdir) if "model_batch" in i]
+        is_done = [re.split("_|\.", i)[-2] for i in mods_done]
+        for i in range(100):
+            if i not in is_done:
+                pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
+                print(f"made TBD {i}")
+        # now wait for a bunch of time so that the different workers don't trip over each other
+        naptime = np.random.choice(300)+100
+        print(f"sleeping for {naptime} seconds...")
+        time.sleep(naptime)
 
     # load the notes from 2018
     notes_2018 = sorted([i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13])
@@ -265,23 +272,6 @@ if __name__ == '__main__':
     # write a job file "jobxx" in the shared directory
     # send me a slack message
     # stop doing anything until I go and fix it
-
-
-    # this is a CLI arg.  one worker per swarm initializes the inprog  right now I'll do this manually from one of the VMs
-    if initialize_inprog == True:
-        # Separate script to initialize the inprog
-        os.system(f" rm -rf {ALdir}/TBD")
-        os.mkdir(f"{ALdir}/TBD")
-        # list of done files
-        mods_done = [i for i in os.listdir(ALdir) if "model_batch" in i]
-        is_done = [re.split("_|\.", i)[-2] for i in mods_done]
-        for i in is_done:
-            pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
-        # now wait for a bunch of time so that the different workers don't trip over each other
-        naptime = np.random.choice(300)+100
-        print(f"sleeping for {naptime} seconds...")
-        sys.sleep(naptime)
-
 
     n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
     while n_remaining > 0:
