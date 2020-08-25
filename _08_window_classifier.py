@@ -39,8 +39,9 @@ def makemodel(window_size, n_dense, nunits,
     else:
         base_shape = input_dims
     inp = Input(shape=(window_size, base_shape))
-    LSTM_layer = Bidirectional(LSTM(nunits, return_sequences=True,
-                         kernel_regularizer=l1_l2(pen))(inp))
+    LSTM_layer = LSTM(nunits, return_sequences=True,
+                      kernel_regularizer=l1_l2(pen))(inp)
+    bid = Bidirectional(LSTM_layer)
     # LSTM_forward = LSTM(nunits, return_sequences=True,
     #                     kernel_regularizer=l1_l2(pen))(inp)
     # LSTM_backward = LSTM(nunits, return_sequences=True, go_backwards=True,
@@ -49,7 +50,7 @@ def makemodel(window_size, n_dense, nunits,
     # conc = concatenate([LSTM_forward, LSTM_backward], axis=2)
     # dense
     for i in range(n_dense):
-        d = Dense(nunits, kernel_regularizer=l1_l2(pen))(LSTM_layer if i == 0 else drp)
+        d = Dense(nunits, kernel_regularizer=l1_l2(pen))(bid if i == 0 else drp)
         lru = LeakyReLU()(d)
         drp = Dropout(dropout)(lru)
     fl = Flatten()(drp)
@@ -372,7 +373,7 @@ if __name__ == '__main__':
             pd.DataFrame({"seed": seed}, index=[seed]).to_csv(f"{ALdir}TBD/job{seed}")
             send_message_to_slack(e)
             print(e)
-            logf = open(f"{logdir}seed{seed}_{re.sub('-', '', date)}.log", "w")
+            logf = open(f"{logdir}seed{seed}.log", "w")
             logf.write(str(e))
             logf.close()
         n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
