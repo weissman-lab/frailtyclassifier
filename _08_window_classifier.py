@@ -40,8 +40,8 @@ def makemodel(window_size, n_dense, nunits,
         base_shape = input_dims
     inp = Input(shape=(window_size, base_shape))
     LSTM_layer = LSTM(nunits, return_sequences=True,
-                      kernel_regularizer=l1_l2(pen))(inp)
-    bid = Bidirectional(LSTM_layer)
+                      kernel_regularizer=l1_l2(pen))
+    bid = Bidirectional(LSTM_layer)(inp)
     # LSTM_forward = LSTM(nunits, return_sequences=True,
     #                     kernel_regularizer=l1_l2(pen))(inp)
     # LSTM_backward = LSTM(nunits, return_sequences=True, go_backwards=True,
