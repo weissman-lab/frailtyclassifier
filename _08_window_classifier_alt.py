@@ -3,6 +3,7 @@ from copy import deepcopy
 import re
 import pandas as pd
 import numpy as np
+import scipy
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 
@@ -11,40 +12,6 @@ pd.options.display.max_columns = 4000
 
 datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
-
-# load the notes from 2018
-notes_2018 = [i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
-
-# drop the notes that aren't in the concatenated notes data frame
-# some notes got labeled and embedded but were later removed from the pipeline 
-# on July 14 2020, due to the inclusion of the 12-month ICD lookback
-cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
-cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
-cndf['month'] = cndf.LATEST_TIME.dt.month + (
-    cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
-uidstr = ("m"+cndf.month.astype(str)+"_"+cndf.PAT_ID+".csv").tolist()
-
-notes_2018_in_cndf = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) in uidstr]
-notes_excluded = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) not in uidstr]
-assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
-
-# write_txt(",".join(["_".join(i.split("_")[-2:]) for i in notes_excluded]), f"{outdir}cull_list_15jul.txt")
-
-df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
-df.drop(columns='Unnamed: 0', inplace=True)
-
-# 1.) make new "documents". Each "document" contains a 11-token window (sliding window - 5 tokens on either side of center word)
-# 2.) Use the frailty label for the center word as the label for the document (11-token window)
-# 3.) process the documents with the standard scikit-learn tf-idf strategy (I think you can capture Zach's tokenization
-# by manually setting the tokens to be separated by spaces, carriage returns, and punctuation)
-
-# Making new documents
-# Start by resetting the index
-df2 = df.reset_index()
-# Drop everything except index & token
-df2 = df2.iloc[:, 0:2]
-# Later, switch back to just dropping embeddings
-# df2 = df.loc[:, ~df.columns.str.startswith('identity')]
 
 def slidingWindow(sequence, winSize, step=1):
     """Returns a generator that will iterate through
@@ -68,75 +35,28 @@ def slidingWindow(sequence, winSize, step=1):
     for i in range(int(winSize/2)+1, (int(winSize/2)+numOfChunks+1) * step, step):
         yield sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
 
-#generator output
-chunks = slidingWindow(df2['token'].tolist(),winSize=10)
-#now take output from generator and concatenate into a 'document'
-window = []
-for each in chunks:
-    window.append(' '.join(each))
-#repeat the first and final windows (first 5 and last 5 tokens will have off-center windows)
-repeats_start = list(np.repeat(window[0], 5))
-repeats_start.extend(window)
-window2=repeats_start
-repeats_end = list(np.repeat(window2[len(window2)-1], 5))
-window2.extend(repeats_end)
-#add windows to df
-df3 = deepcopy(df2)
-df3['window'] = window2
-    # check work:
-    print(df3.iloc[0:10])
-    print(df3.iloc[len(df3)-10:len(df3)])
 
-# Convert text into matrix of tf-idf features:
-# id documents
-docs = df3['window'].tolist()
-# instantiate countvectorizer with default behavior (lowercase=True, remove default stop words)
-cv = CountVectorizer(analyzer='word')
-# compute tf
-tf = cv.fit_transform(docs)
-    # check shape (215097 windows and 20270 tokens)
-    tf.shape
-    len(df3)
-    # print first 10 docs again
-    print(df3.iloc[0:10])
-    # print count matrix for first 10 windows to visualize
-    df_tf = pd.DataFrame(tf.toarray(), columns=cv.get_feature_names())
-    df_tf.loc[1:10, :]
-# id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
-cuttext = '_was_here_but_got_cut'
-stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
-#import ntlk stopwords and add stopw
-from nltk.corpus import stopwords
-en_stopwords = stopwords.words('english')
-en_stopwords.extend(stopw)
-len(en_stopwords)
-cv = CountVectorizer(analyzer='word', stop_words=en_stopwords)
-# compute tf
-tf = cv.fit_transform(docs)
-# compute idf
-tfidf_transformer=TfidfTransformer()
-tfidf_transformer.fit(tf)
-    # sort and print idf
-    df_idf = pd.DataFrame(tfidf_transformer.idf_, index=cv.get_feature_names(), columns=["idf"])
-    df_idf.sort_values(by=['idf'])
-# compute tfidf
-tf_idf=tfidf_transformer.transform(tf)
-    # print example
-    df_tf_idf = pd.DataFrame(tf_idf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
-    df_tf_idf.sort_values(by=['tfidf'], ascending=False)
-    #compare to window
-    docs[0]
-    #visualize another way
-    df_tf_idf2 = pd.DataFrame(tf_idf[0].todense(), columns=cv.get_feature_names())
-    #print sparse matrix for window 1
-    print(df_tf_idf2)
+# load the notes from 2018
+notes_2018 = [i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
 
+# drop the notes that aren't in the concatenated notes data frame
+# some notes got labeled and embedded but were later removed from the pipeline 
+# on July 14 2020, due to the inclusion of the 12-month ICD lookback
+cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
+cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
+cndf['month'] = cndf.LATEST_TIME.dt.month + (
+    cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
+uidstr = ("m"+cndf.month.astype(str)+"_"+cndf.PAT_ID+".csv").tolist()
 
+notes_2018_in_cndf = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) in uidstr]
+notes_excluded = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) not in uidstr]
+assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 
-
+df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
+df.drop(columns='Unnamed: 0', inplace=True)
 
 # split into training and validation
-np.random.seed(mainseed)
+np.random.seed(2670095)
 trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
 tenotes = [i for i in notes_2018 if i not in trnotes]
 trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
@@ -164,12 +84,137 @@ for v in out_varnames:
     tr_cw.append(tr_caseweights)
 
 
+# Start by resetting the index
+df = df.reset_index()
+# Drop embeddings
+df2 = df.loc[:, ~df.columns.str.startswith('identity')]
+#training & tests sets
+tr_df = df2.loc[df.note.isin(trnotes),:]
+te_df = df2.loc[df.note.isin(tenotes),:]
+
+
+# 1.) make new "documents". Each "document" contains a 11-token
+#     window (sliding window - 5 tokens on either side of center word)
+#     Use the frailty label for the center word as the label for the document (11-token window)
+# 2.) process the documents with scikit-learn tf-idf
+#     strategy (capture Zach's MWE)
+
+
+#Create sliding window of 11 tokens
+chunks = slidingWindow(tr_df['token'].tolist(),winSize=10)
+#now take output from generator and concatenate into a 'document'
+window = []
+for each in chunks:
+    window.append(' '.join(each))
+#repeat the first and final windows (first 5 and last 5 tokens will have off-center windows)
+repeats_start = list(np.repeat(window[0], 5))
+repeats_start.extend(window)
+repeats_end = list(np.repeat(repeats_start[len(repeats_start)-1], 5))
+repeats_start.extend(repeats_end)
+#add windows to df
+tr_df2 = deepcopy(tr_df)
+tr_df2['window'] = repeats_start
+    # check work:
+    print(tr_df2.iloc[0:10].loc[:, ['token', 'window']])
+    print(tr_df2.iloc[len(tr_df2)-10:len(tr_df2)].loc[:, ['token', 'window']])
+
+
+# Convert text into matrix of tf-idf features:
+# id documents
+tr_docs = tr_df2['window'].tolist()
+# instantiate countvectorizer (turn off default stopwords)
+cv = CountVectorizer(analyzer='word', stop_words=None)
+# compute tf
+tr_df2_tf = cv.fit_transform(tr_docs)
+    # check shape (215097 windows and 20270 tokens)
+    tr_df2_tf.shape
+    len(tr_df2)
+    # print first 10 docs again
+    print(tr_df2.iloc[0:10])
+    # print count matrix for first 10 windows to visualize
+    df_tf = pd.DataFrame(tr_df2_tf.toarray(), columns=cv.get_feature_names())
+    df_tf.loc[1:10, :]
+# id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
+cuttext = '_was_here_but_got_cut'
+stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
+#import ntlk stopwords and add stopw
+from nltk.corpus import stopwords
+en_stopwords = stopwords.words('english')
+en_stopwords.extend(stopw)
+    len(en_stopwords)
+cv = CountVectorizer(analyzer='word', stop_words=en_stopwords)
+# fit to data, then transform to count matrix
+tr_df2_tf = cv.fit_transform(tr_docs)
+# fit to count matrix, then transform to tf-idf representation
+tfidf_transformer = TfidfTransformer()
+tr_df2_tfidf = tfidf_transformer.fit_transform(tr_df2_tf)
+    # sort and print idf
+    df_idf = pd.DataFrame(tfidf_transformer.idf_, index=cv.get_feature_names(), columns=["idf"])
+    df_idf.sort_values(by=['idf'])
+    # print example
+    df_tf_idf = pd.DataFrame(tr_df2_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
+    df_tf_idf.sort_values(by=['tfidf'], ascending=False)
+    #compare to window
+    tr_docs[0]
+    #visualize another way
+    df_tf_idf2 = pd.DataFrame(tr_df2_tfidf[0].todense(), columns=cv.get_feature_names())
+    #print sparse matrix for window 1
+    print(df_tf_idf2)
+
+
+# apply feature extraction to test set
+# making sliding window
+chunks = slidingWindow(te_df['token'].tolist(),winSize=10)
+window = []
+for each in chunks:
+    window.append(' '.join(each))
+repeats_start = list(np.repeat(window[0], 5))
+repeats_start.extend(window)
+repeats_end = list(np.repeat(repeats_start[len(repeats_start)-1], 5))
+repeats_start.extend(repeats_end)
+te_df2 = deepcopy(te_df)
+te_df2['window'] = repeats_start
+# feature extraction & tf-idf
+te_docs = te_df2['window'].tolist()
+te_df2_tf = cv.transform(te_docs)
+te_df2_tfidf = tfidf_transformer.transform(te_df2_tf)
+    # check work:
+    print(te_df2.iloc[0:10].loc[:, ['token', 'window']])
+    print(te_df2.iloc[len(te_df2) - 10:len(te_df2)].loc[:, ['token', 'window']])
+    # print example
+    df_tf_idf = pd.DataFrame(te_df2_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
+    df_tf_idf.sort_values(by=['tfidf'], ascending=False)
+    #compare to window
+    te_docs[0]
+    #visualize another way
+    df_tf_idf2 = pd.DataFrame(te_df2_tfidf[0].todense(), columns=cv.get_feature_names())
+    #print sparse matrix for window 1
+    print(df_tf_idf2)
+
+## Output for r
+scipy.io.mmwrite(f"{outdir}/tr_df2_tfidf.mtx", tr_df2_tfidf)
+tr_df2.to_csv(f"{outdir}/tr_df2.csv")
+scipy.io.mmwrite(f"{outdir}/te_df2_tfidf.mtx", te_df2_tfidf)
+te_df2.to_csv(f"{outdir}/te_df2.csv")
+
+
+
+
+
+
+
+#dense output
+tr_tfidf_dense = tr_df2_tfidf.todense()
+te_tfidf_dense = te_df2_tfidf.todense()
+#concatenate to the rest of the features and labels
+#tr_nlp_1 = np.concatenate((tr_df2,tr_tfidf_dense), axis=1)
+tr_nlp_1.head
+
+from sklearn.naive_bayes import MultinomialNB
+clf = MultinomialNB().fit(tr_tfidf_dense, tr_df2['Resp_imp_1'])
+
 # models
-
-
-
-
-
+tr_df2_tfidf.shape
 
 cuttext = '(medlist_was_here_but_got_cut|meds_was_here_but_got_cut|catv2_was_here_but_got_cut)'
 
