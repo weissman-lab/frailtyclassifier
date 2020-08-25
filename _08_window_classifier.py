@@ -181,12 +181,13 @@ if __name__ == '__main__':
                 pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
                 print(f"made TBD {i}")
         # now wait for a bunch of time so that the different workers don't trip over each other
-        naptime = np.random.choice(300)+100
-        print(f"sleeping for {naptime} seconds...")
-        time.sleep(naptime)
+        # naptime = np.random.choice(300)+100
+        # print(f"sleeping for {naptime} seconds...")
+        # time.sleep(naptime)
 
     # load the notes from 2018
     notes_2018 = sorted([i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13])
+    
 
     # drop the notes that aren't in the concatenated notes data frame
     # some notes got labeled and embedded but were later removed from the pipeline
@@ -327,8 +328,8 @@ if __name__ == '__main__':
                                                                       patience=20,
                                                                       restore_best_weights=True)
             log_dir = outdir + "/logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-            sheepish_mkdir(log_dir)
-            pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{log_dir}/job{i}")
+            # sheepish_mkdir(log_dir)
+            # pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{log_dir}/job{i}")
 
             tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
