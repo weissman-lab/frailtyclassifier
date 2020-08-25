@@ -180,7 +180,7 @@ if __name__ == '__main__':
         mods_done = [i for i in os.listdir(ALdir) if "model_batch" in i]
         is_done = [re.split("_|\.", i)[-2] for i in mods_done]
         for i in range(100):
-            if i not in is_done:
+            if str(i) not in is_done:
                 pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
                 print(f"made TBD {i}")
         # now wait for a bunch of time so that the different workers don't trip over each other
