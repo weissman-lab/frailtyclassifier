@@ -12,7 +12,7 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.layers import concatenate,  \
-    LeakyReLU, LSTM, Dropout, Dense, Flatten
+    LeakyReLU, LSTM, Dropout, Dense, Flatten, Bidirectional
 from tensorflow.keras.regularizers import l1_l2
 from tensorflow.keras import Model, Input, backend
 import time
@@ -39,15 +39,17 @@ def makemodel(window_size, n_dense, nunits,
     else:
         base_shape = input_dims
     inp = Input(shape=(window_size, base_shape))
-    LSTM_forward = LSTM(nunits, return_sequences=True,
-                        kernel_regularizer=l1_l2(pen))(inp)
-    LSTM_backward = LSTM(nunits, return_sequences=True, go_backwards=True,
-                         kernel_regularizer=l1_l2(pen))(inp)
-    LSTM_backward = backend.reverse(LSTM_backward, axes=1)
-    conc = concatenate([LSTM_forward, LSTM_backward], axis=2)
+    LSTM = Bidirectional(LSTM(nunits, return_sequences=True,
+                         kernel_regularizer=l1_l2(pen))(inp))
+    # LSTM_forward = LSTM(nunits, return_sequences=True,
+    #                     kernel_regularizer=l1_l2(pen))(inp)
+    # LSTM_backward = LSTM(nunits, return_sequences=True, go_backwards=True,
+    #                      kernel_regularizer=l1_l2(pen))(inp)
+    # LSTM_backward = backend.reverse(LSTM_backward, axes=1)
+    # conc = concatenate([LSTM_forward, LSTM_backward], axis=2)
     # dense
     for i in range(n_dense):
-        d = Dense(nunits, kernel_regularizer=l1_l2(pen))(conc if i == 0 else drp)
+        d = Dense(nunits, kernel_regularizer=l1_l2(pen))(LSTM if i == 0 else drp)
         lru = LeakyReLU()(d)
         drp = Dropout(dropout)(lru)
     fl = Flatten()(drp)
@@ -331,7 +333,7 @@ if __name__ == '__main__':
             earlystopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                                       patience=20,
                                                                       restore_best_weights=True)
-            log_dir = outdir + "/logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            log_dir = outdir + "/logs/fit/seed_" + str(seed) + "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             # sheepish_mkdir(log_dir)
             # pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{log_dir}/job{i}")
 
