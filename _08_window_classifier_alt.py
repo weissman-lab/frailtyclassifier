@@ -88,9 +88,6 @@ for v in out_varnames:
 df = df.reset_index()
 # Drop embeddings
 df2 = df.loc[:, ~df.columns.str.startswith('identity')]
-#training & tests sets
-tr_df = df2.loc[df.note.isin(trnotes),:]
-te_df = df2.loc[df.note.isin(tenotes),:]
 
 
 # 1.) make new "documents". Each "document" contains a 11-token
@@ -98,41 +95,63 @@ te_df = df2.loc[df.note.isin(tenotes),:]
 #     Use the frailty label for the center word as the label for the document (11-token window)
 # 2.) process the documents with scikit-learn tf-idf
 #     strategy (capture Zach's MWE)
+#windowing must be done on a note-by-note basis. Windows should not overlap two notes.
+count = 0
+window3 = None
+for i in list(df2.note.unique()):
+    #Create sliding window of 11 tokens for each note
+    note_i = df2.loc[df2['note'] == i]
+    chunks = slidingWindow(note_i['token'].tolist(), winSize=10)
+    #now concatenate output from generator separated by blank space
+    window = []
+    for each in chunks:
+        window.append(' '.join(each))
+    #repeat the first and final windows (first 5 and last 5 tokens will have off-center windows)
+    window2 = list(np.repeat(window[0], 5))
+    window2.extend(window)
+    repeats_end = list(np.repeat(window2[len(window2)-1], 5))
+    window2.extend(repeats_end)
+    #repeat for all notes
+    if window3 is None:
+        window3 = window2
+    else:
+        window3.extend(window2)
+    count += 1
 
 
-#Create sliding window of 11 tokens
-chunks = slidingWindow(tr_df['token'].tolist(),winSize=10)
-#now take output from generator and concatenate into a 'document'
-window = []
-for each in chunks:
-    window.append(' '.join(each))
-#repeat the first and final windows (first 5 and last 5 tokens will have off-center windows)
-repeats_start = list(np.repeat(window[0], 5))
-repeats_start.extend(window)
-repeats_end = list(np.repeat(repeats_start[len(repeats_start)-1], 5))
-repeats_start.extend(repeats_end)
 #add windows to df
-tr_df2 = deepcopy(tr_df)
-tr_df2['window'] = repeats_start
-    # check work:
-    print(tr_df2.iloc[0:10].loc[:, ['token', 'window']])
-    print(tr_df2.iloc[len(tr_df2)-10:len(tr_df2)].loc[:, ['token', 'window']])
+df2['window'] = window3
+    #test
+    print(count)
+    len(window3)
+    len(df2)
+    print(df2.iloc[0:10].loc[:, ['token', 'window']])
+    print(df2.iloc[len(df2) - 10:len(df2)].loc[:, ['token', 'window']])
+    notetest = df2[df2.note == 'AL00_m7_049412554']
+    print(notetest.iloc[0:10].loc[:, ['token', 'window']])
+    print(notetest.iloc[len(notetest) - 10:len(notetest)].loc[:, ['token', 'window']])
+    notetest.iloc[len(notetest)-1]['window']
+
+
+#training & tests sets
+tr_df = df2.loc[df.note.isin(trnotes),:]
+te_df = df2.loc[df.note.isin(tenotes),:]
 
 
 # Convert text into matrix of tf-idf features:
 # id documents
-tr_docs = tr_df2['window'].tolist()
+tr_docs = tr_df['window'].tolist()
 # instantiate countvectorizer (turn off default stopwords)
 cv = CountVectorizer(analyzer='word', stop_words=None)
 # compute tf
-tr_df2_tf = cv.fit_transform(tr_docs)
+tr_df_tf = cv.fit_transform(tr_docs)
     # check shape (215097 windows and 20270 tokens)
-    tr_df2_tf.shape
-    len(tr_df2)
+    tr_df_tf.shape
+    len(tr_df)
     # print first 10 docs again
-    print(tr_df2.iloc[0:10])
+    print(tr_df.iloc[0:10])
     # print count matrix for first 10 windows to visualize
-    df_tf = pd.DataFrame(tr_df2_tf.toarray(), columns=cv.get_feature_names())
+    df_tf = pd.DataFrame(tr_df_tf.toarray(), columns=cv.get_feature_names())
     df_tf.loc[1:10, :]
 # id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
 cuttext = '_was_here_but_got_cut'
@@ -144,502 +163,51 @@ en_stopwords.extend(stopw)
     len(en_stopwords)
 cv = CountVectorizer(analyzer='word', stop_words=en_stopwords)
 # fit to data, then transform to count matrix
-tr_df2_tf = cv.fit_transform(tr_docs)
+tr_df_tf = cv.fit_transform(tr_docs)
 # fit to count matrix, then transform to tf-idf representation
 tfidf_transformer = TfidfTransformer()
-tr_df2_tfidf = tfidf_transformer.fit_transform(tr_df2_tf)
+tr_df_tfidf = tfidf_transformer.fit_transform(tr_df_tf)
     # sort and print idf
     df_idf = pd.DataFrame(tfidf_transformer.idf_, index=cv.get_feature_names(), columns=["idf"])
     df_idf.sort_values(by=['idf'])
     # print example
-    df_tf_idf = pd.DataFrame(tr_df2_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
+    df_tf_idf = pd.DataFrame(tr_df_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
     df_tf_idf.sort_values(by=['tfidf'], ascending=False)
     #compare to window
     tr_docs[0]
     #visualize another way
-    df_tf_idf2 = pd.DataFrame(tr_df2_tfidf[0].todense(), columns=cv.get_feature_names())
+    df_tf_idf2 = pd.DataFrame(tr_df_tfidf[0].todense(), columns=cv.get_feature_names())
     #print sparse matrix for window 1
     print(df_tf_idf2)
 
 
 # apply feature extraction to test set
 # making sliding window
-chunks = slidingWindow(te_df['token'].tolist(),winSize=10)
-window = []
-for each in chunks:
-    window.append(' '.join(each))
-repeats_start = list(np.repeat(window[0], 5))
-repeats_start.extend(window)
-repeats_end = list(np.repeat(repeats_start[len(repeats_start)-1], 5))
-repeats_start.extend(repeats_end)
-te_df2 = deepcopy(te_df)
-te_df2['window'] = repeats_start
-# feature extraction & tf-idf
-te_docs = te_df2['window'].tolist()
-te_df2_tf = cv.transform(te_docs)
-te_df2_tfidf = tfidf_transformer.transform(te_df2_tf)
+te_docs = te_df['window'].tolist()
+te_df_tf = cv.transform(te_docs)
+te_df_tfidf = tfidf_transformer.transform(te_df_tf)
     # check work:
-    print(te_df2.iloc[0:10].loc[:, ['token', 'window']])
-    print(te_df2.iloc[len(te_df2) - 10:len(te_df2)].loc[:, ['token', 'window']])
+    print(te_df.iloc[0:10].loc[:, ['token', 'window']])
+    print(te_df.iloc[len(te_df) - 10:len(te_df)].loc[:, ['token', 'window']])
     # print example
-    df_tf_idf = pd.DataFrame(te_df2_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
+    df_tf_idf = pd.DataFrame(te_df_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
     df_tf_idf.sort_values(by=['tfidf'], ascending=False)
     #compare to window
     te_docs[0]
     #visualize another way
-    df_tf_idf2 = pd.DataFrame(te_df2_tfidf[0].todense(), columns=cv.get_feature_names())
+    df_tf_idf2 = pd.DataFrame(te_df_tfidf[0].todense(), columns=cv.get_feature_names())
     #print sparse matrix for window 1
     print(df_tf_idf2)
 
+
 ## Output for r
-scipy.io.mmwrite(f"{outdir}/tr_df2_tfidf.mtx", tr_df2_tfidf)
-tr_df2.to_csv(f"{outdir}/tr_df2.csv")
-scipy.io.mmwrite(f"{outdir}/te_df2_tfidf.mtx", te_df2_tfidf)
-te_df2.to_csv(f"{outdir}/te_df2.csv")
+scipy.io.mmwrite(f"{outdir}/tr_df_tfidf.mtx", tr_df_tfidf)
+tr_df.to_csv(f"{outdir}/tr_df.csv")
+scipy.io.mmwrite(f"{outdir}/te_df_tfidf.mtx", te_df_tfidf)
+te_df.to_csv(f"{outdir}/te_df.csv")
 
 
 
-
-
-
-
-#dense output
-tr_tfidf_dense = tr_df2_tfidf.todense()
-te_tfidf_dense = te_df2_tfidf.todense()
-#concatenate to the rest of the features and labels
-#tr_nlp_1 = np.concatenate((tr_df2,tr_tfidf_dense), axis=1)
-tr_nlp_1.head
-
-from sklearn.naive_bayes import MultinomialNB
-clf = MultinomialNB().fit(tr_tfidf_dense, tr_df2['Resp_imp_1'])
-
-# models
-tr_df2_tfidf.shape
-
-cuttext = '(medlist_was_here_but_got_cut|meds_was_here_but_got_cut|catv2_was_here_but_got_cut)'
-
-# create tokenizer to preserve original tokens (which are currently separated with whitespace)
-# also, instate default tokenizing behavior (select tokens of 2 or more alphanumeric characters; punctuation is completely ignored and always treated as a token separator)
-def preserve_token(text):
-    return (w for w in re.split('\\s+',text)
-            if re.match('(?u)\b\w\w+\b', w))
-
-return (w for w in re.match('(?u)\b\w\w+\b', df2['token'].tolist()))
-
-tokens = preserve_token(docs)
-toklist = []
-for each in tokens:
-    toklist.append(each)
-
-#
-def preserve_token(text):
-    return re.split("\\s+",text)
-
-# instantiate countvectorizer with our tokenizer and other default behavior (lowercase=True, remove default stop words)
-cv = CountVectorizer(tokenizer=preserve_token,
-                     lowercase=True,
-                     analyzer='word')
-
-stopword
-
-
-cuttext = 'medlist_was_here_but_got_cut'
-full_list =
-test_list = ['medlist_was_here_but_got_cut_1', 'medlist_was_here_but_got_cut_2']
-res = [x for x in test_list if re.search(cuttext, x)]
-# initializing list
-test_list = ['GeeksforGeeks', 'Geeky', 'Computers', 'Algorithms']
-# initializing substring
-subs = 'Geek'
-# using re + search()
-# to get string with substring
-res = [x for x in test_list if re.search(subs, x)]
-# printing result
-print("All strings with given substring are : " + str(res))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-print(tf_idf[0])
-
-#print counts as an array
-print(tf.toarray())
-#print tokens
-print(cv.get_feature_names())
-#print count matrix
-df_tf = pd.DataFrame(tf.toarray(),
-                     columns=cv.get_feature_names())
-df_tf.loc[1:10, ['progress', 'notes']]
-
-
-# fix windowing (center it on the center word; will need to chop off hte first 5 or so rows first then add them back on + repeats like i did at the end
-def slidingWindow(sequence, winSize, step=1):
-    """Returns a generator that will iterate through
-    the defined chunks of input sequence.  Input sequence
-    must be iterable."""
-    # Verify the inputs
-    try:
-        it = iter(sequence)
-    except TypeError:
-        raise Exception("**ERROR** sequence must be iterable.")
-    if not ((type(winSize) == type(0)) and (type(step) == type(0))):
-        raise Exception("**ERROR** type(winSize) and type(step) must be int.")
-    if step > winSize:
-        raise Exception("**ERROR** step must not be larger than winSize.")
-    if winSize > len(sequence):
-        raise Exception("**ERROR** winSize must not be larger than sequence length.")
-    # Pre-compute number of chunks to emit
-    numOfChunks = int((len(sequence) - winSize) / step)
-    # Start half a window into the text
-    # Center the window with 5 words on either side of the center word
-    for i in range(int(winSize/2)+1, (int(winSize/2)+numOfChunks+1) * step, step):
-        yield sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
-
-sequence = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15']
-chunks = slidingWindow(sequence,winSize=10)
-for each in chunks:
-    print(each)
-
-sequence = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15']
-winSize = 10
-step = 1
-numOfChunks = int((len(sequence) - winSize) / step)
-range(int(winSize/2)+1, (int(winSize/2)+numOfChunks) * step, step)
-i = 10
-sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
-# 0 1 2 3 4 5 6 7 8  9 10 11 12 13 14 <- index
-# 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 <- sequence
-#           ^start   ^end
-# first window:
-# 1 2 3 4 5 6 7 8 9 10 11
-#         last window:
-#         5 6 7 8 9 10 11 12 13 14 15
-
-
-chunks = slidingWindow(df2['token'].tolist(),winSize=10)
-#now take output from generator and concatenate into a 'document'
-window = []
-for each in chunks:
-    window.append(' '.join(each))
-len(window)
-len(df2)
-window[1]
-window[215086]
-#repeat the first and final windows (first 5 and last 5 tokens will have off-center windows)
-repeats_start = list(np.repeat(window[0], 5))
-repeats_end = list(np.repeat(window[215086], 5))
-repeats_start.extend(window)
-repeats_start[0]
-repeats_start[6]
-repeats_start[215091]
-len(repeats_start)
-window=repeats_start
-window.extend(repeats_end)
-window[0]
-window[5]
-window[6]
-len(window)
-window[215090]
-window[215091]
-window[215096]
-df3 = df2
-df3['window'] = window
-
-#old version
-# make window (from: https://scipher.wordpress.com/2010/12/02/simple-sliding-window-iterator-in-python/)
-def slidingWindow(sequence, winSize, step=1):
-    """Returns a generator that will iterate through
-    the defined chunks of input sequence.  Input sequence
-    must be iterable."""
-    # Verify the inputs
-    try:
-        it = iter(sequence)
-    except TypeError:
-        raise Exception("**ERROR** sequence must be iterable.")
-    if not ((type(winSize) == type(0)) and (type(step) == type(0))):
-        raise Exception("**ERROR** type(winSize) and type(step) must be int.")
-    if step > winSize:
-        raise Exception("**ERROR** step must not be larger than winSize.")
-    if winSize > len(sequence):
-        raise Exception("**ERROR** winSize must not be larger than sequence length.")
-    # Pre-compute number of chunks to emit
-    numOfChunks = int(((len(sequence) - winSize) / step) + 1)
-    # Do the work
-    for i in range(0, numOfChunks * step, step):
-        yield sequence[i:i + winSize]
-
-chunks = slidingWindow(df2['token'].tolist(),winSize=10)
-#now take output from generator and concatenate into a 'document'
-window = []
-for each in chunks:
-    window.append(' '.join(each))
-#repeat the final window to give the last few tokens a window (it will be off-center)
-repeats = list(np.repeat(window[215087], 9))
-window.extend(repeats)
-df3 = df2
-df3['window'] = window
-
-# make window (from: https://scipher.wordpress.com/2010/12/02/simple-sliding-window-iterator-in-python/)
-def slidingWindow(sequence, winSize, step=1):
-    """Returns a generator that will iterate through
-    the defined chunks of input sequence.  Input sequence
-    must be iterable."""
-    # Verify the inputs
-    try:
-        it = iter(sequence)
-    except TypeError:
-        raise Exception("**ERROR** sequence must be iterable.")
-    if not ((type(winSize) == type(0)) and (type(step) == type(0))):
-        raise Exception("**ERROR** type(winSize) and type(step) must be int.")
-    if step > winSize:
-        raise Exception("**ERROR** step must not be larger than winSize.")
-    if winSize > len(sequence):
-        raise Exception("**ERROR** winSize must not be larger than sequence length.")
-    # Pre-compute number of chunks to emit
-    numOfChunks = int(((len(sequence) - winSize) / step) + 1)
-    # Do the work
-    for i in range(0, numOfChunks * step, step):
-        yield sequence[i:i + winSize]
-
-chunks = slidingWindow(df2['token'].tolist(),winSize=10)
-#now take output from generator and concatenate into a 'document'
-window = []
-for each in chunks:
-    window.append(' '.join(each))
-#repeat the final window to give the last few tokens a window (it will be off-center)
-repeats = list(np.repeat(window[215087], 9))
-window.extend(repeats)
-df3 = df2
-df3['window'] = window
-
-
-#troubleshooting
-
-
-
-# make window (from: https://scipher.wordpress.com/2010/12/02/simple-sliding-window-iterator-in-python/)
-def slidingWindow(sequence, winSize, step=1):
-    """Returns a generator that will iterate through
-    the defined chunks of input sequence.  Input sequence
-    must be iterable."""
-    # Verify the inputs
-    try:
-        it = iter(sequence)
-    except TypeError:
-        raise Exception("**ERROR** sequence must be iterable.")
-    if not ((type(winSize) == type(0)) and (type(step) == type(0))):
-        raise Exception("**ERROR** type(winSize) and type(step) must be int.")
-    if step > winSize:
-        raise Exception("**ERROR** step must not be larger than winSize.")
-    if winSize > len(sequence):
-        raise Exception("**ERROR** winSize must not be larger than sequence length.")
-    # Pre-compute number of chunks to emit
-    numOfChunks = int(((len(sequence) - winSize) / step) + 1)
-    # Do the work
-    for i in range(0, numOfChunks * step, step):
-        yield sequence[i:i + winSize]
-
-chunks = slidingWindow(df2['token'].tolist(),winSize=10)
-print(next(chunks))
-#above works!
-#now take output from generator and concatenate into a 'document'
-# https://www.programiz.com/python-programming/generator
-print(' '.join(next(chunks)))
-#above also works
-for each in chunks:
-    print(each)
-#above works
-for each in chunks:
-    print(' '.join(each))
-#above also works
-window = []
-for each in chunks:
-    window.append(each)
-#above also works
-window = []
-for each in chunks:
-    window.append(' '.join(each))
-#still works
-window[3] #check it here
-len(window)
-len(df2)
-window[215087]
-#windowing stops before the end of df2
-df2.iloc[215087:215097]
-#repeat the final window 9 times to make lengths equal
-repeats = list(np.repeat(window[215087],9))
-window2 = list(window)
-len(window2)
-len(repeats)
-window2.extend(repeats)
-len(window2)
-window2[215097]
-#it worked. problem was that I wrote window2 = window2.extend(repeats), which doesn't work
-df3 = df2
-df3['window'] = window
-
-
-len(df3)
-len(window2)
-
-type(repeats)
-type(window)
-for i in repeats:
-    window2 = window
-    window.append(i)
-    return
-len(window)
-window[215089]
-print(window2)
-
-language = ['French', 'English']
-# another list of language
-language1 = ['Spanish', 'Portuguese']
-# appending language1 elements to language
-language.extend(language1)
-
-
-for i in list(range(1, 10)):
-    window2 = window.append(window[215087])
-window2[1]
-window2 = window[1:len(df2['token'].tolist())]
-
-
-df3 = df2
-df3.assign(window = window)
-df3['window'] = 4
-
-windows = []
-for i in [1:len(df2['token'].tolist())]:
-    print(next(chunk))
-    windows.append(chunk)
-    df = windows
-
-df2
-
-
-a_list = []
-b_list = []
-for data in my_data:
-    a, b = process_data(data)
-    a_list.append(a)
-    b_list.append(b)
-df = pd.DataFrame({'A': a_list, 'B': b_list})
-del a_list, b_list
-
-
-for chunk in chunks:
-    a, b
-    df3 = data.append(pd.DataFrame({'window':chunk}, index=[0]))
-
-print(df3)
-
-
-df3 = list(' '.join(chunks))
-
-for chunk in chunks:
-    df = pd.concat([chunk])
-
-
-for chunk in chunks:
-    print(df2['token'].tolist())
-
-
-
-len(df2['token'].tolist())
-
-for chunk in chunks:
-    print(df2['token'].tolist())
-
-
-from itertools import islice
-def window()
-
-
-from itertools import islice
-
-def window(seq, n=2):
-    "Returns a sliding window (of width n) over data from the iterable"
-    "   s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...                   "
-    it = iter(seq)
-    result = tuple(islice(it, n))
-    if len(result) == n:
-        yield result
-    for elem in it:
-        result = result[1:] + (elem,)
-        yield result
-
-# implement tf-idf
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.feature_extraction.text import CountVectorizer
-import pandas as pd
-
-cndf.head
-
-cv=CountVectorizer()
-vectorizer = TfidfVectorizer()
-analyze = vectorizer.build_analyzer()
-
-# drop word embeddings
-df2 = df.loc[:, ~df.columns.str.startswith('identity')]
-# reset index
-df2 = df2.reset_index()
-
-docs=["the house had a tiny little mouse",
-"the cat saw the mouse",
-"the mouse ran away from the house",
-"the cat finally ate the mouse",
-"the end of the mouse story"
-]
-
-
-df2_test1 =  df2.loc[df2['note'] == df2.at[1, 'note'], :]
-df2_test1.head()
-
-
-df2.loc[1:10, ['token', 'index', 'start', 'end', 'Resp_imp', 'note']]
-
-pd.crosstab(df2['Resp_imp'], "count")
-
-
-
-
-df2.columns
-
-df2[1, 'note']
-
-df2.head
-
-df2.index.duplicated
-
-df2.at[1, 'note']
-
-df2.at[1, 'n]
-
-df2.loc([0], ['note'])
-df.loc([0], ['Country'])
-
-data = {'Country': ['Belgium', 'India', 'Brazil'],
-        'Capital': ['Brussels', 'New Delhi', 'Brasília'],
-        'Population': [11190846, 1303171035, 207847528]}
-data = pd.DataFrame(data, columns=['Country', 'Capital', 'Population'])
-data[1:]
-data.iloc([0],[0])
-data.loc([0], ['Country'])
 
 
 #AL pipeline (uses output from _08_window_classifier.py neural net:
