@@ -405,9 +405,12 @@ if __name__ == '__main__':
         return -np.sum(x * np.log(x), axis=1)
 
 
+    from pathlib import Path
+
     N=0
     for i in notefiles:
-        if f"pred{i}.pkl" not in os.listdir(f"{ALdir}ospreds/"):
+        my_file = Path(f"{ALdir}ospreds/pred{i}.pkl")
+        if my_file.is_file():
             r = get_entropy_stats(i)
             write_pickle(r, f"{ALdir}ospreds/pred{i}.pkl")
             r.pop("pred")
@@ -415,6 +418,7 @@ if __name__ == '__main__':
             print(i)
             N += 1
             print(N)
+
 
 
 
