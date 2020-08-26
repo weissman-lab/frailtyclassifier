@@ -370,155 +370,155 @@ if __name__ == '__main__':
             logf.close()
         n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
 
-    """
-    Now figure out the winner and ingest the unlabeled notes
-    """
-
-    print('starting entropy search')
-
-    hpdf = pd.read_json(f"{ALdir}hpdf.json")
-    winner = hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
-
-    # load it
-    best_model = pd.read_pickle(f"{ALdir}model_batch4_{int(winner.idx)}.pkl")
-    model = makemodel(*best_model['hps'])
-    model.set_weights(best_model['weights'])
-
-    # find all the notes to check
-    notefiles = [i for i in os.listdir(f"{outdir}embedded_notes/")]
-    # lose the ones that are in the trnotes:
-    trstubs = ["_".join(i.split("_")[-2:]) for i in trnotes]
-    testubs = ["_".join(i.split("_")[-2:]) for i in tenotes]
-    notefiles = [i for i in notefiles if (i not in trstubs) and (i not in testubs) and ("DS_Store" not in i)]
-    # and lose the ones that aren't 2018
-    notefiles = [i for i in notefiles if int(i.split("_")[2][1:]) <= 12]
-    # lose the ones that aren't in the cndf
-    # the cndf was cut on July 14, 2020 to only include notes from PTs with qualifying ICD codes from the 12 months previous
-    cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
-    cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
-    cndf['month'] = cndf.LATEST_TIME.dt.month + (
-            cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
-    cndf_notes = ("embedded_note_m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".pkl").tolist()
-    notefiles = list(set(notefiles) & set(cndf_notes))
-
-
-    def h(x):
-        """entropy"""
-        return -np.sum(x * np.log(x), axis=1)
-
-
-    # now loop through them, normalize, and predict
-    if "entropies_of_unlableled_notes.pkl" not in os.listdir(ALdir):
-        edicts = []
-        N = 0
-        for i in notefiles:
-            if f"pred{i}.pkl" not in os.listdir(f"{ALdir}ospreds/"):
-                r = get_entropy_stats(i)
-                write_pickle(r, f"{ALdir}ospreds/pred{i}.pkl")
-            else:
-                r = read_pickle(f"{ALdir}ospreds/pred{i}.pkl")
-            r.pop("pred")
-            print(r)
-            edicts.append(r)
-            print(i)
-            N += 1
-            print(N)
-
-        # res = pd.concat([res, pd.DataFrame([i for i in edicts if i is not None])])
-        res = pd.DataFrame([i for i in edicts if i is not None])
-        res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
-    else:
-        res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
-
-    colnames = res.columns[1:].tolist()
-    fig, ax = plt.subplots(ncols=5, nrows=5, figsize=(10, 10))
-    for i in range(5):
-        for j in range(5):
-            if i == j:
-                ax[i, j].hist(res[colnames[i]])
-                ax[i, j].set_xlabel(colnames[i])
-            elif i > j:
-                ax[i, j].scatter(res[colnames[i]], [res[colnames[j]]], s=.5)
-                ax[i, j].set_xlabel(colnames[i])
-                ax[i, j].set_ylabel(colnames[j])
-    plt.tight_layout()
-    fig.savefig(f"{ALdir}entropy_summaries.pdf")
-    plt.show()
-
-    # pull the best notes
-    cndf['note'] = "embedded_note_m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".pkl"
-    res = res.merge(cndf[['note', 'combined_notes']])
-
-    best = res.sort_values("hmean_above_average", ascending=False).head(30)
-    best['PAT_ID'] = best.note.apply(lambda x: x.split("_")[3][:-4])
-    best['month'] = best.note.apply(lambda x: x.split("_")[2][1:])
-    cndf['month'] = cndf.LATEST_TIME.dt.month
-
-    selected_notes = []
-    for i in range(len(best)):
-        ni = cndf.combined_notes.loc[(cndf.month == int(best.month.iloc[i])) & (cndf.PAT_ID == best.PAT_ID.iloc[i])]
-        assert len(ni) == 1
-        selected_notes.append(ni)
-
-    for i, n in enumerate(selected_notes):
-        # assert 5==0, 'SET THIS BACK TO 25 NEXT TIME YOU RUN IT'
-        fn = f"AL{batchstring}_v2{'ALTERNATE' if i > 24 else ''}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
-        print(fn)
-        write_txt(n.iloc[0], f"{ALdir}{fn}")
-
-    # post-analysis
-    hpdf.to_csv(f"{ALdir}hpdf_for_R.csv")
-
-    # get the files
-    try:
-        os.mkdir(f"{ALdir}best_notes_embedded")
-    except Exception:
-        pass
-    if 'crandrew' in os.getcwd():
-        assert 5 == 0  # if you ver need to make this work again, fix it to not rely on grace
-        for note in best.note:
-            cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/saved_models/AL{batchstring}/ospreds/pred{note}.pkl" \
-                  f" {ALdir}ospreds/"
-            os.system(cmd)
-        for note in best.note:
-            cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/embedded_notes/{note}" \
-                  f" {ALdir}best_notes_embedded/"
-            os.system(cmd)
-    elif 'hipaa_garywlab' in os.getcwd():
-        for note in best.note:
-            cmd = f"cp {ALdir}/ospreds/pred{note}.pkl" \
-                  f" {ALdir}best_notes_embedded/"
-            os.system(cmd)
-        for note in best.note:
-            cmd = f"cp /project/hipaa_garywlab/frailty/output/embedded_notes/{note}" \
-                  f" {ALdir}best_notes_embedded/"
-            os.system(cmd)
-
-    predfiles = os.listdir(f"{ALdir}best_notes_embedded")
-    predfiles = [i for i in predfiles if "predembedded" in i]
-    enotes = os.listdir(f"{ALdir}best_notes_embedded")
-    enotes = [i for i in enotes if "predembedded" not in i]
-
-    j = 0
-    for j, k in enumerate(predfiles):
-        p = read_pickle(f"{ALdir}best_notes_embedded/{predfiles[j]}")
-        ID = re.sub('.pkl', '', "_".join(predfiles[j].split("_")[2:]))
-        emat = np.stack([h(x) for x in p['pred']]).T
-        emb_note = read_pickle(f"{ALdir}best_notes_embedded/{[x for x in enotes if ID in x][0]}")
-        fig, ax = plt.subplots(nrows=4, figsize=(20, 10))
-        for i in range(4):
-            ax[i].plot(p['pred'][i][:, 0], label='neg')
-            ax[i].plot(p['pred'][i][:, 2], label='pos')
-            hx = h(p['pred'][i])
-            ax[i].plot(hx + 1, label='entropy')
-            ax[i].legend()
-            ax[i].axhline(1)
-            ax[i].set_ylabel(out_varnames[i])
-            ax[i].set_ylim(0, 2.1)
-            maxH = np.argmax(emat[:, i])
-            span = emb_note.token.iloc[(maxH - best_model['hps'][0] // 2):(maxH + best_model['hps'][0] // 2)]
-            string = " ".join(span.tolist())
-            ax[i].text(maxH, 2.1, string, horizontalalignment='center')
-        plt.tight_layout()
-        plt.show()
-        fig.savefig(f"{ALdir}best_notes_embedded/predplot_w_best_span_{enotes[j]}.pdf")
+    # """
+    # Now figure out the winner and ingest the unlabeled notes
+    # """
+    #
+    # print('starting entropy search')
+    #
+    # hpdf = pd.read_json(f"{ALdir}hpdf.json")
+    # winner = hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
+    #
+    # # load it
+    # best_model = pd.read_pickle(f"{ALdir}model_batch4_{int(winner.idx)}.pkl")
+    # model = makemodel(*best_model['hps'])
+    # model.set_weights(best_model['weights'])
+    #
+    # # find all the notes to check
+    # notefiles = [i for i in os.listdir(f"{outdir}embedded_notes/")]
+    # # lose the ones that are in the trnotes:
+    # trstubs = ["_".join(i.split("_")[-2:]) for i in trnotes]
+    # testubs = ["_".join(i.split("_")[-2:]) for i in tenotes]
+    # notefiles = [i for i in notefiles if (i not in trstubs) and (i not in testubs) and ("DS_Store" not in i)]
+    # # and lose the ones that aren't 2018
+    # notefiles = [i for i in notefiles if int(i.split("_")[2][1:]) <= 12]
+    # # lose the ones that aren't in the cndf
+    # # the cndf was cut on July 14, 2020 to only include notes from PTs with qualifying ICD codes from the 12 months previous
+    # cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
+    # cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
+    # cndf['month'] = cndf.LATEST_TIME.dt.month + (
+    #         cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
+    # cndf_notes = ("embedded_note_m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".pkl").tolist()
+    # notefiles = list(set(notefiles) & set(cndf_notes))
+    #
+    #
+    # def h(x):
+    #     """entropy"""
+    #     return -np.sum(x * np.log(x), axis=1)
+    #
+    #
+    # # now loop through them, normalize, and predict
+    # if "entropies_of_unlableled_notes.pkl" not in os.listdir(ALdir):
+    #     edicts = []
+    #     N = 0
+    #     for i in notefiles:
+    #         if f"pred{i}.pkl" not in os.listdir(f"{ALdir}ospreds/"):
+    #             r = get_entropy_stats(i)
+    #             write_pickle(r, f"{ALdir}ospreds/pred{i}.pkl")
+    #         else:
+    #             r = read_pickle(f"{ALdir}ospreds/pred{i}.pkl")
+    #         r.pop("pred")
+    #         print(r)
+    #         edicts.append(r)
+    #         print(i)
+    #         N += 1
+    #         print(N)
+    #
+    #     # res = pd.concat([res, pd.DataFrame([i for i in edicts if i is not None])])
+    #     res = pd.DataFrame([i for i in edicts if i is not None])
+    #     res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
+    # else:
+    #     res = pd.read_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
+    #
+    # colnames = res.columns[1:].tolist()
+    # fig, ax = plt.subplots(ncols=5, nrows=5, figsize=(10, 10))
+    # for i in range(5):
+    #     for j in range(5):
+    #         if i == j:
+    #             ax[i, j].hist(res[colnames[i]])
+    #             ax[i, j].set_xlabel(colnames[i])
+    #         elif i > j:
+    #             ax[i, j].scatter(res[colnames[i]], [res[colnames[j]]], s=.5)
+    #             ax[i, j].set_xlabel(colnames[i])
+    #             ax[i, j].set_ylabel(colnames[j])
+    # plt.tight_layout()
+    # fig.savefig(f"{ALdir}entropy_summaries.pdf")
+    # plt.show()
+    #
+    # # pull the best notes
+    # cndf['note'] = "embedded_note_m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".pkl"
+    # res = res.merge(cndf[['note', 'combined_notes']])
+    #
+    # best = res.sort_values("hmean_above_average", ascending=False).head(30)
+    # best['PAT_ID'] = best.note.apply(lambda x: x.split("_")[3][:-4])
+    # best['month'] = best.note.apply(lambda x: x.split("_")[2][1:])
+    # cndf['month'] = cndf.LATEST_TIME.dt.month
+    #
+    # selected_notes = []
+    # for i in range(len(best)):
+    #     ni = cndf.combined_notes.loc[(cndf.month == int(best.month.iloc[i])) & (cndf.PAT_ID == best.PAT_ID.iloc[i])]
+    #     assert len(ni) == 1
+    #     selected_notes.append(ni)
+    #
+    # for i, n in enumerate(selected_notes):
+    #     # assert 5==0, 'SET THIS BACK TO 25 NEXT TIME YOU RUN IT'
+    #     fn = f"AL{batchstring}_v2{'ALTERNATE' if i > 24 else ''}_m{best.month.iloc[i]}_{best.PAT_ID.iloc[i]}.txt"
+    #     print(fn)
+    #     write_txt(n.iloc[0], f"{ALdir}{fn}")
+    #
+    # # post-analysis
+    # hpdf.to_csv(f"{ALdir}hpdf_for_R.csv")
+    #
+    # # get the files
+    # try:
+    #     os.mkdir(f"{ALdir}best_notes_embedded")
+    # except Exception:
+    #     pass
+    # if 'crandrew' in os.getcwd():
+    #     assert 5 == 0  # if you ver need to make this work again, fix it to not rely on grace
+    #     for note in best.note:
+    #         cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/saved_models/AL{batchstring}/ospreds/pred{note}.pkl" \
+    #               f" {ALdir}ospreds/"
+    #         os.system(cmd)
+    #     for note in best.note:
+    #         cmd = f"scp andrewcd@grace.pmacs.upenn.edu:/media/drv2/andrewcd2/frailty/output/embedded_notes/{note}" \
+    #               f" {ALdir}best_notes_embedded/"
+    #         os.system(cmd)
+    # elif 'hipaa_garywlab' in os.getcwd():
+    #     for note in best.note:
+    #         cmd = f"cp {ALdir}/ospreds/pred{note}.pkl" \
+    #               f" {ALdir}best_notes_embedded/"
+    #         os.system(cmd)
+    #     for note in best.note:
+    #         cmd = f"cp /project/hipaa_garywlab/frailty/output/embedded_notes/{note}" \
+    #               f" {ALdir}best_notes_embedded/"
+    #         os.system(cmd)
+    #
+    # predfiles = os.listdir(f"{ALdir}best_notes_embedded")
+    # predfiles = [i for i in predfiles if "predembedded" in i]
+    # enotes = os.listdir(f"{ALdir}best_notes_embedded")
+    # enotes = [i for i in enotes if "predembedded" not in i]
+    #
+    # j = 0
+    # for j, k in enumerate(predfiles):
+    #     p = read_pickle(f"{ALdir}best_notes_embedded/{predfiles[j]}")
+    #     ID = re.sub('.pkl', '', "_".join(predfiles[j].split("_")[2:]))
+    #     emat = np.stack([h(x) for x in p['pred']]).T
+    #     emb_note = read_pickle(f"{ALdir}best_notes_embedded/{[x for x in enotes if ID in x][0]}")
+    #     fig, ax = plt.subplots(nrows=4, figsize=(20, 10))
+    #     for i in range(4):
+    #         ax[i].plot(p['pred'][i][:, 0], label='neg')
+    #         ax[i].plot(p['pred'][i][:, 2], label='pos')
+    #         hx = h(p['pred'][i])
+    #         ax[i].plot(hx + 1, label='entropy')
+    #         ax[i].legend()
+    #         ax[i].axhline(1)
+    #         ax[i].set_ylabel(out_varnames[i])
+    #         ax[i].set_ylim(0, 2.1)
+    #         maxH = np.argmax(emat[:, i])
+    #         span = emb_note.token.iloc[(maxH - best_model['hps'][0] // 2):(maxH + best_model['hps'][0] // 2)]
+    #         string = " ".join(span.tolist())
+    #         ax[i].text(maxH, 2.1, string, horizontalalignment='center')
+    #     plt.tight_layout()
+    #     plt.show()
+    #     fig.savefig(f"{ALdir}best_notes_embedded/predplot_w_best_span_{enotes[j]}.pdf")
