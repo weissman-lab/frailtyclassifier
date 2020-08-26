@@ -406,6 +406,9 @@ if __name__ == '__main__':
 
 
     from pathlib import Path
+    # randomly sort notefiles
+    np.random.seed(int(time.time()))
+    notefiles = list(np.random.choice(notefiles, len(notefiles), replace = False))
 
     N=0
     for i in notefiles:
@@ -418,7 +421,6 @@ if __name__ == '__main__':
             print(i)
             N += 1
             print(N)
-
 
 
 
