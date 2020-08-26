@@ -7,11 +7,8 @@ if 'crandrew' in os.getcwd():
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import re
 from _99_project_module import inv_logit, send_message_to_slack, write_pickle, read_pickle
-from _99_project_module import write_txt
-import datetime
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
 from tensorflow.keras.layers import concatenate, \
     LeakyReLU, LSTM, Dropout, Dense, Flatten, Bidirectional
 from tensorflow.keras.regularizers import l1_l2
@@ -20,6 +17,7 @@ import time
 from sklearn.preprocessing import StandardScaler
 import copy
 from configargparse import ArgParser
+from pathlib import Path
 
 
 def sheepish_mkdir(path):
@@ -405,7 +403,6 @@ if __name__ == '__main__':
         return -np.sum(x * np.log(x), axis=1)
 
 
-    from pathlib import Path
     # randomly sort notefiles
     np.random.seed(int(time.time()))
     notefiles = list(np.random.choice(notefiles, len(notefiles), replace = False))
@@ -413,7 +410,7 @@ if __name__ == '__main__':
     N=0
     for i in notefiles:
         my_file = Path(f"{ALdir}ospreds/pred{i}.pkl")
-        if my_file.is_file():
+        if not my_file.is_file():
             r = get_entropy_stats(i)
             write_pickle(r, f"{ALdir}ospreds/pred{i}.pkl")
             r.pop("pred")
@@ -421,6 +418,5 @@ if __name__ == '__main__':
             print(i)
             N += 1
             print(N)
-
 
 
