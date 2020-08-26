@@ -40,15 +40,20 @@ if __name__ == '__main__':
     entfiles = os.listdir(f"{ALdir}ospreds/")
 
     def f(i):
-        r = read_pickle(f"{ALdir}ospreds/{i}")
-        r.pop("pred")
-        return r
+        try:
+            r = read_pickle(f"{ALdir}ospreds/{i}")
+            r.pop("pred")
+            return r
+        except:
+            pass
 
     pool = mp.Pool(mp.cpu_count())
     edicts = pool.map(f, entfiles)
     pool.close()
 
     res = pd.DataFrame([i for i in edicts if i is not None])
+    print(res.head())
+    print(f"size of result is {res.shape}")
     res.to_pickle(f"{ALdir}entropies_of_unlableled_notes.pkl")
 
     print('entropy summaries')
