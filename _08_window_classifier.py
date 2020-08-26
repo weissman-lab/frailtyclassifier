@@ -19,10 +19,8 @@ import time
 from sklearn.preprocessing import StandardScaler
 import copy
 from configargparse import ArgParser
-import sys
 
-# pip install sqlalchemy pymssql pyyaml configargparse
-# python _08_window_classifier.py --batchstring 02 --mainseed 20200813 --init
+
 def sheepish_mkdir(path):
     import os
     try:
@@ -42,12 +40,6 @@ def makemodel(window_size, n_dense, nunits,
     LSTM_layer = LSTM(nunits, return_sequences=True,
                       kernel_regularizer=l1_l2(pen))
     bid = Bidirectional(LSTM_layer)(inp)
-    # LSTM_forward = LSTM(nunits, return_sequences=True,
-    #                     kernel_regularizer=l1_l2(pen))(inp)
-    # LSTM_backward = LSTM(nunits, return_sequences=True, go_backwards=True,
-    #                      kernel_regularizer=l1_l2(pen))(inp)
-    # LSTM_backward = backend.reverse(LSTM_backward, axes=1)
-    # conc = concatenate([LSTM_forward, LSTM_backward], axis=2)
     # dense
     for i in range(n_dense):
         d = Dense(nunits, kernel_regularizer=l1_l2(pen))(bid if i == 0 else drp)
