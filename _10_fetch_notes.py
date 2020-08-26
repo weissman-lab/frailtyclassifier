@@ -29,6 +29,7 @@ if __name__ == '__main__':
     p.add("--batchstring", help="the batch number", type=str)
     options = p.parse_args()
     batchstring = options.batchstring
+    assert batchstring is not None
 
     datadir = f"{os.getcwd()}/data/"
     outdir = f"{os.getcwd()}/output/"
@@ -39,7 +40,7 @@ if __name__ == '__main__':
     entfiles = os.listdir(f"{ALdir}ospreds/")
 
     def f(i):
-        r = read_pickle(f"{ALdir}ospreds/pred{i}.pkl")
+        r = read_pickle(f"{ALdir}ospreds/{i}")
         r.pop("pred")
         return r
 
