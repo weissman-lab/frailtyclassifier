@@ -62,11 +62,11 @@ def tokenize(i):
     assert shp[0] == span_df.shape[0]
     return span_df
 
-
+contents = os.listdir(embedded_outdir)
 def wrapper(i):
     try:
         fn = f"embedded_note_m{conc_notes_df.month.iloc[i]}_{conc_notes_df.PAT_ID.iloc[i]}.pkl"
-        if fn not in os.listdir(embedded_outdir):
+        if fn not in contents:
             x = tokenize(i)
             x.to_pickle(f"{embedded_outdir}{fn}")
     except Exception as e:
