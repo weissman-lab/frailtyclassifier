@@ -147,6 +147,7 @@ if __name__ == '__main__':
     p.add("--mainseed", help="path to the embeddings file", type=int)
     options = p.parse_args()
     batchstring = options.batchstring
+    assert batchstring is not None
     mainseed = options.mainseed
 
     datadir = f"{os.getcwd()}/data/"
@@ -159,23 +160,6 @@ if __name__ == '__main__':
     sheepish_mkdir(logdir)
     sheepish_mkdir(ALdir)
     sheepish_mkdir(f"{ALdir}/ospreds")
-
-    # # this is a CLI arg.  one worker per swarm initializes the inprog  right now I'll do this manually from one of the VMs
-    # if initialize_inprog == True:
-    #     # Separate script to initialize the inprog
-    #     os.system(f" rm -rf {ALdir}/TBD")
-    #     os.mkdir(f"{ALdir}/TBD")
-    #     # list of done files
-    #     mods_done = [i for i in os.listdir(ALdir) if "model_batch" in i]
-    #     is_done = [re.split("_|\.", i)[-2] for i in mods_done]
-    #     for i in range(100):
-    #         if str(i) not in is_done:
-    #             pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
-    #             print(f"made TBD {i}")
-    #     # now wait for a bunch of time so that the different workers don't trip over each other
-    #     # naptime = np.random.choice(300)+100
-    #     # print(f"sleeping for {naptime} seconds...")
-    #     # time.sleep(naptime)
 
     # load the notes from 2018
     notes_2018 = sorted([i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13])
@@ -215,18 +199,6 @@ if __name__ == '__main__':
     y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
     df = pd.concat([y_dums, df], axis=1)
 
-    # get a vector of non-negatives for case weights
-    tr_cw = []
-    for v in out_varnames:
-        non_neutral = np.array(
-            np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
-            ('float32')
-        nnweight = 1 / np.mean(non_neutral[df.note.isin(trnotes)])
-        caseweights = np.ones(df.shape[0])
-        caseweights[non_neutral.astype(bool)] *= nnweight
-        tr_caseweights = caseweights[df.note.isin(trnotes)]
-        tr_cw.append(tr_caseweights)
-
     loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
 
     # scaling
@@ -235,140 +207,18 @@ if __name__ == '__main__':
     sdf = copy.deepcopy(df)
     sdf[str_varnames + embedding_colnames] = scaler.transform(df[str_varnames + embedding_colnames])
 
-    # # look for hpdf
-    # try:
-    #     hpdf = pd.read_json(f"{ALdir}hpdf.json")
-    # except Exception:
-    #     # initialize a df for results
-    #     hpdf = pd.DataFrame(dict(idx=list(range(100)),
-    #                              window_size=np.nan,
-    #                              n_dense=np.nan,
-    #                              n_units=np.nan,
-    #                              dropout=np.nan,
-    #                              l1_l2=np.nan,
-    #                              semipar=np.nan,
-    #                              time_to_convergence=np.nan,
-    #                              best_loss=np.nan))
-    #     hpdf.to_json(f"{ALdir}hpdf.json")
-
-    # swarm strategy: I need to do jobs 0:99, in parallel, by different machines that share a network file system.
-    # The different machines shouldn't duplicate one another's work.
-    # 1.  Make a directory called "TBD" in the shared file system.  populate it with little dummy files "job00":"job99"
-    # 2.  Each machine will do the following if there are any files left in TBD:
-    # pick one job, xx
-    # try:
-    # delete the "jobxx" file
-    # do the job
-    # write the job to shared results
-    # except:
-    # write a job file "jobxx" in the shared directory
-    # send me a slack message
-    # stop doing anything until I go and fix it
-
-    # n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
-    # while n_remaining > 0:
-    #     hpdf = pd.read_json(f"{ALdir}hpdf.json")
-    #     job = np.random.choice(os.listdir(f"{ALdir}/TBD"), 1)[0]
-    #     seed = int(job[3:])
-    #     try:
-    #         # queue position
-    #         os.remove(f"{ALdir}/TBD/{job}")
-    #         seed = int(job[3:])
-    #
-    #         np.random.seed(mainseed + seed)
-    #         mirrored_strategy = tf.distribute.MirroredStrategy()
-    #
-    #         with mirrored_strategy.scope():
-    #             model, hps = draw_hps(seed + mainseed)
-    #
-    #             for i in range(1, 7):  # put the hyperparameters in the hpdf
-    #                 hpdf.loc[seed, hpdf.columns[i]] = hps[i - 1]
-    #
-    #             # put the data in arrays for modeling, expanding out to the window size
-    #             # only converting the test into tensors, to facilitate indexing
-    #             if hps[-1] is False:  # corresponds with the semipar argument
-    #                 Xtr = tensormaker(sdf, trnotes, str_varnames + embedding_colnames, hps[0])
-    #                 Xte = tensormaker(sdf, tenotes, str_varnames + embedding_colnames, hps[0])
-    #             else:
-    #                 Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])
-    #                 Xte_np = tensormaker(sdf, tenotes, embedding_colnames, hps[0])
-    #                 Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
-    #                 Xte_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes])
-    #             ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
-    #             yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
-    #
-    #             print("\n\n********************************\n\n")
-    #             print(hpdf.iloc[seed])
-    #
-    #             start_time = time.time()
-    #
-    #             # initialize the bias terms with the logits of the proportions
-    #             w = model.get_weights()
-    #             # set the bias terms to the proportions
-    #             for i in range(4):
-    #                 props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
-    #                                   inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
-    #                                   inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
-    #                 pos = 7 - i * 2
-    #                 w[-pos] = w[-pos] * 0 + props
-    #             model.set_weights(w)
-    #
-    #             model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
-    #                           loss={'Msk_prob': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-    #                                 'Nutrition': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-    #                                 'Resp_imp': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-    #                                 'Fall_risk': tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
-    #
-    #         earlystopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
-    #                                                                   patience=20,
-    #                                                                   restore_best_weights=True)
-    #         log_dir = outdir + "/logs/fit/seed_" + str(seed) + "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    #         # sheepish_mkdir(log_dir)
-    #         # pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{log_dir}/job{i}")
-    #
-    #         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-    #
-    #         model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
-    #                   batch_size=256,
-    #                   epochs=1000,
-    #                   callbacks=[earlystopping_callback, tensorboard_callback],
-    #                   sample_weight=tr_cw,
-    #                   verbose=1,
-    #                   validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
-    #         outdict = dict(weights=model.get_weights(),
-    #                        hps=hps)
-    #         write_pickle(outdict, f"{ALdir}/model_batch4_{seed}.pkl")
-    #
-    #         pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
-    #         # initialize the loss and the optimizer
-    #         loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-    #         loss = loss_object(yte, pred)
-    #
-    #         catprop = np.mean([np.mean(x[:, 1]) for x in pred])
-    #
-    #         print(f"at {datetime.datetime.now()}")
-    #         print(f"test loss: {loss}")
-    #         print("quantiles of the common category")
-    #         for i in range(4):
-    #             print(np.quantile([pred[i][:, 1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
-    #
-    #         tf.keras.backend.clear_session()
-    #         hpdf.loc[seed, 'best_loss'] = float(loss)
-    #         hpdf.loc[seed, 'time_to_convergence'] = time.time() - start_time
-    #         hpdf.to_json(f"{ALdir}hpdf.json")
-    #     except Exception as e:
-    #         # put the borken job back on the shelf
-    #         pd.DataFrame({"seed": seed}, index=[seed]).to_csv(f"{ALdir}TBD/job{seed}")
-    #         send_message_to_slack(e)
-    #         print(e)
-    #         logf = open(f"{logdir}seed{seed}.log", "w")
-    #         logf.write(str(e))
-    #         logf.close()
-    #     n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
 
     """
     Now figure out the winner and ingest the unlabeled notes
     """
+
+    # assemble the hpdf.
+    hpdf = []
+    for i in range(100):
+        x = read_pickle(f"{ALdir}model_batch4_{i}.pkl")
+        hpdf.append(x['hps'])
+
+
 
     print('starting entropy search')
 

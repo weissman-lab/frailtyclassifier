@@ -239,21 +239,21 @@ if __name__ == '__main__':
     sdf = copy.deepcopy(df)
     sdf[str_varnames + embedding_colnames] = scaler.transform(df[str_varnames + embedding_colnames])
 
-    # look for hpdf
-    try:
-        hpdf = pd.read_json(f"{ALdir}hpdf.json")
-    except Exception:
-        # initialize a df for results
-        hpdf = pd.DataFrame(dict(idx=list(range(100)),
-                                 window_size=np.nan,
-                                 n_dense=np.nan,
-                                 n_units=np.nan,
-                                 dropout=np.nan,
-                                 l1_l2=np.nan,
-                                 semipar=np.nan,
-                                 time_to_convergence=np.nan,
-                                 best_loss=np.nan))
-        hpdf.to_json(f"{ALdir}hpdf.json")
+    # # look for hpdf
+    # try:
+    #     hpdf = pd.read_json(f"{ALdir}hpdf.json")
+    # except Exception:
+    #     # initialize a df for results
+    #     hpdf = pd.DataFrame(dict(idx=list(range(100)),
+    #                              window_size=np.nan,
+    #                              n_dense=np.nan,
+    #                              n_units=np.nan,
+    #                              dropout=np.nan,
+    #                              l1_l2=np.nan,
+    #                              semipar=np.nan,
+    #                              time_to_convergence=np.nan,
+    #                              best_loss=np.nan))
+    #     hpdf.to_json(f"{ALdir}hpdf.json")
 
     # swarm strategy: I need to do jobs 0:99, in parallel, by different machines that share a network file system.
     # The different machines shouldn't duplicate one another's work.
@@ -271,7 +271,6 @@ if __name__ == '__main__':
 
     n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
     while n_remaining > 0:
-        hpdf = pd.read_json(f"{ALdir}hpdf.json")
         job = np.random.choice(os.listdir(f"{ALdir}/TBD"), 1)[0]
         seed = int(job[3:])
         try:
@@ -284,9 +283,6 @@ if __name__ == '__main__':
 
             with mirrored_strategy.scope():
                 model, hps = draw_hps(seed + mainseed)
-
-                for i in range(1, 7):  # put the hyperparameters in the hpdf
-                    hpdf.loc[seed, hpdf.columns[i]] = hps[i - 1]
 
                 # put the data in arrays for modeling, expanding out to the window size
                 # only converting the test into tensors, to facilitate indexing
@@ -302,7 +298,7 @@ if __name__ == '__main__':
                 yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
 
                 print("\n\n********************************\n\n")
-                print(hpdf.iloc[seed])
+                print(pd.DataFrame(hps, index = [seed]))
 
                 start_time = time.time()
 
@@ -339,14 +335,16 @@ if __name__ == '__main__':
                       sample_weight=tr_cw,
                       verbose=1,
                       validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
-            outdict = dict(weights=model.get_weights(),
-                           hps=hps)
-            write_pickle(outdict, f"{ALdir}/model_batch4_{seed}.pkl")
-
             pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
             # initialize the loss and the optimizer
             loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
             loss = loss_object(yte, pred)
+
+            hps['best_loss'] = float(loss)
+            hps['time_to_convergence'] = time.time() - start_time
+            outdict = dict(weights=model.get_weights(),
+                           hps=hps)
+            write_pickle(outdict, f"{ALdir}/model_batch4_{seed}.pkl")
 
             catprop = np.mean([np.mean(x[:, 1]) for x in pred])
 
@@ -357,9 +355,7 @@ if __name__ == '__main__':
                 print(np.quantile([pred[i][:, 1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
 
             tf.keras.backend.clear_session()
-            hpdf.loc[seed, 'best_loss'] = float(loss)
-            hpdf.loc[seed, 'time_to_convergence'] = time.time() - start_time
-            hpdf.to_json(f"{ALdir}hpdf.json")
+
         except Exception as e:
             # put the borken job back on the shelf
             pd.DataFrame({"seed": seed}, index=[seed]).to_csv(f"{ALdir}TBD/job{seed}")
