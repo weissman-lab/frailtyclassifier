@@ -115,7 +115,7 @@ if __name__ == '__main__':
               f" {ALdir}best_notes_embedded/"
         os.system(cmd)
     for note in best.note:
-        cmd = f"cp /project/hipaa_garywlab/frailty/output/embedded_notes/{note}" \
+        cmd = f"cp {outdir}/embedded_notes/{note}" \
               f" {ALdir}best_notes_embedded/"
         os.system(cmd)
 
