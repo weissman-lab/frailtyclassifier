@@ -15,10 +15,20 @@ nlp = spacy.load("en", disable=['parser', 'tagger', 'ner'])
 outdir = f"{os.getcwd()}/output/"
 embedded_outdir = f"{outdir}embedded_notes/"
 
-if 'crandrew' in os.getcwd():
-    embeddings = KeyedVectors.load("/Users/crandrew/projects/clinical_word_embeddings/w2v_oa_all_300d.bin", mmap='r')
-else:
-    embeddings = KeyedVectors.load("/proj/cwe/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin", mmap='r')
+totry = [
+    "/share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/",
+    "/Users/crandrew/projects/clinical_word_embeddings/",
+    "/proj/cwe/built_models/OA_ALL/W2V_300/"
+]
+
+
+for i in totry:
+    try:
+        embeddings = KeyedVectors.load(f"{i}/w2v_oa_all_300d.bin")
+        break
+    except:
+        pass
+
 
 
 # load the concatenated notes
@@ -55,9 +65,10 @@ def tokenize(i):
 
 def wrapper(i):
     try:
-        x = tokenize(i)
         fn = f"embedded_note_m{conc_notes_df.month.iloc[i]}_{conc_notes_df.PAT_ID.iloc[i]}.pkl"
-        x.to_pickle(f"{embedded_outdir}{fn}")
+        if fn not in os.listdir(embedded_outdir):
+            x = tokenize(i)
+            x.to_pickle(f"{embedded_outdir}{fn}")
     except Exception as e:
         print(i)
         print(e)
