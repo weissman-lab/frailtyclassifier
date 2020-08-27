@@ -316,6 +316,26 @@ if __name__ == '__main__':
                                     'Resp_imp': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
                                     'Fall_risk': tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
 
+            # checkpoint the models so that they can restart mid-stride
+            # make a directory for each model's checkpoints
+            # check for the presence of a checkpoint, and load it if it exists
+            checkpoint_filepath = f"{ALdir}ckpt{seed}"
+            sheepish_mkdir(checkpoint_filepath)
+            model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+                filepath=checkpoint_filepath,
+                save_weights_only=True,
+                monitor='val_loss',
+                save_best_only=True)
+
+            try:
+                model.load_weights(checkpoint_filepath)
+                print('loaded weights from previous go-round')
+            except:
+                print("didn't find any previous weights.  here's the contents of the checkpoint filepath:")
+                print(os.listdir(checkpoint_filepath))
+                pass
+
+
             earlystopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                                       patience=20,
                                                                       restore_best_weights=True)
@@ -328,7 +348,7 @@ if __name__ == '__main__':
             model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
                       batch_size=256,
                       epochs=1000,
-                      callbacks=[earlystopping_callback, tensorboard_callback],
+                      callbacks=[earlystopping_callback, tensorboard_callback, model_checkpoint_callback],
                       sample_weight=tr_cw,
                       verbose=1,
                       validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
