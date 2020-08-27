@@ -94,41 +94,41 @@ def make_y_list(y):
     return [y[:, i * 3:(i + 1) * 3] for i in range(len(out_varnames))]
 
 
-def get_entropy_stats(i, return_raw=False):
-    try:
-        start = time.time()
-        note = pd.read_pickle(f"{outdir}embedded_notes/{i}")
-        note[str_varnames + embedding_colnames] = scaler.transform(note[str_varnames + embedding_colnames])
-        note['note'] = "foo"
-        if best_model['hps'][-1] is False:  # corresponds with the semipar argument
-            Xte = tensormaker(note, ['foo'], str_varnames + embedding_colnames, best_model['hps'][0])
-        else:
-            Xte_np = tensormaker(note, ['foo'], embedding_colnames, best_model['hps'][0])
-            Xte_p = np.vstack([note[str_varnames] for i in ['foo']])
-
-        pred = model.predict([Xte_np, Xte_p] if best_model['hps'][5] is True else Xte)
-        hmat = np.stack([h(i) for i in pred])
-        end = time.time()
-
-        out = dict(note=i,
-                   hmean=np.mean(hmat),
-                   # compute average entropy, throwing out lower half
-                   hmean_top_half=np.mean(hmat[hmat > np.median(hmat)]),
-                   # compute average entropy, throwing out those that are below the (skewed) average
-                   hmean_above_average=np.mean(hmat[hmat > np.mean(hmat)]),
-                   # maximum
-                   hmax=np.max(hmat),
-                   # top decile average
-                   hdec=np.mean(hmat[hmat > np.quantile(hmat, .9)]),
-                   # the raw predictions
-                   pred=pred,
-                   # time
-                   time = end-start
-                   )
-        return out
-    except Exception as e:
-        print(e)
-        print(i)
+# def get_entropy_stats(i, return_raw=False):
+#     try:
+#         start = time.time()
+#         note = pd.read_pickle(f"{outdir}embedded_notes/{i}")
+#         note[str_varnames + embedding_colnames] = scaler.transform(note[str_varnames + embedding_colnames])
+#         note['note'] = "foo"
+#         if best_model['hps'][-1] is False:  # corresponds with the semipar argument
+#             Xte = tensormaker(note, ['foo'], str_varnames + embedding_colnames, best_model['hps'][0])
+#         else:
+#             Xte_np = tensormaker(note, ['foo'], embedding_colnames, best_model['hps'][0])
+#             Xte_p = np.vstack([note[str_varnames] for i in ['foo']])
+#
+#         pred = model.predict([Xte_np, Xte_p] if best_model['hps'][5] is True else Xte)
+#         hmat = np.stack([h(i) for i in pred])
+#         end = time.time()
+#
+#         out = dict(note=i,
+#                    hmean=np.mean(hmat),
+#                    # compute average entropy, throwing out lower half
+#                    hmean_top_half=np.mean(hmat[hmat > np.median(hmat)]),
+#                    # compute average entropy, throwing out those that are below the (skewed) average
+#                    hmean_above_average=np.mean(hmat[hmat > np.mean(hmat)]),
+#                    # maximum
+#                    hmax=np.max(hmat),
+#                    # top decile average
+#                    hdec=np.mean(hmat[hmat > np.quantile(hmat, .9)]),
+#                    # the raw predictions
+#                    pred=pred,
+#                    # time
+#                    time = end-start
+#                    )
+#         return out
+#     except Exception as e:
+#         print(e)
+#         print(i)
 
 
 if __name__ == '__main__':
@@ -175,10 +175,6 @@ if __name__ == '__main__':
             if str(i) not in is_done:
                 pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
                 print(f"made TBD {i}")
-        # now wait for a bunch of time so that the different workers don't trip over each other
-        # naptime = np.random.choice(300)+100
-        # print(f"sleeping for {naptime} seconds...")
-        # time.sleep(naptime)
 
     # load the notes from 2018
     notes_2018 = sorted([i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13])
@@ -298,7 +294,8 @@ if __name__ == '__main__':
                 yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
 
                 print("\n\n********************************\n\n")
-                print(pd.DataFrame(hps, index = [seed]))
+                print(seed)
+                print(hps)
 
                 start_time = time.time()
 
@@ -340,11 +337,11 @@ if __name__ == '__main__':
             loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
             loss = loss_object(yte, pred)
 
-            hps['best_loss'] = float(loss)
-            hps['time_to_convergence'] = time.time() - start_time
+            hps += (float(loss),)
+            hps += (-999,)
             outdict = dict(weights=model.get_weights(),
                            hps=hps)
-            write_pickle(outdict, f"{ALdir}/model_batch4_{seed}.pkl")
+            write_pickle(outdict, f"{ALdir}/model_{batchstring}_{seed}.pkl")
 
             catprop = np.mean([np.mean(x[:, 1]) for x in pred])
 
