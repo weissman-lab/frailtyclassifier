@@ -319,7 +319,7 @@ if __name__ == '__main__':
             # checkpoint the models so that they can restart mid-stride
             # make a directory for each model's checkpoints
             # check for the presence of a checkpoint, and load it if it exists
-            checkpoint_filepath = f"{ALdir}ckpt{seed}"
+            checkpoint_filepath = f"{ALdir}ckpt{seed}/"
             sheepish_mkdir(checkpoint_filepath)
             model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
                 filepath=checkpoint_filepath,
