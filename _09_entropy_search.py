@@ -145,10 +145,13 @@ if __name__ == '__main__':
     p = ArgParser()
     p.add("--batchstring", help="the batch number", type=str)
     p.add("--mainseed", help="path to the embeddings file", type=int)
+    p.add("--init", help="form the hpdf? only needs to be done once", action="store_true")
     options = p.parse_args()
     batchstring = options.batchstring
     assert batchstring is not None
     mainseed = options.mainseed
+    form_hpdf = options.init
+
 
     datadir = f"{os.getcwd()}/data/"
     outdir = f"{os.getcwd()}/output/"
@@ -160,6 +163,33 @@ if __name__ == '__main__':
     sheepish_mkdir(logdir)
     sheepish_mkdir(ALdir)
     sheepish_mkdir(f"{ALdir}/ospreds")
+
+    # assemble the hpdf.
+    if form_hpdf:
+        hpdf = []
+        for i in range(100):
+            try:
+                x = read_pickle(f"{ALdir}model_{batchstring}_{i}.pkl")
+                y = (i,) + x['hps']
+                hpdf.append(y)
+            except:
+                print(f"problem at {i}")
+                pass
+
+        hpdf = pd.DataFrame(hpdf, columns=['seed',
+                                           'window_size',
+                                           'n_dense',
+                                           'n_units',
+                                           'dropout',
+                                           'l1_l2',
+                                           'semipar',
+                                           'best_loss',
+                                           'time_to_convergence'])
+
+        assert len(hpdf) == 100, f"only {len(hpdf)} model files loaded!"
+        hpdf.to_json(f"{ALdir}hpdf.json")
+        hpdf.to_csv(f"{ALdir}hpdf.csv")
+
 
     # load the notes from 2018
     notes_2018 = sorted([i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13])
@@ -208,54 +238,6 @@ if __name__ == '__main__':
     sdf[str_varnames + embedding_colnames] = scaler.transform(df[str_varnames + embedding_colnames])
 
 
-    """
-    Now figure out the winner and ingest the unlabeled notes
-    """
-
-    # assemble the hpdf.
-    hpdf = []
-    for i in range(100):
-        try:
-            x = read_pickle(f"{ALdir}model_{batchstring}_{i}.pkl")
-            # if the best loss is missing, create it
-            if len(x['hps']) == 6:
-
-            hpdf.append(x['hps'])
-
-        except:
-            pass
-
-
-
-    import warnings
-    if len(hpdf)< 100:
-        warnings.warn(f"only {len(hpdf)} model files loaded!")
-
-    hpdf = pd.DataFrame(hpdf)
-    hpdf.head()
-    , columns = ['window_size', 'n_dense', 'n_units', 'dropout', 'l1_l2', 'semipar'])
-hpdf.head()
-
-    #     hpdf = pd.DataFrame(dict(idx=list(range(100)),
-    #                              window_size=np.nan,
-    #                              n_dense=np.nan,
-    #                              n_units=np.nan,
-    #                              dropout=np.nan,
-    #                              l1_l2=np.nan,
-    #                              semipar=np.nan,
-    #                              time_to_convergence=np.nan,
-    #                              best_loss=np.nan))
-
-    def draw_hps(seed):
-        np.random.seed(seed)
-        hps = (int(np.random.choice(list(range(4, 40)))),  # window size
-               int(np.random.choice(list(range(1, 10)))),  # n dense
-               int(2 ** np.random.choice(list(range(5, 11)))),  # n units
-               float(np.random.uniform(low=0, high=.5)),  # dropout
-               float(10 ** np.random.uniform(-8, -2)),  # l1/l2 penalty
-               bool(np.random.choice(list(range(2)))))  # semipar
-        model = makemodel(*hps)
-        return model, hps
 
 
     print('starting entropy search')
@@ -264,8 +246,9 @@ hpdf.head()
     winner = hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
 
     # load it
-    best_model = pd.read_pickle(f"{ALdir}model_batch4_{int(winner.idx)}.pkl")
-    model = makemodel(*best_model['hps'])
+    best_model = read_pickle(f"{ALdir}model_{batchstring}_{i}.pkl")
+
+    model = makemodel(*best_model['hps'][:-2])
     model.set_weights(best_model['weights'])
 
     # find all the notes to check
