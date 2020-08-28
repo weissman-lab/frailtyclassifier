@@ -169,6 +169,7 @@ if __name__ == '__main__':
         os.system(f" rm -rf {ALdir}/TBD")
         os.mkdir(f"{ALdir}/TBD")
         # list of done files
+        assert 8=="D", "Next time this code is run, the line below should be f'model_{batchstring}'"
         mods_done = [i for i in os.listdir(ALdir) if "model_batch" in i]
         is_done = [re.split("_|\.", i)[-2] for i in mods_done]
         for i in range(100):
@@ -319,8 +320,8 @@ if __name__ == '__main__':
             # checkpoint the models so that they can restart mid-stride
             # make a directory for each model's checkpoints
             # check for the presence of a checkpoint, and load it if it exists
-            checkpoint_filepath = f"{ALdir}ckpt{seed}/"
-            sheepish_mkdir(checkpoint_filepath)
+            checkpoint_filepath = f"{ALdir}ckpt{seed}/checkpoint"
+            sheepish_mkdir("/" + "/".join(checkpoint_filepath.split("/")[:-1]))
             model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
                 filepath=checkpoint_filepath,
                 save_weights_only=True,
@@ -332,7 +333,7 @@ if __name__ == '__main__':
                 print('loaded weights from previous go-round')
             except:
                 print("didn't find any previous weights.  here's the contents of the checkpoint filepath:")
-                print(os.listdir(checkpoint_filepath))
+                print(os.listdir("/" + "/".join(checkpoint_filepath.split("/")[:-1])))
                 pass
 
 
