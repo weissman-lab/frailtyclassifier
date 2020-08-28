@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
     hpdf = pd.read_json(f"{ALdir}hpdf.json")
     winner = hpdf.loc[hpdf.best_loss == hpdf.best_loss.min()]
-    best_model = pd.read_pickle(f"{ALdir}model_batch4_{int(winner.idx)}.pkl")
+    best_model = pd.read_pickle(f"{ALdir}model_{batchstring}_{int(winner.seed)}.pkl")
     out_varnames = ['MSK prob', 'Nutrition', 'Resp Imp', 'Fall Risk']
 
     j = 0

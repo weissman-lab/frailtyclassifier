@@ -189,7 +189,8 @@ if __name__ == '__main__':
         assert len(hpdf) == 100, f"only {len(hpdf)} model files loaded!"
         hpdf.to_json(f"{ALdir}hpdf.json")
         hpdf.to_csv(f"{ALdir}hpdf.csv")
-
+    else:
+        hpdf = pd.read_json(f"{ALdir}hpdf.json")
 
     # load the notes from 2018
     notes_2018 = sorted([i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13])
