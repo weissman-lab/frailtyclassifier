@@ -1,11 +1,13 @@
 import os
-from copy import deepcopy
 import re
+import random
 import pandas as pd
 import numpy as np
 import scipy
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.model_selection import KFold
+from sklearn.model_selection import GroupKFold
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -55,12 +57,6 @@ assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
 df.drop(columns='Unnamed: 0', inplace=True)
 
-# split into training and validation
-np.random.seed(2670095)
-trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
-tenotes = [i for i in notes_2018 if i not in trnotes]
-trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
-tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
 
 # define some useful constants
 str_varnames = df.loc[:, "n_encs":'MV_LANGUAGE'].columns.tolist()
@@ -72,22 +68,11 @@ input_dims = len(embedding_colnames) + len(str_varnames)
 y_dums = pd.concat([pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
 df = pd.concat([y_dums, df], axis=1)
 
-# get a vector of non-negatives for case weights
-tr_cw = []
-for v in out_varnames:
-    non_neutral = np.array(np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
-        ('float32')
-    nnweight = 1 / np.mean(non_neutral[df.note.isin(trnotes)])
-    caseweights = np.ones(df.shape[0])
-    caseweights[non_neutral.astype(bool)] *= nnweight
-    tr_caseweights = caseweights[df.note.isin(trnotes)]
-    tr_cw.append(tr_caseweights)
-
 
 # Start by resetting the index
 df = df.reset_index()
 # Drop embeddings
-df2 = df.loc[:, ~df.columns.str.startswith('identity')]
+df2 = df.loc[:, ~df.columns.str.startswith('identity')].copy()
 
 
 # 1.) make new "documents". Each "document" contains a 11-token
@@ -118,7 +103,6 @@ for i in list(df2.note.unique()):
         window3.extend(window2)
     count += 1
 
-
 #add windows to df
 df2['window'] = window3
     #test
@@ -133,71 +117,115 @@ df2['window'] = window3
     notetest.iloc[len(notetest)-1]['window']
 
 
-#training & tests sets
-tr_df = df2.loc[df.note.isin(trnotes),:]
-te_df = df2.loc[df.note.isin(tenotes),:]
+#split into 10 folds, each containing different notes
+notes=list(df2.note.unique())
+random.seed(942020)
+np.random.shuffle(notes)
+fold1 = list(np.array_split(notes, 10)[0])
+fold2 = list(np.array_split(notes, 10)[1])
+fold3 = list(np.array_split(notes, 10)[2])
+fold4 = list(np.array_split(notes, 10)[3])
+fold5 = list(np.array_split(notes, 10)[4])
+fold6 = list(np.array_split(notes, 10)[5])
+fold7 = list(np.array_split(notes, 10)[6])
+fold8 = list(np.array_split(notes, 10)[7])
+fold9 = list(np.array_split(notes, 10)[8])
+fold10 = list(np.array_split(notes, 10)[9])
+#label test fold for each batch
+#df['fold1'] = np.where(df.note.isin(fold1), 1, 0)
+#df['fold2'] = np.where(df.note.isin(fold2), 1, 0)
+#df['fold3'] = np.where(df.note.isin(fold3), 1, 0)
+#df['fold4'] = np.where(df.note.isin(fold4), 1, 0)
+#df['fold5'] = np.where(df.note.isin(fold5), 1, 0)
+#df['fold6'] = np.where(df.note.isin(fold6), 1, 0)
+#df['fold7'] = np.where(df.note.isin(fold7), 1, 0)
+#df['fold8'] = np.where(df.note.isin(fold8), 1, 0)
+#df['fold9'] = np.where(df.note.isin(fold9), 1, 0)
+#df['fold10'] = np.where(df.note.isin(fold10), 1, 0)
+
+
+
+#code everything for fold 1 (where fold1 = 1 is the hold out test set)
+#tf-idf works for fold 1
+#add case weights to the df?
+#maybe truncatedSVD for feature selection? or just send to r for univariate logistic regression
+#then write it as a loop over all of the folds
+tr_f1 = df2[~df2.note.isin(fold1)]
+te_f1 = df2[df2.note.isin(fold1)]
+
+
+# get a vector of non-negatives for case weights
+tr_cw = []
+for v in out_varnames:
+    non_neutral = np.array(np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
+        ('float32')
+    nnweight = 1 / np.mean(non_neutral[df2.note.isin(fold1)])
+    caseweights = np.ones(df2.shape[0])
+    caseweights[non_neutral.astype(bool)] *= nnweight
+    tr_caseweights = caseweights[df2.note.isin(fold1)]
+    tr_cw.append(tr_caseweights)
 
 
 # Convert text into matrix of tf-idf features:
 # id documents
-tr_docs = tr_df['window'].tolist()
+tr_docs = tr_f1['window'].tolist()
 # instantiate countvectorizer (turn off default stopwords)
 cv = CountVectorizer(analyzer='word', stop_words=None)
 # compute tf
-tr_df_tf = cv.fit_transform(tr_docs)
+tr_f1_tf = cv.fit_transform(tr_docs)
     # check shape (215097 windows and 20270 tokens)
-    tr_df_tf.shape
-    len(tr_df)
+    tr_f1_tf.shape
+    len(tr_f1)
     # print first 10 docs again
-    print(tr_df.iloc[0:10])
+    print(tr_f1.iloc[0:10])
     # print count matrix for first 10 windows to visualize
-    df_tf = pd.DataFrame(tr_df_tf.toarray(), columns=cv.get_feature_names())
+    df_tf = pd.DataFrame(tr_f1_tf.toarray(), columns=cv.get_feature_names())
     df_tf.loc[1:10, :]
 # id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
 cuttext = '_was_here_but_got_cut'
 stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
-#import ntlk stopwords and add stopw
-from nltk.corpus import stopwords
-en_stopwords = stopwords.words('english')
-en_stopwords.extend(stopw)
-    len(en_stopwords)
-cv = CountVectorizer(analyzer='word', stop_words=en_stopwords)
+cv = CountVectorizer(analyzer='word', stop_words=stopw)
 # fit to data, then transform to count matrix
-tr_df_tf = cv.fit_transform(tr_docs)
+tr_f1_tf = cv.fit_transform(tr_docs)
 # fit to count matrix, then transform to tf-idf representation
 tfidf_transformer = TfidfTransformer()
-tr_df_tfidf = tfidf_transformer.fit_transform(tr_df_tf)
+tr_f1_tfidf = tfidf_transformer.fit_transform(tr_f1_tf)
     # sort and print idf
     df_idf = pd.DataFrame(tfidf_transformer.idf_, index=cv.get_feature_names(), columns=["idf"])
     df_idf.sort_values(by=['idf'])
     # print example
-    df_tf_idf = pd.DataFrame(tr_df_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
+    df_tf_idf = pd.DataFrame(tr_f1_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
     df_tf_idf.sort_values(by=['tfidf'], ascending=False)
     #compare to window
     tr_docs[0]
     #visualize another way
-    df_tf_idf2 = pd.DataFrame(tr_df_tfidf[0].todense(), columns=cv.get_feature_names())
+    df_tf_idf2 = pd.DataFrame(tr_f1_tfidf[0].todense(), columns=cv.get_feature_names())
     #print sparse matrix for window 1
     print(df_tf_idf2)
 
 
 # apply feature extraction to test set
 # making sliding window
-te_docs = te_df['window'].tolist()
-te_df_tf = cv.transform(te_docs)
-te_df_tfidf = tfidf_transformer.transform(te_df_tf)
+te_docs = te_f1['window'].tolist()
+te_f1_tf = cv.transform(te_docs)
+te_f1_tfidf = tfidf_transformer.transform(te_f1_tf)
     # check work:
-    print(te_df.iloc[0:10].loc[:, ['token', 'window']])
-    print(te_df.iloc[len(te_df) - 10:len(te_df)].loc[:, ['token', 'window']])
+    print(te_f1.iloc[0:10].loc[:, ['token', 'window']])
+    print(te_f1.iloc[len(te_f1) - 10:len(te_f1)].loc[:, ['token', 'window']])
     # print example
-    df_tf_idf = pd.DataFrame(te_df_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
+    df_tf_idf = pd.DataFrame(te_f1_tfidf[0].T.todense(), index=cv.get_feature_names(), columns=['tfidf'])
     df_tf_idf.sort_values(by=['tfidf'], ascending=False)
     #compare to window
     te_docs[0]
     #visualize another way
-    df_tf_idf2 = pd.DataFrame(te_df_tfidf[0].todense(), columns=cv.get_feature_names())
+    df_tf_idf2 = pd.DataFrame(te_f1_tfidf[0].todense(), columns=cv.get_feature_names())
     #print sparse matrix for window 1
     print(df_tf_idf2)
+
+
+#add some kind of feature selection? or just export to R for univariate logistic regression
+
+
 
 
 ## Output for r
