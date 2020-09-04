@@ -1,5 +1,10 @@
 library(ranger)
 library(Matrix)
+library(doParallel)
+library(dplyr)
+library(foreach)
+registerDoParallel(detectCores())
+
 workdir <- paste0(getwd(), '/')
 outdir <- paste0(getwd(), '/')
 
@@ -11,17 +16,219 @@ te_tfidf <- as(Matrix::readMM(paste0(workdir,'te_df_tfidf.mtx')), "dgCMatrix")
 te_tfidf <- provideDimnames(te_tfidf)
 te_df <- data.table::fread(paste0(workdir,'te_df.csv'))
 
-#fit rf
-tr_tfidf_rg <- ranger(y = as.factor(tr_df$Resp_imp_1),
-                      x= tr_tfidf,
-                      probability = TRUE,
-                      num.trees = 10)
+
+# tr_tfidf_rg <- ranger(y = factor(tr_df$Resp_imp_1),
+#                       x = tr_tfidf,
+#                       num.threads = detectCores(),
+#                       probability = TRUE)
+# 
+# saveRDS(tr_tfidf_rg, paste0(outdir, "tr_tfidf_rg.rds"))
+# 
+# tr_tfidf_rg <- readRDS(paste0(outdir, "tr_tfidf_rg.rds"))
+
+
+#make predictions
+# te_tfidf_pred <- predict(tr_tfidf_rg, data=te_tfidf)$predictions
+
+
+
+#trying again for all aspects
+#frail_aspects <- c("Msk_prob","Nutrition","Resp_imp", "Fall_risk", "Frailty_nos")
+
+Msk_prob <- ranger(y = factor(tr_df$Msk_prob),
+               x = tr_tfidf,
+               num.threads = detectCores(),
+               probability = TRUE,
+               num.trees = 10)
+saveRDS(Msk_prob, paste0(outdir, "Msk_prob.rds"))
+
+Nutrition <- ranger(y = factor(tr_df$Nutrition),
+               x = tr_tfidf,
+               num.threads = detectCores(),
+               probability = TRUE,
+               num.trees = 10)
+saveRDS(Nutrition, paste0(outdir, "Nutrition.rds"))
+
+Resp_imp <- ranger(y = factor(tr_df$Resp_imp),
+               x = tr_tfidf,
+               num.threads = detectCores(),
+               probability = TRUE,
+               num.trees = 10)
+saveRDS(Resp_imp, paste0(outdir, "Resp_imp.rds"))
+
+Fall_risk <- ranger(y = factor(tr_df$Fall_risk),
+                x = tr_tfidf,
+                num.threads = detectCores(),
+                probability = TRUE,
+                num.trees = 10)
+saveRDS(Fall_risk, paste0(outdir, "Fall_risk.rds"))
+
+Frailty_nos <- ranger(y = factor(tr_df$Frailty_nos),
+               x = tr_tfidf,
+               num.threads = detectCores(),
+               probability = TRUE,
+               num.trees = 10)
+saveRDS(Frailty_nos, paste0(outdir, "Frailty_nos.rds"))
+
+Msk_prob <- readRDS(paste0(outdir, "Msk_prob.rds"))
+Nutrition  <- readRDS(paste0(outdir, "Nutrition.rds"))
+Resp_imp  <- readRDS(paste0(outdir, "Resp_imp.rds"))
+Fall_risk <- readRDS(paste0(outdir, "Fall_risk.rds"))
+Frailty_nos  <- readRDS(paste0(outdir, "Frailty_nos.rds"))
+
+
+
+
+
+Msk_prob2 <- ranger(y = factor(tr_df$Msk_prob),
+                   x = tr_tfidf,
+                   num.threads = detectCores(),
+                   probability = TRUE)
+saveRDS(Msk_prob2, paste0(outdir, "Msk_prob2.rds"))
+
+Nutrition2 <- ranger(y = factor(tr_df$Nutrition),
+                    x = tr_tfidf,
+                    num.threads = detectCores(),
+                    probability = TRUE)
+saveRDS(Nutrition2, paste0(outdir, "Nutrition2.rds"))
+
+Resp_imp2 <- ranger(y = factor(tr_df$Resp_imp),
+                   x = tr_tfidf,
+                   num.threads = detectCores(),
+                   probability = TRUE)
+saveRDS(Resp_imp2, paste0(outdir, "Resp_imp2.rds"))
+
+Fall_risk2 <- ranger(y = factor(tr_df$Fall_risk),
+                    x = tr_tfidf,
+                    num.threads = detectCores(),
+                    probability = TRUE)
+saveRDS(Fall_risk2, paste0(outdir, "Fall_risk2.rds"))
+
+Frailty_nos2 <- ranger(y = factor(tr_df$Frailty_nos),
+                      x = tr_tfidf,
+                      num.threads = detectCores(),
+                      probability = TRUE)
+saveRDS(Frailty_nos2, paste0(outdir, "Frailty_nos2.rds"))
+
+
+Msk_prob2 <- readRDS(paste0(outdir, "Msk_prob2.rds"))
+Nutrition2  <- readRDS(paste0(outdir, "Nutrition2.rds"))
+Resp_imp2  <- readRDS(paste0(outdir, "Resp_imp2.rds"))
+Fall_risk2 <- readRDS(paste0(outdir, "Fall_risk2.rds"))
+Frailty_nos2  <- readRDS(paste0(outdir, "Frailty_nos2.rds"))
+
+
+Msk_prob2_pred <- predict(Msk_prob2, data=te_tfidf)$predictions
+Nutrition2_pred <- predict(Nutrition2, data=te_tfidf)$predictions
+Resp_imp2_pred <- predict(Resp_imp2, data=te_tfidf)$predictions
+Fall_risk2_pred <- predict(Fall_risk2, data=te_tfidf)$predictions
+Frailty_nos2_pred <- predict(Frailty_nos2, data=te_tfidf)$predictions
+
+pred <- predict(m, Xte)$predictions
+df[teidx, paste0(y,"_pos")] <- pred[,3]
+df[teidx, paste0(y,"_neg")] <- pred[,1]
+
+
+
+
+for (i in 1:length(frail_aspects)) {
+  aspect <- frail_aspects[i]
+  mod <- ranger(y = factor(tr_df$aspect),
+                x = tr_tfidf,
+                num.threads = detectCores(),
+                probability = TRUE,
+                num.trees = 10)
+  assign(paste0("m_", aspect), mod)
+}
+
+
+type <- as.factor(Glass$Type)
+models <- levels(type)
+
+for (i in 1:length(models)) {
+  y = models[i]
+  m <- glm(I(Type == y) ~ ., data = Glass, family = binomial)
+  assign(paste0("m_", y), m)
+}
+
+modlist <- foreach(y = frail_aspects) %do% {
+  mods = ranger(y = factor(tr_df$frail_aspects),
+             x = tr_tfidf,
+             num.threads = detectCores(),
+             probability = TRUE,
+             num.trees = 10)
+  return(mods)
+}
+
+
+#steps
+# 1.) run with 10 trees
+# 2.) figure out how to visualize output (microaverage Brier score? calibration plot?)
+# 3.) tonight, re-run for 500 trees and all frail aspects
+
+
+
+
+#test
+`%ni%` <- Negate(`%in%`)
+
+yvars <- c("Msk_prob","Nutrition","Resp_imp", "Fall_risk", "Frailty_nos")
+
+for (y in yvars){
+  toadd <- matrix(rep(NA, nrow(df)*2), ncol = 2)
+  colnames(toadd) <- paste0(y, "_", c("neg", "pos"))
+  df <- cbind(df, toadd)
+}
+
+modlist <- foreach(y = yvars) %do% {
+  m = ranger(y = factor(df[[y]]), x = df[,features],
+             num.threads = detectCores(),
+             probability = TRUE,
+             verbose = F)
+  return(m)
+}
+
+names(modlist) <- yvars
+saveRDS(modlist, paste0(outdir, "RF_model_list_march_3.rds"))
+
+
+
+pred <- predict(m, Xte)$predictions
+df[teidx, paste0(y,"_pos")] <- pred[,3]
+df[teidx, paste0(y,"_neg")] <- pred[,1]
+
+set.seed(8675309)
+notes = tr_df$note %>% unique %>% sample(replace = F)
+
+
+  te <- notes[((1-1)*5+1):(1*5+1)]
+  tr <- unique(notes[notes %ni% te])
+  
+  Xtr = tr_df[tr_df$note %in% tr, features]
+  Xte = tr_df[tr_df$note %in% te, features]
+  
+  tridx <- which(df$note %in% tr)
+  teidx <- which(df$note %in% te)}
+
+
+
+for (i in 1:10){
+  print(((i-1)*5+1):(i*5))
+  te <- notes[((i-1)*5+1):(i*5+1)]
+  tr <- unique(notes[notes %ni% te])
+  
+  Xtr = df[df$note %in% tr, features]
+  Xte = df[df$note %in% te, features]
+  
+  tridx <- which(df$note %in% tr)
+  teidx <- which(df$note %in% te)}
+
+
 
 #Macro? Brier score
 print(tr_tfidf_rg)
 
-#make predictions
-te_tfidf_pred <- predict(tr_tfidf_rg, data=te_tfidf)$predictions
+
 
 dim(te_tfidf)
 dim(te_tfidf_pred)
