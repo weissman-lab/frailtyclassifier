@@ -107,9 +107,9 @@ if __name__ == '__main__':
     # # mainseed = 8675309
     # # mainseed= 29062020 # 29 June 2020
     # mainseed = 20200813  # 13 August 2020 batch 2
-    mainseed = 20200824  # 24 August 2020 batch 2 reboot, after fixing sortedness issue
+    # mainseed = 20200824  # 24 August 2020 batch 2 reboot, after fixing sortedness issue
     # initialize_inprog = True
-    batchstring = "oneoff"
+    # batchstring = "oneoff"
     # ##########################################
     p = ArgParser()
     p.add("--batchstring", help="the batch number", type=str)

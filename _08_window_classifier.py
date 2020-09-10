@@ -147,10 +147,12 @@ if __name__ == '__main__':
     p.add("--batchstring", help="the batch number", type=str)
     p.add("--mainseed", help="path to the embeddings file", type=int)
     p.add("--init", help="initialize_inprog?", action="store_true")
+    p.add("--batchsize", type=int)
     options = p.parse_args()
     batchstring = options.batchstring
     mainseed = options.mainseed
     initialize_inprog = options.init
+    batchsize = options.batchsize
 
     datadir = f"{os.getcwd()}/data/"
     outdir = f"{os.getcwd()}/output/"
@@ -169,8 +171,7 @@ if __name__ == '__main__':
         os.system(f" rm -rf {ALdir}/TBD")
         os.mkdir(f"{ALdir}/TBD")
         # list of done files
-        assert 8=="D", "Next time this code is run, the line below should be f'model_{batchstring}'"
-        mods_done = [i for i in os.listdir(ALdir) if "model_batch" in i]
+        mods_done = [i for i in os.listdir(ALdir) if f"model_{batchstring}" in i]
         is_done = [re.split("_|\.", i)[-2] for i in mods_done]
         for i in range(100):
             if str(i) not in is_done:
@@ -235,36 +236,6 @@ if __name__ == '__main__':
     scaler.fit(df[str_varnames + embedding_colnames].loc[df.note.isin(trnotes)])
     sdf = copy.deepcopy(df)
     sdf[str_varnames + embedding_colnames] = scaler.transform(df[str_varnames + embedding_colnames])
-
-    # # look for hpdf
-    # try:
-    #     hpdf = pd.read_json(f"{ALdir}hpdf.json")
-    # except Exception:
-    #     # initialize a df for results
-    #     hpdf = pd.DataFrame(dict(idx=list(range(100)),
-    #                              window_size=np.nan,
-    #                              n_dense=np.nan,
-    #                              n_units=np.nan,
-    #                              dropout=np.nan,
-    #                              l1_l2=np.nan,
-    #                              semipar=np.nan,
-    #                              time_to_convergence=np.nan,
-    #                              best_loss=np.nan))
-    #     hpdf.to_json(f"{ALdir}hpdf.json")
-
-    # swarm strategy: I need to do jobs 0:99, in parallel, by different machines that share a network file system.
-    # The different machines shouldn't duplicate one another's work.
-    # 1.  Make a directory called "TBD" in the shared file system.  populate it with little dummy files "job00":"job99"
-    # 2.  Each machine will do the following if there are any files left in TBD:
-    # pick one job, xx
-    # try:
-    # delete the "jobxx" file
-    # do the job
-    # write the job to shared results
-    # except:
-    # write a job file "jobxx" in the shared directory
-    # send me a slack message
-    # stop doing anything until I go and fix it
 
     n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
     while n_remaining > 0:
@@ -347,7 +318,7 @@ if __name__ == '__main__':
             tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
             model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
-                      batch_size=256,
+                      batch_size=batchsize,
                       epochs=1000,
                       callbacks=[earlystopping_callback, tensorboard_callback, model_checkpoint_callback],
                       sample_weight=tr_cw,
@@ -359,7 +330,7 @@ if __name__ == '__main__':
             loss = loss_object(yte, pred)
 
             hps += (float(loss),)
-            hps += (-999,)
+            hps += (time.time() - start_time,)
             outdict = dict(weights=model.get_weights(),
                            hps=hps)
             write_pickle(outdict, f"{ALdir}/model_{batchstring}_{seed}.pkl")
@@ -382,6 +353,7 @@ if __name__ == '__main__':
             logf = open(f"{logdir}seed{seed}.log", "w")
             logf.write(str(e))
             logf.close()
+
         n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
 
     # """
