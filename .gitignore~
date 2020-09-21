@@ -5,6 +5,7 @@
 /.idea
 /output
 /.DS_Store
+**/.DS_Store
 /old_misc
 /figures
 /notebooks

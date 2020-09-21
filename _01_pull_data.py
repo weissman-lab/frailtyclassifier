@@ -1,6 +1,6 @@
 
 '''
-This script pulls the data.
+This script pulls the data. 
 It begins by getting a list of all patient IDs who have ever had one of our target diagnoses.
 Armed with that list, the next query pulls all of the notes from their qualifying encounters.
 Finally, we pull info on transplants, and use that to filter-out encounters that happened post-transplant.

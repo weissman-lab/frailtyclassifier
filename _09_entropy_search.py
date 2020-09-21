@@ -184,7 +184,8 @@ if __name__ == '__main__':
                                            'l1_l2',
                                            'semipar',
                                            'best_loss',
-                                           'time_to_convergence'])
+                                           'time_to_convergence',
+                                           'hand_loss'])
 
         assert len(hpdf) == 100, f"only {len(hpdf)} model files loaded!"
         hpdf.to_json(f"{ALdir}hpdf.json")
