@@ -61,12 +61,14 @@ def makemodel(window_size, n_dense, nunits,
 
 def draw_hps(seed):
     np.random.seed(seed)
+    print("this is hijacked for the one-off script")
     hps = (int(np.random.choice(list(range(4, 40)))),  # window size
            int(np.random.choice(list(range(1, 10)))),  # n dense
            int(2 ** np.random.choice(list(range(5, 11)))),  # n units
            float(np.random.uniform(low=0, high=.5)),  # dropout
            float(10 ** np.random.uniform(-8, -2)),  # l1/l2 penalty
            bool(np.random.choice(list(range(2)))))  # semipar
+    hps = (3, 1, 2**1, 0.0, 0.0, True)
     model = makemodel(*hps)
     return model, hps
 
@@ -95,22 +97,6 @@ def make_y_list(y):
 
 
 
-def ce(y, yhat):
-    '''cross-entropy'''
-    if isinstance(y, list):
-        pass
-    else:
-        y = [y]
-        yhat = [yhat]
-    H = 0
-    for i in range(len(yhat)):
-        plus = y[i] * np.log(yhat[i])
-        minus = (1-y[i]) * (np.log(1-yhat[i]))
-        mat = np.concatenate([plus, minus], axis = 1)
-        h = np.sum(mat, axis = 1).mean()
-        H += h 
-    return H
-
 
 if __name__ == '__main__':
 
@@ -123,41 +109,29 @@ if __name__ == '__main__':
     # mainseed = 20200813  # 13 August 2020 batch 2
     # mainseed = 20200824  # 24 August 2020 batch 2 reboot, after fixing sortedness issue
     # initialize_inprog = True
+    # batchstring = "oneoff"
     # ##########################################
     p = ArgParser()
     p.add("--batchstring", help="the batch number", type=str)
     p.add("--mainseed", help="path to the embeddings file", type=int)
-    p.add("--init", help="initialize_inprog?", action="store_true")
-    p.add("--batchsize", type=int)
+    # p.add("--init", help="initialize_inprog?", action="store_true")
     options = p.parse_args()
     batchstring = options.batchstring
     mainseed = options.mainseed
-    initialize_inprog = options.init
-    batchsize = options.batchsize
+    # initialize_inprog = options.init
 
     datadir = f"{os.getcwd()}/data/"
     outdir = f"{os.getcwd()}/output/"
     figdir = f"{os.getcwd()}/figures/"
     logdir = f"{os.getcwd()}/logs/"
     ALdir = f"{outdir}saved_models/AL{batchstring}/"
+    assert batchstring not in ['00', '01', '02']
 
     sheepish_mkdir(figdir)
     sheepish_mkdir(logdir)
     sheepish_mkdir(ALdir)
     sheepish_mkdir(f"{ALdir}/ospreds")
 
-    # this is a CLI arg.  one worker per swarm initializes the inprog  right now I'll do this manually from one of the VMs
-    if initialize_inprog == True:
-        # Separate script to initialize the inprog
-        os.system(f" rm -rf {ALdir}/TBD")
-        os.mkdir(f"{ALdir}/TBD")
-        # list of done files
-        mods_done = [i for i in os.listdir(ALdir) if f"model_{batchstring}" in i]
-        is_done = [re.split("_|\.", i)[-2] for i in mods_done]
-        for i in range(100):
-            if str(i) not in is_done:
-                pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{ALdir}TBD/job{i}")
-                print(f"made TBD {i}")
 
     # load the notes from 2018
     notes_2018 = sorted([i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13])
@@ -218,127 +192,117 @@ if __name__ == '__main__':
     sdf = copy.deepcopy(df)
     sdf[str_varnames + embedding_colnames] = scaler.transform(df[str_varnames + embedding_colnames])
 
-    n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
-    while n_remaining > 0:
-        job = np.random.choice(os.listdir(f"{ALdir}/TBD"), 1)[0]
-        seed = int(job[3:])
-        try:
-            # queue position
-            os.remove(f"{ALdir}/TBD/{job}")
-            seed = int(job[3:])
 
-            np.random.seed(mainseed + seed)
-            mirrored_strategy = tf.distribute.MirroredStrategy()
+    seed = 0
+    try:
+        np.random.seed(mainseed + seed)
+        mirrored_strategy = tf.distribute.MirroredStrategy()
 
-            with mirrored_strategy.scope():
-                model, hps = draw_hps(seed + mainseed)
+        with mirrored_strategy.scope():
+            model, hps = draw_hps(seed + mainseed)
 
-                # put the data in arrays for modeling, expanding out to the window size
-                # only converting the test into tensors, to facilitate indexing
-                if hps[-1] is False:  # corresponds with the semipar argument
-                    Xtr = tensormaker(sdf, trnotes, str_varnames + embedding_colnames, hps[0])
-                    Xte = tensormaker(sdf, tenotes, str_varnames + embedding_colnames, hps[0])
-                else:
-                    Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])
-                    Xte_np = tensormaker(sdf, tenotes, embedding_colnames, hps[0])
-                    Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
-                    Xte_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes])
-                ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
-                yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
+            # put the data in arrays for modeling, expanding out to the window size
+            # only converting the test into tensors, to facilitate indexing
+            if hps[-1] is False:  # corresponds with the semipar argument
+                Xtr = tensormaker(sdf, trnotes, str_varnames + embedding_colnames, hps[0])
+                Xte = tensormaker(sdf, tenotes, str_varnames + embedding_colnames, hps[0])
+            else:
+                Xtr_np = tensormaker(sdf, trnotes, embedding_colnames, hps[0])
+                Xte_np = tensormaker(sdf, tenotes, embedding_colnames, hps[0])
+                Xtr_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in trnotes])
+                Xte_p = np.vstack([sdf.loc[sdf.note == i, str_varnames] for i in tenotes])
+            ytr = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in trnotes]))
+            yte = make_y_list(np.vstack([sdf.loc[sdf.note == i, y_dums.columns.tolist()] for i in tenotes]))
 
-                print("\n\n********************************\n\n")
-                print(seed)
-                print(hps)
+            print("\n\n********************************\n\n")
+            print(seed)
+            print(hps)
 
-                start_time = time.time()
+            start_time = time.time()
 
-                # initialize the bias terms with the logits of the proportions
-                w = model.get_weights()
-                # set the bias terms to the proportions
-                for i in range(4):
-                    props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
-                                      inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
-                                      inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
-                    pos = 7 - i * 2
-                    w[-pos] = w[-pos] * 0 + props
-                model.set_weights(w)
-
-                model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
-                              loss={'Msk_prob': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-                                    'Nutrition': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-                                    'Resp_imp': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
-                                    'Fall_risk': tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
-
-            # checkpoint the models so that they can restart mid-stride
-            # make a directory for each model's checkpoints
-            # check for the presence of a checkpoint, and load it if it exists
-            checkpoint_filepath = f"{ALdir}ckpt{seed}/checkpoint"
-            sheepish_mkdir("/" + "/".join(checkpoint_filepath.split("/")[:-1]))
-            model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-                filepath=checkpoint_filepath,
-                save_weights_only=True,
-                monitor='val_loss',
-                save_best_only=True)
-
-            try:
-                model.load_weights(checkpoint_filepath)
-                print('loaded weights from previous go-round')
-            except:
-                print("didn't find any previous weights.  here's the contents of the checkpoint filepath:")
-                print(os.listdir("/" + "/".join(checkpoint_filepath.split("/")[:-1])))
-                pass
-
-
-            earlystopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
-                                                                      patience=20,
-                                                                      restore_best_weights=True)
-            log_dir = outdir + "/logs/fit/seed_" + str(seed) + "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-            # sheepish_mkdir(log_dir)
-            # pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{log_dir}/job{i}")
-
-            tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-
-            model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
-                      batch_size=batchsize,
-                      epochs=1000,
-                      callbacks=[earlystopping_callback, tensorboard_callback, model_checkpoint_callback],
-                      sample_weight=tr_cw,
-                      verbose=1,
-                      validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
-            pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
-            # initialize the loss and the optimizer
-            loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-            loss = loss_object(yte, pred)
-            loss_v2 = ce(yte, pred)
-
-            hps += (float(loss),)
-            hps += (time.time() - start_time,)
-            hps += (loss_v2,)
-            print(f"**************\n\n v2 loss was {loss_v2} \n******************")
-            outdict = dict(weights=model.get_weights(),
-                           hps=hps)
-            write_pickle(outdict, f"{ALdir}/model_{batchstring}_{seed}.pkl")
-
-            catprop = np.mean([np.mean(x[:, 1]) for x in pred])
-
-            print(f"at {datetime.datetime.now()}")
-            print(f"test loss: {loss}")
-            print("quantiles of the common category")
+            # initialize the bias terms with the logits of the proportions
+            w = model.get_weights()
+            # set the bias terms to the proportions
             for i in range(4):
-                print(np.quantile([pred[i][:, 1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
+                props = np.array([inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == -1)),
+                                  inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 0)),
+                                  inv_logit(np.mean(df.loc[df.note.isin(trnotes), out_varnames[i]] == 1))])
+                pos = 7 - i * 2
+                w[-pos] = w[-pos] * 0 + props
+            model.set_weights(w)
 
-            tf.keras.backend.clear_session()
+            model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
+                          loss={'Msk_prob': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                                'Nutrition': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                                'Resp_imp': tf.keras.losses.CategoricalCrossentropy(from_logits=False),
+                                'Fall_risk': tf.keras.losses.CategoricalCrossentropy(from_logits=False)})
 
-        except Exception as e:
-            # put the borken job back on the shelf
-            pd.DataFrame({"seed": seed}, index=[seed]).to_csv(f"{ALdir}TBD/job{seed}")
-            send_message_to_slack(e)
-            print(e)
-            logf = open(f"{logdir}seed{seed}.log", "w")
-            logf.write(str(e))
-            logf.close()
+        # checkpoint the models so that they can restart mid-stride
+        # make a directory for each model's checkpoints
+        # check for the presence of a checkpoint, and load it if it exists
+        checkpoint_filepath = f"{ALdir}ckpt{seed}/checkpoint"
+        sheepish_mkdir("/" + "/".join(checkpoint_filepath.split("/")[:-1]))
+        # model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        #     filepath=checkpoint_filepath,
+        #     save_weights_only=True,
+        #     monitor='val_loss',
+        #     save_best_only=True)
 
-        n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
+        try:
+            model.load_weights(checkpoint_filepath)
+            print('loaded weights from previous go-round')
+        except:
+            print("didn't find any previous weights.  here's the contents of the checkpoint filepath:")
+            print(os.listdir("/" + "/".join(checkpoint_filepath.split("/")[:-1])))
+            pass
+
+
+        # earlystopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+        #                                                           patience=20,
+        #                                                           restore_best_weights=True)
+        log_dir = outdir + "/logs/fit/seed_" + str(seed) + "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        # sheepish_mkdir(log_dir)
+        # pd.DataFrame({"seed": int(i)}, index=[i]).to_csv(f"{log_dir}/job{i}")
+
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+        model.fit([Xtr_np, Xtr_p] if hps[5] is True else Xtr, ytr,
+                  batch_size=32,
+                  epochs=10000,
+                  callbacks=[tensorboard_callback],
+                  sample_weight=tr_cw,
+                  verbose=1,
+                  validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
+        pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
+        # initialize the loss and the optimizer
+        loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
+        loss = loss_object(yte, pred)
+
+        hps += (float(loss),)
+        hps += (time.time() - start_time,)
+        outdict = dict(weights=model.get_weights(),
+                       hps=hps)
+        write_pickle(outdict, f"{ALdir}/model_{batchstring}_{seed}.pkl")
+
+        catprop = np.mean([np.mean(x[:, 1]) for x in pred])
+
+        print(f"at {datetime.datetime.now()}")
+        print(f"test loss: {loss}")
+        print("quantiles of the common category")
+        for i in range(4):
+            print(np.quantile([pred[i][:, 1]], [.1, .2, .3, .4, .5, .6, .7, .8, .9]))
+
+        tf.keras.backend.clear_session()
+
+    except Exception as e:
+        # put the borken job back on the shelf
+        pd.DataFrame({"seed": seed}, index=[seed]).to_csv(f"{ALdir}TBD/job{seed}")
+        send_message_to_slack(e)
+        print(e)
+        logf = open(f"{logdir}seed{seed}.log", "w")
+        logf.write(str(e))
+        logf.close()
+    n_remaining = len(os.listdir(f"{ALdir}/TBD/"))
 
     # """
     # Now figure out the winner and ingest the unlabeled notes
