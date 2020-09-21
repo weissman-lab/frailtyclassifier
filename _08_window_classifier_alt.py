@@ -101,6 +101,8 @@ for i in list(df2.note.unique()):
 df2['window'] = window3
 
 #split into 10 folds, each containing different notes
+#sort notes before randomly splitting in order to standardize the random split based on the seed
+df2.sort_values('note')
 notes=list(df2.note.unique())
 random.seed(942020)
 np.random.shuffle(notes)
