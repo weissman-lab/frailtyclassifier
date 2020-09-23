@@ -2,12 +2,8 @@ library(data.table)
 library(ranger)
 library(dplyr)
 library(tidyr)
-library(ggplot2)
-library(gmish)
 library(doParallel)
 registerDoParallel(detectCores())
-
-knitr::opts_chunk$set(echo = FALSE)
 
 workdir <- paste0(getwd(), '/')
 outdir <- paste0(getwd(), '/')
