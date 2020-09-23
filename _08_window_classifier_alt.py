@@ -106,88 +106,77 @@ df2.sort_values('note')
 notes=list(df2.note.unique())
 random.seed(942020)
 np.random.shuffle(notes)
-fold1 = list(np.array_split(notes, 10)[0])
-fold2 = list(np.array_split(notes, 10)[1])
-fold3 = list(np.array_split(notes, 10)[2])
-fold4 = list(np.array_split(notes, 10)[3])
-fold5 = list(np.array_split(notes, 10)[4])
-fold6 = list(np.array_split(notes, 10)[5])
-fold7 = list(np.array_split(notes, 10)[6])
-fold8 = list(np.array_split(notes, 10)[7])
-fold9 = list(np.array_split(notes, 10)[8])
-fold10 = list(np.array_split(notes, 10)[9])
+
 
 ##### CROSS-VALIDATION #####
-# All steps beyond this point must be performed separately for each c-v fold
+# All steps past this point must be performed separately for each c-v fold
 
-# Identify training (k-1) folds and test fold
-f1_tr = df2[~df2.note.isin(fold1)]
-f1_te = df2[df2.note.isin(fold1)]
+for f in range(2):
+    #split fold
+    fold = list(np.array_split(notes, 10)[f])
+    # Identify training (k-1) folds and test fold
+    f_tr = df2[~df2.note.isin(fold)]
+    f_te = df2[df2.note.isin(fold)]
 
-# get a vector of caseweights for each frailty aspect
-# weight non-neutral tokens by the inverse of their prevalence
-# e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
-f1_tr_cw = {}
-for v in out_varnames:
-    non_neutral = np.array(np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
-        ('float32')
-    nnweight = 1 / np.mean(non_neutral[~df2.note.isin(fold1)])
-    caseweights = np.ones(df2.shape[0])
-    caseweights[non_neutral.astype(bool)] *= nnweight
-    tr_caseweights = caseweights[~df2.note.isin(fold1)]
-    f1_tr_cw[f'{v}_cw'] = tr_caseweights
-#make cw df
-f1_tr_cw = pd.DataFrame(f1_tr_cw)
+    # get a vector of caseweights for each frailty aspect
+    # weight non-neutral tokens by the inverse of their prevalence
+    # e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
+    f_tr_cw = {}
+    for v in out_varnames:
+        non_neutral = np.array(
+            np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
+            ('float32')
+        nnweight = 1 / np.mean(non_neutral[~df2.note.isin(fold)])
+        caseweights = np.ones(df2.shape[0])
+        caseweights[non_neutral.astype(bool)] *= nnweight
+        tr_caseweights = caseweights[~df2.note.isin(fold)]
+        f_tr_cw[f'{v}_cw'] = tr_caseweights
+    # make cw df
+    f_tr_cw = pd.DataFrame(f_tr_cw)
 
-# Convert text into matrix of tf-idf features:
-# id documents
-tr_docs = f1_tr['window'].tolist()
-# instantiate countvectorizer (turn off default stopwords)
-cv = CountVectorizer(analyzer='word', stop_words=None)
-# compute tf
-f1_tr_tf = cv.fit_transform(tr_docs)
-# id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
-cuttext = '_was_here_but_got_cut'
-stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
-#repeat countvec with full list of stopwords
-cv = CountVectorizer(analyzer='word', stop_words=stopw)
-# fit to data, then transform to count matrix
-f1_tr_tf = cv.fit_transform(tr_docs)
-# fit to count matrix, then transform to tf-idf representation
-tfidf_transformer = TfidfTransformer()
-f1_tr_tfidf = tfidf_transformer.fit_transform(f1_tr_tf)
+    # Convert text into matrix of tf-idf features:
+    # id documents
+    tr_docs = f_tr['window'].tolist()
+    # instantiate countvectorizer (turn off default stopwords)
+    cv = CountVectorizer(analyzer='word', stop_words=None)
+    # compute tf
+    f_tr_tf = cv.fit_transform(tr_docs)
+    # id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
+    cuttext = '_was_here_but_got_cut'
+    stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
+    # repeat countvec with full list of stopwords
+    cv = CountVectorizer(analyzer='word', stop_words=stopw)
+    # fit to data, then transform to count matrix
+    f_tr_tf = cv.fit_transform(tr_docs)
+    # fit to count matrix, then transform to tf-idf representation
+    tfidf_transformer = TfidfTransformer()
+    f_tr_tfidf = tfidf_transformer.fit_transform(f_tr_tf)
 
-# apply feature extraction to test set (do NOT fit on test data)
-te_docs = f1_te['window'].tolist()
-f1_te_tf = cv.transform(te_docs)
-f1_te_tfidf = tfidf_transformer.transform(f1_te_tf)
+    # apply feature extraction to test set (do NOT fit on test data)
+    te_docs = f_te['window'].tolist()
+    f_te_tf = cv.transform(te_docs)
+    f_te_tfidf = tfidf_transformer.transform(f_te_tf)
 
-# dimensionality reduction with truncated SVD
-svd_50 = TruncatedSVD(n_components=50, n_iter=5, random_state=9082020)
-svd_300 = TruncatedSVD(n_components=300, n_iter=5, random_state=9082020)
-svd_1000 = TruncatedSVD(n_components=1000, n_iter=5, random_state=9082020)
-# fit to training data & transform
-f1_tr_svd50 = pd.DataFrame(svd_50.fit_transform(f1_tr_tfidf))
-f1_tr_svd300 = pd.DataFrame(svd_300.fit_transform(f1_tr_tfidf))
-f1_tr_svd1000 = pd.DataFrame(svd_1000.fit_transform(f1_tr_tfidf))
-# transform test data (do NOT fit on test data)
-f1_te_svd50 = pd.DataFrame(svd_50.transform(f1_te_tfidf))
-f1_te_svd300 = pd.DataFrame(svd_300.transform(f1_te_tfidf))
-f1_te_svd1000 = pd.DataFrame(svd_1000.transform(f1_te_tfidf))
+    # dimensionality reduction with truncated SVD
+    svd_50 = TruncatedSVD(n_components=50, n_iter=5, random_state=9082020)
+    svd_300 = TruncatedSVD(n_components=300, n_iter=5, random_state=9082020)
+    svd_1000 = TruncatedSVD(n_components=1000, n_iter=5, random_state=9082020)
+    # fit to training data & transform
+    f_tr_svd50 = pd.DataFrame(svd_50.fit_transform(f_tr_tfidf))
+    f_tr_svd300 = pd.DataFrame(svd_300.fit_transform(f_tr_tfidf))
+    f_tr_svd1000 = pd.DataFrame(svd_1000.fit_transform(f_tr_tfidf))
+    # transform test data (do NOT fit on test data)
+    f_te_svd50 = pd.DataFrame(svd_50.transform(f_te_tfidf))
+    f_te_svd300 = pd.DataFrame(svd_300.transform(f_te_tfidf))
+    f_te_svd1000 = pd.DataFrame(svd_1000.transform(f_te_tfidf))
 
-
-## Output for r
-f1_tr.to_csv(f"{outdir}_08_window_classifier_alt/f1_tr_df.csv")
-f1_te.to_csv(f"{outdir}_08_window_classifier_alt/f1_te_df.csv")
-f1_tr_cw.to_csv(f"{outdir}_08_window_classifier_alt/f1_tr_cw.csv")
-f1_tr_svd50.to_csv(f"{outdir}_08_window_classifier_alt/f1_tr_svd50.csv")
-f1_tr_svd300.to_csv(f"{outdir}_08_window_classifier_alt/f1_tr_svd300.csv")
-f1_tr_svd1000.to_csv(f"{outdir}_08_window_classifier_alt/f1_tr_svd1000.csv")
-f1_te_svd50.to_csv(f"{outdir}_08_window_classifier_alt/f1_te_svd50.csv")
-f1_te_svd300.to_csv(f"{outdir}_08_window_classifier_alt/f1_te_svd300.csv")
-f1_te_svd1000.to_csv(f"{outdir}_08_window_classifier_alt/f1_te_svd1000.csv")
-# no longer exporting the full tfidf sparse matrices
-#scipy.io.mmwrite(f"{outdir}/tr_df_tfidf.mtx", tr_df_tfidf)
-#scipy.io.mmwrite(f"{outdir}/te_df_tfidf.mtx", te_df_tfidf)
-
-
+    ## Output for r
+    f_tr.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_df.csv")
+    f_te.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_te_df.csv")
+    f_tr_cw.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_cw.csv")
+    f_tr_svd50.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_svd50.csv")
+    f_tr_svd300.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_svd300.csv")
+    f_tr_svd1000.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_svd1000.csv")
+    f_te_svd50.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_te_svd50.csv")
+    f_te_svd300.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_te_svd300.csv")
+    f_te_svd1000.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_te_svd1000.csv")
