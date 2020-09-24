@@ -52,7 +52,7 @@ notes_2018_in_cndf = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) in ui
 notes_excluded = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) not in uidstr]
 assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 
-df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
+df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
 
 # define some useful constants
@@ -107,10 +107,8 @@ notes=list(df2.note.unique())
 random.seed(942020)
 np.random.shuffle(notes)
 
-
 ##### CROSS-VALIDATION #####
 # All steps past this point must be performed separately for each c-v fold
-
 for f in range(2):
     #split fold
     fold = list(np.array_split(notes, 10)[f])
