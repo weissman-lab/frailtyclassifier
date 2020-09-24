@@ -10,8 +10,10 @@ from sklearn.decomposition import TruncatedSVD
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-datadir = f"{os.getcwd()}/data/"
-outdir = f"{os.getcwd()}/output/"
+#datadir = f"{os.getcwd()}/data/"
+#outdir = f"{os.getcwd()}/output/"
+datadir = "/media/drv2/andrewcd2/frailty/output/"
+outdir = f"{os.getcwd()}/output/_08_window_classifier_alt/"
 
 def slidingWindow(sequence, winSize, step=1):
     """Returns a generator that will iterate through
@@ -37,12 +39,12 @@ def slidingWindow(sequence, winSize, step=1):
 
 
 # load the notes from 2018
-notes_2018 = [i for i in os.listdir(outdir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
+notes_2018 = [i for i in os.listdir(datadir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
 
 # drop the notes that aren't in the concatenated notes data frame
 # some notes got labeled and embedded but were later removed from the pipeline 
 # on July 14 2020, due to the inclusion of the 12-month ICD lookback
-cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
+cndf = pd.read_pickle(f"{datadir}conc_notes_df.pkl")
 cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
 cndf['month'] = cndf.LATEST_TIME.dt.month + (
     cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
@@ -52,7 +54,7 @@ notes_2018_in_cndf = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) in ui
 notes_excluded = [i for i in notes_2018 if "_".join(i.split("_")[-2:]) not in uidstr]
 assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 
-df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018_in_cndf])
+df = pd.concat([pd.read_csv(datadir + "notes_labeled_embedded/" + i) for i in notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
 
 # define some useful constants
