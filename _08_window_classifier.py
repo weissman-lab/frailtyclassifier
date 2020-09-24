@@ -178,13 +178,14 @@ if __name__ == '__main__':
 
     # write_txt(",".join(["_".join(i.split("_")[-2:]) for i in notes_excluded]), f"{outdir}cull_list_15jul.txt")
 
-    df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018])
+    df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded/" + i) for i in notes_2018_in_cndf])
+
     df.drop(columns='Unnamed: 0', inplace=True)
 
     # split into training and validation
     np.random.seed(mainseed)
-    trnotes = np.random.choice(notes_2018, len(notes_2018) * 2 // 3, replace=False)
-    tenotes = [i for i in notes_2018 if i not in trnotes]
+    trnotes = np.random.choice(notes_2018_in_cndf, len(notes_2018_in_cndf) * 2 // 3, replace=False)
+    tenotes = [i for i in notes_2018_in_cndf if i not in trnotes]
     trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
     tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
 
@@ -205,6 +206,7 @@ if __name__ == '__main__':
             np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
             ('float32')
         nnweight = 1 / np.mean(non_neutral[df.note.isin(trnotes)])
+        print(np.mean(non_neutral[df.note.isin(trnotes)]))
         caseweights = np.ones(df.shape[0])
         caseweights[non_neutral.astype(bool)] *= nnweight
         tr_caseweights = caseweights[df.note.isin(trnotes)]

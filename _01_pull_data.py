@@ -91,7 +91,6 @@ def wrapper(ids):
     out.to_pickle(f"{outdir}tmp/notes_{'_'.join(ids)}.pkl")
 
 
-
 pool = mp.Pool(mp.cpu_count())
 start = time.time()
 pool.map(wrapper, tbd, chunksize=1)
