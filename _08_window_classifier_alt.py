@@ -6,6 +6,9 @@ import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.decomposition import TruncatedSVD
+from timeit import default_timer as timer
+
+start = timer()
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -111,7 +114,7 @@ np.random.shuffle(notes)
 
 ##### CROSS-VALIDATION #####
 # All steps past this point must be performed separately for each c-v fold
-for f in range(9):
+for f in range(10):
     #split fold
     fold = list(np.array_split(notes, 10)[f])
     # Identify training (k-1) folds and test fold
@@ -180,3 +183,9 @@ for f in range(9):
     f_te_svd50.to_csv(f"{outdir}f_{f+1}_te_svd50.csv")
     f_te_svd300.to_csv(f"{outdir}f_{f+1}_te_svd300.csv")
     f_te_svd1000.to_csv(f"{outdir}f_{f+1}_te_svd1000.csv")
+
+end = timer()
+duration = end - start
+f = open(f"{outdir}duration_08_window_classifier_alt_py.txt", "w")
+f.write(str(duration))
+f.close()
