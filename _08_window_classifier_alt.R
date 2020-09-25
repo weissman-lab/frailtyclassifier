@@ -7,6 +7,7 @@ registerDoParallel(detectCores())
 
 workdir <- paste0(getwd(), '/')
 outdir <- paste0(getwd(), '/')
+predsdir <- paste0(outdir, 'preds/')
 
 
 #brier score function
@@ -24,7 +25,7 @@ cross_entropy <- function(obs, pred){
 
 
 seed = 92120
-folds <- seq(1, 2)
+folds <- 1
 svd <- c(50, 300, 1000)
 frail_lab <- c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition')
 
@@ -38,19 +39,21 @@ for (d in 1:length(folds)) {
   #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
   assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(outdir, 'f_', folds[d], '_tr_cw.csv')))
   
-  #hyper grid
+  #real hyper grid
   # hyper_grid <- expand.grid(
   #   ntree      = signif(seq(10, 1000, length.out = 5), 0),
   #   mtry       = seq(2, 50, length.out = 5),
   #   node_size  = signif(seq(1, 15, length.out = 5), 1)
   # )
-  #smallest hyper grid
+
+  #small hyper grid
   hyper_grid <- expand.grid(
-    ntree      = 1,
-    mtry       = 1,
-    node_size  = 1
+    ntree      = signif(seq(2, 5, length.out = 5), 0),
+    mtry       = signif(seq(2, 5, length.out = 5), 0),
+    node_size  = signif(seq(1, 2, length.out = 5), 1)
   )
   
+
   hyper_grid5 = data.frame()
   
   for (f in 1:length(frail_lab)) {
@@ -66,10 +69,10 @@ for (d in 1:length(folds)) {
         #get matching training and test data
         x_train <- get(paste0('f', folds[d], '_tr_svd', svd[s]))
         x_test <- get(paste0('f', folds[d], '_te_svd', svd[s]))
-        y_train <- f1_tr[[paste0(frail_lab[f])]]
-        y_test_neut <- f1_te[[paste0(frail_lab[f], '_0')]]
-        y_test_pos <- f1_te[[paste0(frail_lab[f], '_1')]]
-        y_test_neg <- f1_te[[paste0(frail_lab[f], '_-1')]]
+        y_train <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f])]]
+        y_test_neut <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_0')]]
+        y_test_pos <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_1')]]
+        y_test_neg <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_-1')]]
         y_test <- cbind(y_test_neut, y_test_pos, y_test_neg)
         #get matching caseweights
         cw <- get(paste0('f', folds[d], '_tr_cw'))[[paste0(frail_lab[f], '_cw')]]
@@ -93,6 +96,9 @@ for (d in 1:length(folds)) {
         
         #make predictions on test fold
         preds <- predict(frail_rf, data=x_test)$predictions
+        
+        #save predictions
+        saveRDS(preds, paste0(predsdir, 'preds_', folds[d], '_', frail_lab[f], '_', svd[s], '_', i, '.rda'))
         
         #cv brier score for all classes (currently fold 1)
         hyper_grid$cv_brier_all[i] <- brier_score(
@@ -140,8 +146,6 @@ for (d in 1:length(folds)) {
     }
   }
   #save after completing the other iterations
-  saveRDS(get(paste0('hyper_fold_', d)), paste0(outdir, 'hyper_fold_', folds[d], '.rda'))
-  
   write.csv(get(paste0('hyper_fold_', d)), paste0(outdir, 'hyper_fold_', folds[d], '.csv'))
 }
 
