@@ -111,7 +111,7 @@ np.random.shuffle(notes)
 
 ##### CROSS-VALIDATION #####
 # All steps past this point must be performed separately for each c-v fold
-for f in range(2):
+for f in range(9):
     #split fold
     fold = list(np.array_split(notes, 10)[f])
     # Identify training (k-1) folds and test fold
@@ -171,12 +171,12 @@ for f in range(2):
     f_te_svd1000 = pd.DataFrame(svd_1000.transform(f_te_tfidf))
 
     ## Output for r
-    f_tr.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_df.csv")
-    f_te.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_te_df.csv")
-    f_tr_cw.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_cw.csv")
-    f_tr_svd50.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_svd50.csv")
-    f_tr_svd300.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_svd300.csv")
-    f_tr_svd1000.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_tr_svd1000.csv")
-    f_te_svd50.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_te_svd50.csv")
-    f_te_svd300.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_te_svd300.csv")
-    f_te_svd1000.to_csv(f"{outdir}_08_window_classifier_alt/f_{f+1}_te_svd1000.csv")
+    f_tr.to_csv(f"{outdir}f_{f+1}_tr_df.csv")
+    f_te.to_csv(f"{outdir}f_{f+1}_te_df.csv")
+    f_tr_cw.to_csv(f"{outdir}f_{f+1}_tr_cw.csv")
+    f_tr_svd50.to_csv(f"{outdir}f_{f+1}_tr_svd50.csv")
+    f_tr_svd300.to_csv(f"{outdir}f_{f+1}_tr_svd300.csv")
+    f_tr_svd1000.to_csv(f"{outdir}f_{f+1}_tr_svd1000.csv")
+    f_te_svd50.to_csv(f"{outdir}f_{f+1}_te_svd50.csv")
+    f_te_svd300.to_csv(f"{outdir}f_{f+1}_te_svd300.csv")
+    f_te_svd1000.to_csv(f"{outdir}f_{f+1}_te_svd1000.csv")
