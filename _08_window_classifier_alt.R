@@ -7,7 +7,6 @@ registerDoParallel(detectCores())
 
 workdir <- paste0(getwd(), '/')
 outdir <- paste0(getwd(), '/')
-predsdir <- paste0(outdir, 'preds/')
 
 
 #brier score function
@@ -16,18 +15,28 @@ brier_score <- function(obs, pred) {
 }
 
 #cross-entropy function
-cross_entropy <- function(obs, pred){
+cross_entropy_1 <- function(obs, pred){
   plus <- obs * log(pred)
   minus <- (1-obs) * (log (1-pred))
   mat <- cbind(plus, minus)
   mean(rowSums(mat))
 }
 
+#re-writing as -ylog(yhat) - (1-y)log(1-yhat)
+cross_entropy_2 <- function(obs, pred){
+  plus <- -1 * (obs * log(pred))
+  minus <- -1 * ((1-obs) * (log (1-pred)))
+  mat <- cbind(plus, minus)
+  mean(rowSums(mat))
+}
+
 
 seed = 92120
-folds <- 1
+folds <- seq(1,10)
 svd <- c(50, 300, 1000)
 frail_lab <- c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition')
+
+start_time <- Sys.time()
 
 for (d in 1:length(folds)) {
   
@@ -41,20 +50,24 @@ for (d in 1:length(folds)) {
   
   #real hyper grid
   # hyper_grid <- expand.grid(
-  #   ntree      = signif(seq(10, 1000, length.out = 5), 0),
-  #   mtry       = seq(2, 50, length.out = 5),
-  #   node_size  = signif(seq(1, 15, length.out = 5), 1)
+  #   ntree      = signif(seq(10, 500, length.out = 4), 0),
+  #   mtry       = seq(2, 50, length.out = 4),
+  #   node_size  = signif(seq(1, 12, length.out = 4), 1)
   # )
 
   #small hyper grid
-  hyper_grid <- expand.grid(
-    ntree      = signif(seq(2, 5, length.out = 5), 0),
-    mtry       = signif(seq(2, 5, length.out = 5), 0),
-    node_size  = signif(seq(1, 2, length.out = 5), 1)
-  )
+  # hyper_grid <- expand.grid(
+  # ntree      = signif(seq(2, 5, length.out = 5), 0),
+  # mtry       = signif(seq(2, 5, length.out = 5), 0),
+  # node_size  = signif(seq(1, 2, length.out = 5), 1)
+  # )
   
-
-  hyper_grid5 = data.frame()
+  #smallest hyper grid
+  hyper_grid <- expand.grid(
+    ntree      = 1,
+    mtry       = 1,
+    node_size  = 1
+  )
   
   for (f in 1:length(frail_lab)) {
     
@@ -97,9 +110,6 @@ for (d in 1:length(folds)) {
         #make predictions on test fold
         preds <- predict(frail_rf, data=x_test)$predictions
         
-        #save predictions
-        saveRDS(preds, paste0(predsdir, 'preds_', folds[d], '_', frail_lab[f], '_', svd[s], '_', i, '.rda'))
-        
         #cv brier score for all classes (currently fold 1)
         hyper_grid$cv_brier_all[i] <- brier_score(
           c(y_test_neut, y_test_pos, y_test_neg), 
@@ -119,7 +129,8 @@ for (d in 1:length(folds)) {
         preds_ce[preds_ce==0] <- 1e-3
         preds_ce[preds_ce==1] <- 0.999
         
-        hyper_grid$cross_entropy[i] <- cross_entropy(y_test, preds_ce)
+        hyper_grid$cross_entropy_1[i] <- cross_entropy_1(y_test, preds_ce)
+        hyper_grid$cross_entropy_2[i] <- cross_entropy_2(y_test, preds_ce)
       }
       
       hyper_grid2 <- hyper_grid
@@ -148,4 +159,12 @@ for (d in 1:length(folds)) {
   #save after completing the other iterations
   write.csv(get(paste0('hyper_fold_', d)), paste0(outdir, 'hyper_fold_', folds[d], '.csv'))
 }
+
+#calculate run time
+end_time <- Sys.time()
+duration <- difftime(end_time, start_time, units = 'sec')
+run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
+#save
+write(run_time, paste0(outdir, 'duration_winclass_alt_r.txt'))
+
 
