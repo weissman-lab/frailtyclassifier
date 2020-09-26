@@ -8,8 +8,6 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.decomposition import TruncatedSVD
 from timeit import default_timer as timer
 
-start = timer()
-
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
@@ -112,6 +110,9 @@ notes=list(df2.note.unique())
 random.seed(942020)
 np.random.shuffle(notes)
 
+#start timing tf-idf modeling strategy
+start = timer()
+
 ##### CROSS-VALIDATION #####
 # All steps past this point must be performed separately for each c-v fold
 for f in range(10):
@@ -186,6 +187,6 @@ for f in range(10):
 
 end = timer()
 duration = end - start
-f = open(f"{outdir}duration_08_window_classifier_alt_py.txt", "w")
+f = open(f"{outdir}duration_winclass_alt_py.txt", "w")
 f.write(str(duration))
 f.close()
