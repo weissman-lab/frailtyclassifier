@@ -5,8 +5,7 @@ library(tidyr)
 library(doParallel)
 registerDoParallel(detectCores())
 
-workdir <- paste0(getwd(), '/')
-outdir <- paste0(getwd(), '/')
+outdir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
 
 
 #brier score function
@@ -32,9 +31,11 @@ cross_entropy_2 <- function(obs, pred){
 
 
 seed = 92120
-folds <- seq(1,10)
+folds <- seq(1, 10)
 svd <- c(50, 300, 1000)
-frail_lab <- c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition')
+#frail_lab <- c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition')
+frail_lab <- 'Resp_imp'
+
 
 start_time <- Sys.time()
 
@@ -48,26 +49,19 @@ for (d in 1:length(folds)) {
   #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
   assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(outdir, 'f_', folds[d], '_tr_cw.csv')))
   
-  #real hyper grid
-  # hyper_grid <- expand.grid(
-  #   ntree      = signif(seq(10, 500, length.out = 4), 0),
-  #   mtry       = seq(2, 50, length.out = 4),
-  #   node_size  = signif(seq(1, 12, length.out = 4), 1)
-  # )
-
-  #small hyper grid
-  # hyper_grid <- expand.grid(
-  # ntree      = signif(seq(2, 5, length.out = 5), 0),
-  # mtry       = signif(seq(2, 5, length.out = 5), 0),
-  # node_size  = signif(seq(1, 2, length.out = 5), 1)
-  # )
-  
-  #smallest hyper grid
+  #hyper grid
   hyper_grid <- expand.grid(
-    ntree      = 1,
-    mtry       = 1,
-    node_size  = 1
+    ntree           = 300,
+    mtry            = signif(seq(7, 45, length.out = 4), 2),
+    sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
   )
+
+  #tree grid
+  # hyper_grid <- expand.grid(
+  #   ntree      = signif(seq(100, 700, length.out = 4), 0),
+  #   mtry       = 20,
+  #   node_size  = 10
+  # )  
   
   for (f in 1:length(frail_lab)) {
     
@@ -96,7 +90,9 @@ for (d in 1:length(folds)) {
                            probability = TRUE,
                            num.trees = hyper_grid$ntree[i],
                            mtry = hyper_grid$mtry[i],
-                           min.node.size = hyper_grid$node_size[i],
+                           sample.fraction = hyper_grid$sample_frac[i],
+                           #leaving node size as default
+                           #min.node.size = hyper_grid$node_size[i],
                            #implemented class.weights rather than case.weights
                            #in order of outcome factor levels
                            class.weights = as.integer(c(levels(factor(cw))[1], levels(factor(cw))[2], levels(factor(cw))[2])),
