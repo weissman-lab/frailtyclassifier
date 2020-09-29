@@ -33,8 +33,7 @@ cross_entropy_2 <- function(obs, pred){
 seed = 92120
 folds <- seq(1, 10)
 svd <- c(50, 300, 1000)
-#frail_lab <- c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition')
-frail_lab <- 'Resp_imp'
+frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 
 
 start_time <- Sys.time()
@@ -62,14 +61,21 @@ for (d in 1:length(folds)) {
   #   mtry       = 20,
   #   node_size  = 10
   # )  
+
+  #very small grid
+  # hyper_grid <- expand.grid(
+  #   ntree           = 2,
+  #   mtry            = 1,
+  #   sample_frac = .2
+  # )
   
   for (f in 1:length(frail_lab)) {
     
     for(s in 1:length(svd)) {
       
-      #load truncated SVD of tf-idf of text & remove first row (error)
-      assign(paste0('f', folds[d], '_tr_svd', svd[s]), fread(paste0(outdir, 'f_', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1))
-      assign(paste0('f', folds[d], '_te_svd', svd[s]), fread(paste0(outdir, 'f_', folds[d], '_te_svd', svd[s], '.csv'), skip = 1))
+      #load truncated SVD of tf-idf of text & remove first row and first column (junk)
+      assign(paste0('f', folds[d], '_tr_svd', svd[s]), fread(paste0(outdir, 'f_', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1))
+      assign(paste0('f', folds[d], '_te_svd', svd[s]), fread(paste0(outdir, 'f_', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
       
       for(i in 1:nrow(hyper_grid)) {
         
@@ -93,10 +99,11 @@ for (d in 1:length(folds)) {
                            sample.fraction = hyper_grid$sample_frac[i],
                            #leaving node size as default
                            #min.node.size = hyper_grid$node_size[i],
-                           #implemented class.weights rather than case.weights
-                           #in order of outcome factor levels
-                           class.weights = as.integer(c(levels(factor(cw))[1], levels(factor(cw))[2], levels(factor(cw))[2])),
+                           #class.weights in order of outcome factor levels
+                           #class.weights = as.integer(c(levels(factor(cw))[1], levels(factor(cw))[2], levels(factor(cw))[2])),
                            #later, can set oob.error=FALSE to save time/memory (using CV error)
+                           #case.weights
+                           case.weights = cw,
                            oob.error = TRUE,
                            seed = seed)
         
@@ -106,18 +113,17 @@ for (d in 1:length(folds)) {
         #make predictions on test fold
         preds <- predict(frail_rf, data=x_test)$predictions
         
-        #cv brier score for all classes (currently fold 1)
+        #cv brier score for all classes
         hyper_grid$cv_brier_all[i] <- brier_score(
           c(y_test_neut, y_test_pos, y_test_neg), 
           c(preds[,'0'], preds[,'1'], preds[,'-1']))
         
-        #cv brier score for each class (currently fold 1)
+        #cv brier score for each class
         hyper_grid$cv_brier_neut[i] <- brier_score(y_test_neut, preds[,'0'])
         
         hyper_grid$cv_brier_pos[i] <- brier_score(y_test_pos, preds[,'1'])
         
         hyper_grid$cv_brier_neg[i] <- brier_score(y_test_neg, preds[,'-1'])
-        
         
         #calculate cross-entropy
         preds_ce <- preds
@@ -145,18 +151,26 @@ for (d in 1:length(folds)) {
     hyper_grid4 <- get(paste0('hyper_grid_d', d, '_f', f))
     hyper_grid4$frail_lab <- frail_lab[f]
     
-    if (exists(paste0('hyper_fold_', d)) == FALSE) {
-      assign(paste0('hyper_fold_', d), hyper_grid4)
+    if (exists(paste0('hyper_', frail_lab[f], '_fold_', d)) == FALSE) {
+      assign(paste0('hyper_', frail_lab[f], '_fold_', d), hyper_grid4)
     } else{
       #add new results from each aspect loop
-      assign(paste0('hyper_fold_', d), rbind(get(paste0('hyper_fold_', d)), hyper_grid4))
+      assign(paste0('hyper_', frail_lab[f], '_fold_', d), rbind(get(paste0('hyper_', frail_lab[f], '_fold_', d)), hyper_grid4))
     }
+    
+    #save each fold for each aspect
+    write.csv(get(paste0('hyper_', frail_lab[f], '_fold_', d)), paste0(outdir, 'hyper_', frail_lab[f], '_fold_', d, '.csv'))
+    
+    #calculate & save run time for each fold for each aspect
+    end_time <- Sys.time()
+    duration <- difftime(end_time, start_time, units = 'sec')
+    run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
+    #save
+    write(run_time, paste0(outdir, 'duration_hyper_', frail_lab[f], '_fold_', d, '.txt'))
   }
-  #save after completing the other iterations
-  write.csv(get(paste0('hyper_fold_', d)), paste0(outdir, 'hyper_fold_', folds[d], '.csv'))
 }
 
-#calculate run time
+#calculate total run time
 end_time <- Sys.time()
 duration <- difftime(end_time, start_time, units = 'sec')
 run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
