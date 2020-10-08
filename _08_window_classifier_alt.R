@@ -16,6 +16,11 @@ exp <- '100820'
 #Include structured data?
 inc_struc = FALSE
 
+#Update exp number to indicate unstructured/structured
+if (inc_struc == FALSE) {
+exp <- paste0(exp, 'un')
+} else {exp <- paste0(exp, 'str')}
+
 
 
 
