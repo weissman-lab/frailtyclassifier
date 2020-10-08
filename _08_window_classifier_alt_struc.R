@@ -99,6 +99,17 @@ for (d in 1:length(folds)) {
       assign(paste0('f', folds[d], '_te_svd', svd[s]), fread(paste0(datadir, 'f_', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
       
       for(i in 1:nrow(hyper_grid)) {
+        
+        
+        
+        ############### Key component that differs between _08_window_classifier_alt.R and _08_window_classifier_alt_struc.R ############### 
+        #concatenate structured data with text SVD
+        x_train <- cbind(get(paste0('f', folds[d], '_tr_svd', svd[s])), get(paste0('f', folds[d], '_tr'))[,27:82])
+        x_test <- cbind(get(paste0('f', folds[d], '_te_svd', svd[s])), get(paste0('f', folds[d], '_te'))[,27:82])
+        ############### 
+        
+        
+        
         #get matching training and test data
         y_train <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f])]]
         y_test_neut <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_0')]]
@@ -359,3 +370,4 @@ for (f in 1:length(frail_lab)) {
     write.csv(get(paste0('hyper_', frail_lab[f], '_fold_', d)), paste0(outdir, 'exp', exp, '_best_hyper_', frail_lab[f], '_fold_', d, '.csv'))
   }
 }
+
