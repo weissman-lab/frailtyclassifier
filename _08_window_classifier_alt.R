@@ -17,6 +17,7 @@ exp <- '100820'
 
 
 datadir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
+dir.create(paste0(getwd(), '/output/_08_window_classifier_alt/exp', exp, '/'))
 outdir <- paste0(getwd(), '/output/_08_window_classifier_alt/exp', exp, '/')
 
 
@@ -85,9 +86,9 @@ for (d in 1:length(folds)) {
   
   #very small grid
   hyper_grid <- expand.grid(
-    ntree           = c(2, 3),
+    ntree           = c(1, 2),
     mtry            = 1,
-    sample_frac = .2
+    sample_frac = .1
   )
   
   for (f in 1:length(frail_lab)) {
@@ -100,6 +101,8 @@ for (d in 1:length(folds)) {
       
       for(i in 1:nrow(hyper_grid)) {
         #get matching training and test data
+        x_train <- get(paste0('f', folds[d], '_tr_svd', svd[s]))
+        x_test <- get(paste0('f', folds[d], '_te_svd', svd[s]))
         y_train <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f])]]
         y_test_neut <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_0')]]
         y_test_pos <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_1')]]
