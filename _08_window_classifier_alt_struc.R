@@ -17,6 +17,7 @@ exp <- '100820'
 
 
 datadir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
+dir.create(paste0(getwd(), '/output/_08_window_classifier_alt/exp', exp, '/'))
 outdir <- paste0(getwd(), '/output/_08_window_classifier_alt/exp', exp, '/')
 
 
