@@ -8,6 +8,11 @@ registerDoParallel(detectCores())
 outdir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
 
 
+
+#Experiment number (based on date):
+exp <- '100820'
+
+
 #brier score function
 brier_score <- function(obs, pred) {
   mean((obs - pred)^2)
@@ -53,12 +58,12 @@ for (d in 1:length(folds)) {
   #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
   assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(outdir, 'f_', folds[d], '_tr_cw.csv')))
   
-  #hyper grid
-  hyper_grid <- expand.grid(
-    ntree           = 300,
-    mtry            = signif(seq(7, 45, length.out = 4), 2),
-    sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
-  )
+  # #hyper grid
+  # hyper_grid <- expand.grid(
+  #   ntree           = 300,
+  #   mtry            = signif(seq(7, 45, length.out = 4), 2),
+  #   sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
+  # )
 
   #tree grid
   # hyper_grid <- expand.grid(
@@ -68,11 +73,11 @@ for (d in 1:length(folds)) {
   # )  
 
   #very small grid
-  # hyper_grid <- expand.grid(
-  #   ntree           = 2,
-  #   mtry            = 1,
-  #   sample_frac = .2
-  # )
+  hyper_grid <- expand.grid(
+    ntree           = c(2, 3),
+    mtry            = 1,
+    sample_frac = .2
+  )
   
   for (f in 1:length(frail_lab)) {
     
@@ -174,14 +179,14 @@ for (d in 1:length(folds)) {
     }
     
     #save each fold for each aspect
-    write.csv(get(paste0('hyper_', frail_lab[f], '_fold_', d)), paste0(outdir, 'hyper_', frail_lab[f], '_fold_', d, '.csv'))
+    write.csv(get(paste0('hyper_', frail_lab[f], '_fold_', d)), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', d, '.csv'))
     
     #calculate & save run time for each fold for each aspect
     end_time <- Sys.time()
     duration <- difftime(end_time, start_time, units = 'sec')
     run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
     #save
-    write(run_time, paste0(outdir, 'duration_hyper_', frail_lab[f], '_fold_', d, '.txt'))
+    write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', frail_lab[f], '_fold_', d, '.txt'))
   }
 }
 
@@ -190,12 +195,13 @@ end_time <- Sys.time()
 duration <- difftime(end_time, start_time, units = 'sec')
 run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
 #save
-write(run_time, paste0(outdir, 'duration_winclass_alt_r.txt'))
+write(run_time, paste0(outdir, 'exp', exp, '_duration_winclass_alt_r.txt'))
 
 
 
 
-
+################
+# Pick the best hyper-parameters. Then, train RF again and save the predictions (for use in calibration curves).
 
 
 #function to get mean loss across 10 folds
@@ -287,7 +293,7 @@ for (f in 1:length(frail_lab)) {
           #make predictions on test fold
           preds <- predict(frail_rf, data=x_test)$predictions
           #save predictions for the best set of hyperparameters
-          saveRDS(preds, paste0(outdir, 'preds/BestPred_', frail_lab[f], '_fold_', folds[d], '.rda'))
+          saveRDS(preds, paste0(outdir, 'preds/', 'exp', exp, '_BestPred_', frail_lab[f], '_fold_', folds[d], '.rda'))
           
           
           #save performance metrics to compare to previous iteration
@@ -341,8 +347,6 @@ for (f in 1:length(frail_lab)) {
       }
       
       #save each fold for each aspect
-      write.csv(get(paste0('hyper_', frail_lab[f], '_fold_', d)), paste0(outdir, 'best_hyper_', frail_lab[f], '_fold_', d, '.csv'))
+      write.csv(get(paste0('hyper_', frail_lab[f], '_fold_', d)), paste0(outdir, 'exp', exp, '_best_hyper_', frail_lab[f], '_fold_', d, '.csv'))
     }
   }
-  
-
