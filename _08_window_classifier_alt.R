@@ -13,6 +13,9 @@ registerDoParallel(detectCores())
 #Experiment number (based on date):
 exp <- '100820'
 
+#Include structured data?
+inc_struc = FALSE
+
 
 
 
@@ -100,9 +103,21 @@ for (d in 1:length(folds)) {
       assign(paste0('f', folds[d], '_te_svd', svd[s]), fread(paste0(datadir, 'f_', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
       
       for(i in 1:nrow(hyper_grid)) {
-        #get matching training and test data
+        
+        
+        #load features with or without structured data
+        if (inc_struc == FALSE) {
+          #load only the SVD features
         x_train <- get(paste0('f', folds[d], '_tr_svd', svd[s]))
         x_test <- get(paste0('f', folds[d], '_te_svd', svd[s]))
+        } else {
+          #concatenate structured data with SVD
+          x_train <- cbind(get(paste0('f', folds[d], '_tr_svd', svd[s])), get(paste0('f', folds[d], '_tr'))[,27:82])
+          x_test <- cbind(get(paste0('f', folds[d], '_te_svd', svd[s])), get(paste0('f', folds[d], '_te'))[,27:82])
+        }
+        
+        
+        #get remainder of matching training and test data
         y_train <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f])]]
         y_test_neut <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_0')]]
         y_test_pos <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_1')]]
