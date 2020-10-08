@@ -25,10 +25,12 @@ exp <- paste0(exp, 'un')
 
 
 datadir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
-dir.create(paste0(getwd(), '/output/_08_window_classifier_alt/exp', exp, '/'))
+#new directory for each experiment
 outdir <- paste0(getwd(), '/output/_08_window_classifier_alt/exp', exp, '/')
-
-
+dir.create(outdir)
+#new directory for predictions
+predsdir <- paste0(outdir,'preds/')
+dir.create(predsdir)
 
 
 
@@ -132,7 +134,7 @@ for (d in 1:length(folds)) {
         cw <- get(paste0('f', folds[d], '_tr_cw'))[[paste0(frail_lab[f], '_cw')]]
         
         frail_rf <- ranger(y = factor(y_train, levels = c(0, 1, -1)), #relevel factors to match class.weights
-                           x = select(x_train, -1),
+                           x = x_train,
                            num.threads = detectCores(),
                            probability = TRUE,
                            num.trees = hyper_grid$ntree[i],
@@ -305,7 +307,7 @@ for (f in 1:length(frail_lab)) {
         cw <- get(paste0('f', folds[d], '_tr_cw'))[[paste0(frail_lab[f], '_cw')]]
         
         frail_rf <- ranger(y = factor(y_train, levels = c(0, 1, -1)), #relevel factors to match class.weights
-                           x = select(x_train, -1),
+                           x = x_train,
                            num.threads = detectCores(),
                            probability = TRUE,
                            num.trees = hyper_grid$ntree[i],
@@ -325,7 +327,7 @@ for (f in 1:length(frail_lab)) {
         #make predictions on test fold
         preds <- predict(frail_rf, data=x_test)$predictions
         #save predictions for the best set of hyperparameters
-        saveRDS(preds, paste0(outdir, 'preds/', 'exp', exp, '_BestPred_', frail_lab[f], '_fold_', folds[d], '.rda'))
+        saveRDS(preds, paste0(predsdir, 'exp', exp, '_BestPred_', frail_lab[f], '_fold_', folds[d], '.rda'))
         
         
         #save performance metrics to compare to previous iteration
