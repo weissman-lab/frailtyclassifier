@@ -2,6 +2,7 @@ library(data.table)
 library(glmnet)
 library(dplyr)
 library(tidyr)
+library(foreach)
 library(doParallel)
 registerDoParallel(detectCores())
 
@@ -11,7 +12,7 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- '101320'
+exp <- 'logit101320'
 
 #Include structured data?
 inc_struc = TRUE
@@ -23,7 +24,7 @@ if (inc_struc == FALSE) {
 
 
 
-
+#  setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 datadir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
 #new directory for each experiment
 outdir <- paste0(getwd(), '/output/_08_window_classifier_logit/exp', exp, '/')
@@ -63,10 +64,26 @@ cross_entropy_2 <- function(obs, pred){
 
 
 seed = 92120
-folds <- seq(8, 10)
+folds <- c(5, 6)
 svd <- c(50, 300, 1000)
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 
+# alpha sequence
+# alpha_seq <- c(0.9, 0.5, 0.1)
+
+# alpha seq
+alpha_seq <- 0.5
+
+#lambda seq
+#per documentation, best to supply a decreasing sequence of lambda values
+#lambda_seq <- c(10^seq(5, -2, length.out = 25))
+# 
+# d = 1
+# f = 1
+# s = 1
+# a = 1
+# c = 1
+# l = 1
 
 start_time <- Sys.time()
 
@@ -80,18 +97,22 @@ for (d in 1:length(folds)) {
   #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
   assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(datadir, 'f_', folds[d], '_tr_cw.csv')))
   
-  # hyper grid
-  # hyper_grid <- expand.grid(
-  #   alpha = c(0.9, 0.5, 0.1)
-  # )
-  
-  # small hyper grid
-  hyper_grid <- expand.grid(
-    alpha = 0.5
-  )
+  # plan:
+  # run for folds 5,6
+  # need to do CV manually - the cv.glmnet function will exploit the fact that the SVD in each fold is fit on the whole fold (not realistic in real world scenario)
+  # what does the glmnet output look like? need to save the performance of the best model. 
+  # do you need to loop over pos, neg, and neutral? 
   
   
   for (f in 1:length(frail_lab)) {
+    #get matching training and test labels
+    y_train_neut <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f], '_0')]]
+    y_train_pos <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f], '_1')]]
+    y_train_neg <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f], '_-1')]]
+    y_test_neut <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_0')]]
+    y_test_pos <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_1')]]
+    y_test_neg <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_-1')]]
+    y_test <- cbind(y_test_neut, y_test_pos, y_test_neg)
     
     for(s in 1:length(svd)) {
       
@@ -99,113 +120,100 @@ for (d in 1:length(folds)) {
       assign(paste0('f', folds[d], '_tr_svd', svd[s]), fread(paste0(datadir, 'f_', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1))
       assign(paste0('f', folds[d], '_te_svd', svd[s]), fread(paste0(datadir, 'f_', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
       
-      for(i in 1:nrow(hyper_grid)) {
-        
-        
-        #load features with or without structured data
-        if (inc_struc == FALSE) {
-          #load only the SVD features
-          x_train <- get(paste0('f', folds[d], '_tr_svd', svd[s]))
-          x_test <- get(paste0('f', folds[d], '_te_svd', svd[s]))
-        } else {
-          #concatenate structured data with SVD
-          x_train <- cbind(get(paste0('f', folds[d], '_tr_svd', svd[s])), get(paste0('f', folds[d], '_tr'))[,27:82])
-          x_test <- cbind(get(paste0('f', folds[d], '_te_svd', svd[s])), get(paste0('f', folds[d], '_te'))[,27:82])
-        }
-        
-        
-        #get remainder of matching training and test data
-        y_train <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f])]]
-        y_test_neut <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_0')]]
-        y_test_pos <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_1')]]
-        y_test_neg <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_-1')]]
-        y_test <- cbind(y_test_neut, y_test_pos, y_test_neg)
-
-        
-        frail_logit <- glmnet(x = x_train,
-                              y = y_train)
-        
-        frail_rf <- ranger(y = factor(y_train, levels = c(0, 1, -1)), #relevel factors to match class.weights
-                           x = x_train,
-                           num.threads = detectCores(),
-                           probability = TRUE,
-                           num.trees = hyper_grid$ntree[i],
-                           mtry = hyper_grid$mtry[i],
-                           sample.fraction = hyper_grid$sample_frac[i],
-                           #leaving node size as default
-                           #min.node.size = hyper_grid$node_size[i],
-                           #class.weights in order of outcome factor levels
-                           #class.weights = as.integer(c(levels(factor(cw))[1], levels(factor(cw))[2], levels(factor(cw))[2])),
-                           #later, can set oob.error=FALSE to save time/memory (using CV error)
-                           #case.weights
-                           case.weights = cw,
-                           oob.error = TRUE,
-                           seed = seed)
-        
-        
-        #oob brier score for all classes
-        hyper_grid$oob_brier[i] <- frail_rf$prediction.error
-        
-        
-        #make predictions on test fold
-        preds <- predict(frail_rf, data=x_test)$predictions
-        
-        
-        #cv brier score for each class
-        hyper_grid$cv_brier_neut[i] <- brier_score(y_test_neut, preds[,'0'])
-        hyper_grid$cv_brier_pos[i] <- brier_score(y_test_pos, preds[,'1'])
-        hyper_grid$cv_brier_neg[i] <- brier_score(y_test_neg, preds[,'-1'])
-        #cv brier score for all classes
-        hyper_grid$cv_brier_all[i] <- brier_score(
-          c(y_test_neut, y_test_pos, y_test_neg), 
-          c(preds[,'0'], preds[,'1'], preds[,'-1']))
-        
-        
-        #cv scaled brier score for each class
-        hyper_grid$scaled_brier_neut[i] <- scaled_brier_score(y_test_neut, preds[,'0'])
-        hyper_grid$scaled_brier_pos[i] <- scaled_brier_score(y_test_pos, preds[,'1'])
-        hyper_grid$scaled_brier_neg[i] <- scaled_brier_score(y_test_neg, preds[,'-1'])
-        #mean scaled Brier score for all classes
-        hyper_grid$scaled_brier_all[i] <- mean(
-          scaled_brier_score(y_test_neut, preds[,'0']),
-          scaled_brier_score(y_test_pos, preds[,'1']),
-          scaled_brier_score(y_test_neg, preds[,'-1']))
-        
-        
-        #calculate cross-entropy
-        preds_ce <- preds
-        #set floor and ceiling for predictions (predictions of 1 or 0 create entropy of -inf)
-        preds_ce[preds_ce==0] <- 1e-3
-        preds_ce[preds_ce==1] <- 0.999
-        #calculate
-        hyper_grid$cross_entropy_2[i] <- cross_entropy_2(y_test, preds_ce)
-      }
-      
-      hyper_grid2 <- hyper_grid
-      hyper_grid2$SVD <- svd[s]
-      
-      #start building the hyper_grid for the current loop
-      if (exists(paste0('hyper_grid_d', folds[d], '_f', f)) == FALSE) {
-        assign(paste0('hyper_grid_d', folds[d], '_f', f), hyper_grid2)
+      #load features with or without structured data
+      if (inc_struc == FALSE) {
+        #load only the SVD features
+        x_train <- as.matrix(get(paste0('f', folds[d], '_tr_svd', svd[s])))
+        x_test <- as.matrix(get(paste0('f', folds[d], '_te_svd', svd[s])))
       } else {
-        #add new results from each svd loop
-        assign(paste0('hyper_grid_d', folds[d], '_f', f), rbind(get(paste0('hyper_grid_d', folds[d], '_f', f)), hyper_grid2))
+        #concatenate structured data with SVD
+        x_train <- as.matrix(cbind(get(paste0('f', folds[d], '_tr_svd', svd[s])), get(paste0('f', folds[d], '_tr'))[,27:82]))
+        x_test <- as.matrix(cbind(get(paste0('f', folds[d], '_te_svd', svd[s])), get(paste0('f', folds[d], '_te'))[,27:82]))
+      }
+      
+      #run elastic net across lambda grid for each class
+      classes <- c('neut', 'pos', 'neg')
+      
+      for (c in 1:length(classes)) {
+        for(a in 1:length(alpha_seq)) {
+          #train model for each class
+          frail_logit <- glmnet(x = x_train,
+                                y = get(paste0('y_train_', classes[c])),
+                                family = 'binomial',
+                                alpha = alpha_seq[a],
+                                #lambda = lambda_seq,
+                                trace.it = 1)
+          
+          #make predictions on test fold for each alpha
+          alpha_preds <- predict(frail_logit, x_test, type = 'response')
+          
+          #build hyperparameter grid
+          hyper_grid <- expand.grid(
+            frail_lab = NA,
+            fold = NA,
+            SVD = NA,
+            class = NA,
+            lambda = rep(NA, ncol(alpha_preds)),
+            alpha = NA,
+            df = NA,
+            cross_entropy_2 = NA,
+            brier = NA,
+            scaled_brier = NA)
+          
+          for (l in 1:ncol(alpha_preds)) {
+            #label each row
+            hyper_grid$frail_lab[l] <- frail_lab[f]
+            hyper_grid$fold[l] <- folds[d]
+            hyper_grid$SVD[l] <- svd[s]
+            hyper_grid$class[l] <- classes[c]
+            hyper_grid$alpha[l] <- alpha_seq[a]
+            
+            #lambda
+            hyper_grid$lambda[l] <- frail_logit$lambda[l]
+            #number of nonzero coefficients (Df)
+            hyper_grid$df[l] <- frail_logit$df[l]
+            #preds for this lambda
+            preds <- alpha_preds[,l]
+            
+            #brier score
+            hyper_grid$brier[l] <- brier_score(get(paste0('y_test_', classes[c])), preds)
+            #scaled brier score
+            hyper_grid$scaled_brier[l] <- scaled_brier_score(get(paste0('y_test_', classes[c])), preds)
+            
+            #calculate cross-entropy
+            preds_ce <- preds
+            #set floor and ceiling for predictions (predictions of 1 or 0 create entropy of -inf)
+            preds_ce[preds_ce==0] <- 1e-3
+            preds_ce[preds_ce==1] <- 0.999
+            #calculate
+            hyper_grid$cross_entropy_2[l] <- cross_entropy_2(get(paste0('y_test_', classes[c])), preds_ce)
+          }
+          #concatenate the alphas for each class
+          if (exists(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c)) == FALSE) {
+            assign(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c), hyper_grid)
+          } else {
+            #add new results from each loop
+            assign(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c), rbind(get(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c)), hyper_grid))
+          }
+        }
+        #concatenate the classes for each svd  
+        if (exists(paste0('hyper_grid_d', d, '_f', f, '_s', s)) == FALSE) {
+          assign(paste0('hyper_grid_d', d, '_f', f, '_s', s), get(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c)))
+        } else {
+          #add new results from each loop
+          assign(paste0('hyper_grid_d', d, '_f', f, '_s', s), rbind(get(paste0('hyper_grid_d', d, '_f', f, '_s', s)), get(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c))))
+        }
+      }
+      #concatenate svd for each frailty aspect
+      if (exists(paste0('hyper_grid_d', d, '_f', f)) == FALSE) {
+        assign(paste0('hyper_grid_d', d, '_f', f), get(paste0('hyper_grid_d', d, '_f', f, '_s', s)))
+      } else {
+        #add new results from each loop
+        assign(paste0('hyper_grid_d', d, '_f', f), rbind(get(paste0('hyper_grid_d', d, '_f', f)), get(paste0('hyper_grid_d', d, '_f', f, '_s', s))))
       }
     }
-    
-    #add frail aspect label
-    hyper_grid4 <- get(paste0('hyper_grid_d', folds[d], '_f', f))
-    hyper_grid4$frail_lab <- frail_lab[f]
-    
-    if (exists(paste0('hyper_', frail_lab[f], '_fold_', folds[d])) == FALSE) {
-      assign(paste0('hyper_', frail_lab[f], '_fold_', folds[d]), hyper_grid4)
-    } else{
-      #add new results from each aspect loop
-      assign(paste0('hyper_', frail_lab[f], '_fold_', folds[d]), rbind(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), hyper_grid4))
-    }
-    
     #save each fold for each aspect
-    write.csv(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
+    write.csv(get(paste0('hyper_grid_d', d, '_f', f)), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
     
     #calculate & save run time for each fold for each aspect
     end_time <- Sys.time()
