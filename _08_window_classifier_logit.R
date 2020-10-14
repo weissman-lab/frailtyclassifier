@@ -234,53 +234,53 @@ run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end
 #save
 write(run_time, paste0(outdir, 'exp', exp, '_duration_winclass_alt_r.txt'))
 
-
-hyper_grid_d1_f1
-
-
-################
-# Pick the best hyper-parameters and save predictions
-
-
-#function to get mean loss across 10 folds
-mean_loss <- function(h) {
-  hyper_wide <- pivot_wider(h, id_cols = c('SVD', 'class', 'lambda', 'alpha', 'frail_lab'), names_from = 'fold',  values_from = 'cross_entropy_2', names_prefix = 'fold')
-  hyper_wide2 <- hyper_wide %>%
-    mutate(mean_entropy = rowMeans(hyper_wide[,grep('fold', colnames(hyper_wide), value = TRUE)])) %>%
-    select(-grep('fold', colnames(hyper_wide)))
-  return(hyper_wide2)
-}
-
-
-for (f in 1:length(frail_lab)) {
-  
-  #get the best hyperparameters for each aspect (avg across 10 folds)
-  for (d in 1:length(folds)) {
-    #get performance from each fold for each aspect
-    assign(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d]), fread(paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv')))
-    #add fold label
-    hyper <- get(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d]))
-    hyper$fold <- folds[d]
-    assign(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d]), hyper)
-  }
-  #combine all folds for each aspect
-  assign(paste0(frail_lab[f], '_hyper'), do.call(rbind, mget(objects(pattern = paste0(frail_lab[f])))))
-  #calculate mean loss for each set of hyperparameters
-  best_hyper <- mean_loss(get(paste0(frail_lab[f], '_hyper')))
-  #pick the combo with lowest loss
-  best_hyper <- best_hyper %>%
-    arrange(mean_entropy) %>%
-    slice(1)
-  #insert into hyper grid
-  aspect_grid <- expand.grid(
-    frail_lab = NA,
-    fold = NA,
-    SVD = best_hyper$SVD,
-    class = NA,
-    lambda = best_hyper$lambda,
-    alpha = best_hyper$alpha,
-    df = NA,
-    cross_entropy_2 = NA,
-    brier = NA,
-    scaled_brier = NA)
-}
+# 
+# hyper_grid_d1_f1
+# 
+# 
+# ################
+# # Pick the best hyper-parameters and save predictions
+# 
+# 
+# #function to get mean loss across 10 folds
+# mean_loss <- function(h) {
+#   hyper_wide <- pivot_wider(h, id_cols = c('SVD', 'class', 'lambda', 'alpha', 'frail_lab'), names_from = 'fold',  values_from = 'cross_entropy_2', names_prefix = 'fold')
+#   hyper_wide2 <- hyper_wide %>%
+#     mutate(mean_entropy = rowMeans(hyper_wide[,grep('fold', colnames(hyper_wide), value = TRUE)])) %>%
+#     select(-grep('fold', colnames(hyper_wide)))
+#   return(hyper_wide2)
+# }
+# 
+# 
+# for (f in 1:length(frail_lab)) {
+#   
+#   #get the best hyperparameters for each aspect (avg across 10 folds)
+#   for (d in 1:length(folds)) {
+#     #get performance from each fold for each aspect
+#     assign(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d]), fread(paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv')))
+#     #add fold label
+#     hyper <- get(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d]))
+#     hyper$fold <- folds[d]
+#     assign(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d]), hyper)
+#   }
+#   #combine all folds for each aspect
+#   assign(paste0(frail_lab[f], '_hyper'), do.call(rbind, mget(objects(pattern = paste0(frail_lab[f])))))
+#   #calculate mean loss for each set of hyperparameters
+#   best_hyper <- mean_loss(get(paste0(frail_lab[f], '_hyper')))
+#   #pick the combo with lowest loss
+#   best_hyper <- best_hyper %>%
+#     arrange(mean_entropy) %>%
+#     slice(1)
+#   #insert into hyper grid
+#   aspect_grid <- expand.grid(
+#     frail_lab = NA,
+#     fold = NA,
+#     SVD = best_hyper$SVD,
+#     class = NA,
+#     lambda = best_hyper$lambda,
+#     alpha = best_hyper$alpha,
+#     df = NA,
+#     cross_entropy_2 = NA,
+#     brier = NA,
+#     scaled_brier = NA)
+# }
