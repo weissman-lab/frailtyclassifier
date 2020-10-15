@@ -12,15 +12,17 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- 'logit101320'
+exp <- '101420'
+#Update exp numbrer to indicate penalized regression
+exp <- paste0(exp, '_logit')
 
 #Include structured data?
 inc_struc = TRUE
 
 #Update exp number to indicate unstructured/structured
 if (inc_struc == FALSE) {
-  exp <- paste0(exp, 'un')
-} else {exp <- paste0(exp, 'str')}
+  exp <- paste0(exp, '_un')
+} else {exp <- paste0(exp, '_str')}
 
 
 
@@ -32,7 +34,6 @@ dir.create(outdir)
 #new directory for predictions
 predsdir <- paste0(outdir,'preds/')
 dir.create(predsdir)
-
 
 
 
@@ -64,30 +65,22 @@ cross_entropy_2 <- function(obs, pred){
 
 
 seed = 92120
-folds <- seq(5, 6)
+folds <- seq(1, 10)
 svd <- c(50, 300, 1000)
-#frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
-
-frail_lab <- c('Msk_prob', 'Fall_risk')
+frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 
 
 # alpha sequence
-# alpha_seq <- c(0.9, 0.5, 0.1)
+alpha_seq <- c(0.9, 0.6, 0.4, 0.1)
 
-# alpha seq
-alpha_seq <- 0.5
+# small alpha seq
+# alpha_seq <- 0.5
 
 #lambda seq
-#per documentation, best to supply a decreasing sequence of lambda values
-lambda_seq <- c(10^seq(5, 2, length.out = 5))
+#per documentation, best to supply a decreasing sequence of at least 100 lambda values
+lambda_seq <- c(10^seq(10, -8, length.out = 100))
 
-# d = 1
-# f = 1
-# s = 1
-# a = 1
-# c = 1
-# l = 1
-
+#start timer
 start_time <- Sys.time()
 
 foreach (d = 1:length(folds)) %dopar% {
