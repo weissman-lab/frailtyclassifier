@@ -12,7 +12,7 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- '101420'
+exp <- '101620'
 #Update exp numbrer to indicate penalized regression
 exp <- paste0(exp, '_logit')
 
@@ -78,7 +78,7 @@ alpha_seq <- c(0.9, 0.6, 0.4, 0.1)
 
 #lambda seq
 #per documentation, best to supply a decreasing sequence of at least 100 lambda values
-lambda_seq <- c(10^seq(10, -8, length.out = 100))
+#lambda_seq <- c(10^seq(8, -2, length.out = 20))
 
 #start timer
 start_time <- Sys.time()
@@ -137,7 +137,7 @@ foreach (d = 1:length(folds)) %dopar% {
                                 y = get(paste0('y_train_', classes[c])),
                                 family = 'binomial',
                                 alpha = alpha_seq[a],
-                                lambda = lambda_seq,
+                                #lambda = lambda_seq,
                                 trace.it = 1)
           
           #make predictions on test fold for each alpha
@@ -183,7 +183,12 @@ foreach (d = 1:length(folds)) %dopar% {
             preds_ce[preds_ce==1] <- 0.999
             #calculate
             hyper_grid$cross_entropy_2[l] <- cross_entropy_2(get(paste0('y_test_', classes[c])), preds_ce)
+            
           }
+          
+          #save each alpha for each class
+          write.csv(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', folds[d], '_', frail_lab[f], '_', svd[s], '_', classes[c], '_a', a, '.csv'))
+          
           #concatenate the alphas for each class
           if (exists(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c)) == FALSE) {
             assign(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c), hyper_grid)
