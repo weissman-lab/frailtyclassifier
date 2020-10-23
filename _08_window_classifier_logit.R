@@ -12,7 +12,7 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- '101620'
+exp <- '102320'
 #Update exp numbrer to indicate penalized regression
 exp <- paste0(exp, '_logit')
 
@@ -65,20 +65,16 @@ cross_entropy_2 <- function(obs, pred){
 
 
 seed = 92120
-folds <- seq(1, 10)
-svd <- c(50, 300, 1000)
+folds <- 1
+svd <- c(300, 1000, 3000)
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 
 
 # alpha sequence
-alpha_seq <- c(0.9, 0.6, 0.4, 0.1)
-
-# small alpha seq
-# alpha_seq <- 0.5
+alpha_seq <- c(0.9, 0.5, 0.1)
 
 #lambda seq
-#per documentation, best to supply a decreasing sequence of at least 100 lambda values
-#lambda_seq <- c(10^seq(8, -2, length.out = 20))
+lambda_seq <- c(10^seq(2, -5, length.out = 25))
 
 #start timer
 start_time <- Sys.time()
@@ -92,12 +88,6 @@ foreach (d = 1:length(folds)) %dopar% {
   #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
   #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
   assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(datadir, 'f_', folds[d], '_tr_cw.csv')))
-  
-  # plan:
-  # run for folds 5,6
-  # need to do CV manually - the cv.glmnet function will exploit the fact that the SVD in each fold is fit on the whole fold (not realistic in real world scenario)
-  # what does the glmnet output look like? need to save the performance of the best model. 
-  # do you need to loop over pos, neg, and neutral? 
   
   
   for (f in 1:length(frail_lab)) {
@@ -137,11 +127,14 @@ foreach (d = 1:length(folds)) %dopar% {
                                 y = get(paste0('y_train_', classes[c])),
                                 family = 'binomial',
                                 alpha = alpha_seq[a],
-                                #lambda = lambda_seq,
+                                lambda = lambda_seq,
                                 trace.it = 1)
           
           #make predictions on test fold for each alpha
           alpha_preds <- predict(frail_logit, x_test, type = 'response')
+          
+          #save predictions
+          fwrite(alpha_preds, paste0(predsdir, 'exp', exp, '_preds_f', folds[d], '_', frail_lab[f], '_', svd[s], '_', classes[c], '_a', a, '.csv'))
           
           #build hyperparameter grid
           hyper_grid <- expand.grid(
@@ -187,7 +180,7 @@ foreach (d = 1:length(folds)) %dopar% {
           }
           
           #save each alpha for each class
-          write.csv(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', folds[d], '_', frail_lab[f], '_', svd[s], '_', classes[c], '_a', a, '.csv'))
+          fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', folds[d], '_', frail_lab[f], '_', svd[s], '_', classes[c], '_a', a, '.csv'))
           
           #concatenate the alphas for each class
           if (exists(paste0('hyper_grid_d', d, '_f', f, '_s', s, '_c', c)) == FALSE) {
@@ -214,7 +207,7 @@ foreach (d = 1:length(folds)) %dopar% {
       }
     }
     #save each fold for each aspect
-    write.csv(get(paste0('hyper_grid_d', d, '_f', f)), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
+    fwrite(get(paste0('hyper_grid_d', d, '_f', f)), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
     
     #calculate & save run time for each fold for each aspect
     end_time <- Sys.time()
