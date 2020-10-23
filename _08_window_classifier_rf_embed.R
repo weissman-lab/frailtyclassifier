@@ -200,7 +200,7 @@ for (d in 1:length(folds)) {
     }
     
     #save each fold for each aspect
-    write.csv(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
+    fwrite(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
     
     #calculate & save run time for each fold for each aspect
     end_time <- Sys.time()
@@ -345,7 +345,7 @@ write(run_time, paste0(outdir, 'exp', exp, '_duration_winclass_alt_r.txt'))
 #     hyper_grid$frail_lab <- frail_lab[f]
 #     
 #     #save each fold for each aspect
-#     write.csv(hyper_grid, paste0(outdir, 'exp', exp, '_best_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
+#     fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_best_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
 #     
 #   }
 # }
