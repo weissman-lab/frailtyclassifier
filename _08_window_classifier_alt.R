@@ -11,10 +11,10 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- '100820'
+exp <- '100920'
 
 #Include structured data?
-inc_struc = FALSE
+inc_struc = TRUE
 
 #Update exp number to indicate unstructured/structured
 if (inc_struc == FALSE) {
@@ -81,11 +81,11 @@ for (d in 1:length(folds)) {
   assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(datadir, 'f_', folds[d], '_tr_cw.csv')))
   
   # #hyper grid
-  # hyper_grid <- expand.grid(
-  #   ntree           = 300,
-  #   mtry            = signif(seq(7, 45, length.out = 4), 2),
-  #   sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
-  # )
+  hyper_grid <- expand.grid(
+    ntree           = 300,
+    mtry            = signif(seq(7, 45, length.out = 4), 2),
+    sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
+  )
   
   #tree grid
   # hyper_grid <- expand.grid(
@@ -95,11 +95,11 @@ for (d in 1:length(folds)) {
   # )  
   
   #very small grid
-  hyper_grid <- expand.grid(
-    ntree           = c(1, 2),
-    mtry            = 1,
-    sample_frac = .1
-  )
+  # hyper_grid <- expand.grid(
+  #   ntree           = c(1, 2),
+  #   mtry            = 1,
+  #   sample_frac = .1
+  # )
   
   for (f in 1:length(frail_lab)) {
     
@@ -362,29 +362,4 @@ for (f in 1:length(frail_lab)) {
         write.csv(hyper_grid, paste0(outdir, 'exp', exp, '_best_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
         
     }
-}        
-      # hyper_grid2 <- hyper_grid
-
-      # #start building the hyper_grid for the current loop
-      # if (exists(paste0('best_hyper_grid_d', folds[d], '_f', f)) == FALSE) {
-      #   assign(paste0('best_hyper_grid_d', folds[d], '_f', f), hyper_grid2)
-      # } else {
-      #   #add new results from each svd loop
-      #   assign(paste0('best_hyper_grid_d', folds[d], '_f', f), rbind(get(paste0('best_hyper_grid_d', folds[d], '_f', f)), hyper_grid2))
-      # }
-      
-    #   #add frail aspect label
-    #   hyper_grid4 <- get(paste0('best_hyper_grid_d', folds[d], '_f', f))
-    #   hyper_grid4$frail_lab <- frail_lab[f]
-    #   
-    #   if (exists(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d])) == FALSE) {
-    #     assign(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d]), hyper_grid4)
-    #   } else{
-    #     #add new results from each aspect loop
-    #     assign(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d]), rbind(get(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d])), hyper_grid4))
-    #   }
-    #   
-    #   #save each fold for each aspect
-    #   write.csv(get(paste0('best_hyper_', frail_lab[f], '_fold_', folds[d])), paste0(outdir, 'exp', exp, '_best_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
-    # }
-
+}
