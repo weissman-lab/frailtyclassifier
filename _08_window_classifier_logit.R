@@ -74,6 +74,10 @@ mg <- expand_grid(
   class = c('neut', 'pos', 'neg')
 )
 
+mg <- mutate(mg, alpha_l = ifelse(alpha == 0.9, 9,
+                                  ifelse(alpha == 0.5, 5,
+                                         ifelse(alpha == 0.1, 1, NA))))
+
 #lambda seq
 lambda_seq <- c(10^seq(2, -5, length.out = 25))
 
@@ -129,7 +133,7 @@ foreach (r = 1:nrow(mg)) %dopar% {
   alpha_preds <- predict(frail_logit, x_test, type = 'response')
   
   #save predictions
-  fwrite(alpha_preds, paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$svd[r], '_', mg$class[r], '_r', r, '.csv'))
+  fwrite(alpha_preds, paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
   
   #build hyperparameter grid
   hyper_grid <- expand.grid(
