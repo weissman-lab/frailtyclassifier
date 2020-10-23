@@ -11,10 +11,9 @@ from timeit import default_timer as timer
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-#datadir = f"{os.getcwd()}/data/"
-#outdir = f"{os.getcwd()}/output/"
-datadir = "/media/drv2/andrewcd2/frailty/output/"
-outdir = f"{os.getcwd()}/output/_08_window_classifier_alt/"
+datadir = f"{os.getcwd()}/output/"
+#datadir = "/media/drv2/andrewcd2/frailty/output/"
+#outdir = f"{os.getcwd()}/output/_08_window_classifier_alt/"
 
 def slidingWindow(sequence, winSize, step=1):
     """Returns a generator that will iterate through
@@ -66,9 +65,9 @@ input_dims = len(embedding_colnames) + len(str_varnames)
 
 
 # reset the index
-df = df.reset_index()
+df2 = df.reset_index()
 # drop embeddings
-df2 = df.loc[:, ~df.columns.str.startswith('identity')].copy()
+# df2 = df2.loc[:, ~df.columns.str.startswith('identity')].copy()
 
 # dummies for the outcomes
 y_dums = pd.concat([pd.get_dummies(df2[[i]].astype(str)) for i in out_varnames], axis=1)
@@ -162,28 +161,28 @@ for f in range(10):
     f_te_tfidf = tfidf_transformer.transform(f_te_tf)
 
     # dimensionality reduction with truncated SVD
-    svd_50 = TruncatedSVD(n_components=50, n_iter=5, random_state=9082020)
     svd_300 = TruncatedSVD(n_components=300, n_iter=5, random_state=9082020)
     svd_1000 = TruncatedSVD(n_components=1000, n_iter=5, random_state=9082020)
+    svd_3000 = TruncatedSVD(n_components=3000, n_iter=5, random_state=9082020)
     # fit to training data & transform
-    f_tr_svd50 = pd.DataFrame(svd_50.fit_transform(f_tr_tfidf))
     f_tr_svd300 = pd.DataFrame(svd_300.fit_transform(f_tr_tfidf))
     f_tr_svd1000 = pd.DataFrame(svd_1000.fit_transform(f_tr_tfidf))
+    f_tr_svd3000 = pd.DataFrame(svd_3000.fit_transform(f_tr_tfidf))
     # transform test data (do NOT fit on test data)
-    f_te_svd50 = pd.DataFrame(svd_50.transform(f_te_tfidf))
     f_te_svd300 = pd.DataFrame(svd_300.transform(f_te_tfidf))
     f_te_svd1000 = pd.DataFrame(svd_1000.transform(f_te_tfidf))
+    f_te_svd3000 = pd.DataFrame(svd_3000.transform(f_te_tfidf))
 
     ## Output for r
     f_tr.to_csv(f"{outdir}f_{f+1}_tr_df.csv")
     f_te.to_csv(f"{outdir}f_{f+1}_te_df.csv")
     f_tr_cw.to_csv(f"{outdir}f_{f+1}_tr_cw.csv")
-    f_tr_svd50.to_csv(f"{outdir}f_{f+1}_tr_svd50.csv")
     f_tr_svd300.to_csv(f"{outdir}f_{f+1}_tr_svd300.csv")
     f_tr_svd1000.to_csv(f"{outdir}f_{f+1}_tr_svd1000.csv")
-    f_te_svd50.to_csv(f"{outdir}f_{f+1}_te_svd50.csv")
+    f_tr_svd3000.to_csv(f"{outdir}f_{f+1}_tr_svd3000.csv")
     f_te_svd300.to_csv(f"{outdir}f_{f+1}_te_svd300.csv")
     f_te_svd1000.to_csv(f"{outdir}f_{f+1}_te_svd1000.csv")
+    f_te_svd3000.to_csv(f"{outdir}f_{f+1}_te_svd3000.csv")
 
 end = timer()
 duration = end - start
