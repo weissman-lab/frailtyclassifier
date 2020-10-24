@@ -11,8 +11,8 @@ from timeit import default_timer as timer
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-datadir = f"{os.getcwd()}/output/"
-#datadir = "/media/drv2/andrewcd2/frailty/output/"
+#datadir = f"{os.getcwd()}/output/"
+datadir = "/media/drv2/andrewcd2/frailty/output/"
 outdir = f"{os.getcwd()}/output/_08_window_classifier_alt/"
 
 def slidingWindow(sequence, winSize, step=1):
