@@ -11,8 +11,8 @@ from timeit import default_timer as timer
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-#datadir = f"{os.getcwd()}/output/"
-datadir = "/media/drv2/andrewcd2/frailty/output/"
+datadir = f"{os.getcwd()}/output/"
+#datadir = "/media/drv2/andrewcd2/frailty/output/"
 outdir = f"{os.getcwd()}/output/_08_window_classifier_alt/"
 
 def slidingWindow(sequence, winSize, step=1):
@@ -36,7 +36,6 @@ def slidingWindow(sequence, winSize, step=1):
     # Center the window with 5 words on either side of the center word
     for i in range(int(winSize/2)+1, (int(winSize/2)+numOfChunks+1) * step, step):
         yield sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
-
 
 # load the notes from 2018
 notes_2018 = [i for i in os.listdir(datadir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
@@ -66,8 +65,15 @@ input_dims = len(embedding_colnames) + len(str_varnames)
 
 # reset the index
 df2 = df.reset_index()
-# drop embeddings
-# df2 = df2.loc[:, ~df.columns.str.startswith('identity')].copy()
+
+# split off embeddings
+embeddings = df2.loc[:, df2.columns.str.startswith('note') | df2.columns.str.startswith('identity')].copy()
+#calculate the mean of the embeddings for each 11 token rolling window
+for v in range(1,(embeddings.shape[1]-1)):
+    embeddings[f"mean_{v}"] = embeddings.iloc[:,v].rolling(window = 11, center = True, min_periods=0).mean()
+#shows that this works:
+#embeddings[['identity_1','mean_1']].iloc[0:11]
+#embeddings['identity_1'].iloc[0:11].mean()
 
 # dummies for the outcomes
 y_dums = pd.concat([pd.get_dummies(df2[[i]].astype(str)) for i in out_varnames], axis=1)
@@ -120,6 +126,10 @@ for f in range(10):
     # Identify training (k-1) folds and test fold
     f_tr = df2[~df2.note.isin(fold)]
     f_te = df2[df2.note.isin(fold)]
+
+    # Get training embeddings and test embeddings for each fold
+    embeddings_tr = embeddings[~embeddings.note.isin(fold)]
+    embeddings_te = embeddings[embeddings.note.isin(fold)]
 
     # get a vector of caseweights for each frailty aspect
     # weight non-neutral tokens by the inverse of their prevalence
@@ -176,6 +186,8 @@ for f in range(10):
     ## Output for r
     f_tr.to_csv(f"{outdir}f_{f+1}_tr_df.csv")
     f_te.to_csv(f"{outdir}f_{f+1}_te_df.csv")
+    embeddings_tr.to_csv(f"{outdir}f_{f+1}_tr_embeddings.csv")
+    embeddings_te.to_csv(f"{outdir}f_{f+1}_te_embeddings.csv")
     f_tr_cw.to_csv(f"{outdir}f_{f+1}_tr_cw.csv")
     f_tr_svd300.to_csv(f"{outdir}f_{f+1}_tr_svd300.csv")
     f_tr_svd1000.to_csv(f"{outdir}f_{f+1}_tr_svd1000.csv")
