@@ -9,8 +9,8 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- '102320'
-#Update exp numbrer to indicate penalized regression
+exp <- '102420'
+#Update exp numbrer to indicate penalized regression with embeddings
 exp <- paste0(exp, '_logit_embed')
 
 #Include structured data?
@@ -72,7 +72,7 @@ mg <- expand_grid(
   alpha = c(0.9, 0.5, 0.1),
   class = c('neut', 'pos', 'neg')
 )
-
+#label alpha (for naming .csv file)
 mg <- mutate(mg, alpha_l = ifelse(alpha == 0.9, 9,
                                   ifelse(alpha == 0.5, 5,
                                          ifelse(alpha == 0.1, 1, NA))))
@@ -87,13 +87,20 @@ start_time <- Sys.time()
 
 foreach (r = 1:nrow(mg)) %dopar% {
   
-  #load data (structured data & text with windowing)
+  #load labels and structured data
   assign(paste0('f', mg$fold[r], '_tr'), fread(paste0(datadir, 'f_', mg$fold[r], '_tr_df.csv')))
   assign(paste0('f', mg$fold[r], '_te'), fread(paste0(datadir, 'f_', mg$fold[r], '_te_df.csv')))
   
-  #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
-  #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
-  assign(paste0('f', mg$fold[r], '_tr_cw'), fread(paste0(datadir, 'f_', mg$fold[r], '_tr_cw.csv')))
+  #load embeddings with or without structured data
+  if (inc_struc == FALSE) {
+    #load only the embeddings (drop first column, which labels note)
+    x_train <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_embeddings.csv'), drop = 1))
+    x_test <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_te_embeddings.csv'), drop = 1))
+  } else {
+    #concatenate embeddings with structured data
+    x_train <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_embeddings.csv'), drop = 1), get(paste0('f', mg$fold[r], '_tr'))[,27:82]))
+    x_test <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_te_embeddings.csv'), drop = 1), get(paste0('f', mg$fold[r], '_te'))[,27:82]))
+  }
   
   #get matching training and test labels
   y_train_neut <- get(paste0('f', mg$fold[r], '_tr'))[[paste0(mg$frail_lab[r], '_0')]]
@@ -103,17 +110,9 @@ foreach (r = 1:nrow(mg)) %dopar% {
   y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
   y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
   
-  
-  #load features with or without structured data
-  if (inc_struc == FALSE) {
-    #load only the embeddings
-    x_train <- as.matrix(get(paste0('f', mg$fold[r], '_tr'))[,85:385])
-    x_test <- as.matrix(get(paste0('f', mg$fold[r], '_te'))[,85:385])
-  } else {
-    #concatenate structured data with embeddings
-    x_train <- as.matrix(cbind(get(paste0('f', mg$fold[r], '_tr'))[,85:385], get(paste0('f', mg$fold[r], '_tr'))[,27:82]))
-    x_test <- as.matrix(cbind(get(paste0('f', mg$fold[r], '_te'))[,85:385], get(paste0('f', mg$fold[r], '_te'))[,27:82]))
-  }
+  #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
+  #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
+  assign(paste0('f', mg$fold[r], '_tr_cw'), fread(paste0(datadir, 'f_', mg$fold[r], '_tr_cw.csv')))
   
   #run elastic net across lambda grid for each class
   classes <- c('neut', 'pos', 'neg')
