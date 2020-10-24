@@ -96,7 +96,7 @@ for (d in 1:length(folds)) {
   hyper_grid <- expand.grid(
     ntree           = 300,
     mtry            = signif(seq(7, 45, length.out = 4), 2),
-    sample_frac = signif(seq(0.6, 1, length.out = 3), 1),
+    sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
   )
   #label sample fraction (for naming .csv files)
   hyper_grid <- mutate(hyper_grid, sample_frac_l = ifelse(sample_frac == 0.6, 6,
