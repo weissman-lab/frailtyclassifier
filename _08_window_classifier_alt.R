@@ -91,14 +91,12 @@ for (d in 1:length(folds)) {
   hyper_grid <- mutate(hyper_grid, sample_frac_l = ifelse(sample_frac == 0.6, 6,
                                                           ifelse(sample_frac == 0.8, 8,
                                                                  ifelse(sample_frac == 1.0, 10, NA))))
-  
   #tree grid
   # hyper_grid <- expand.grid(
   #   ntree      = signif(seq(100, 700, length.out = 4), 0),
   #   mtry       = 20,
   #   node_size  = 10
-  # )  
-  
+  # )
   #very small grid
   # hyper_grid <- expand.grid(
   #   ntree           = c(1, 2),

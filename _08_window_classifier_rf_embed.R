@@ -79,13 +79,13 @@ for (d in 1:length(folds)) {
   
   #load embeddings with or without structured data
   if (inc_struc == FALSE) {
-    #load only the embeddings (drop first column, which labels note)
-    x_train <- as.matrix(fread(paste0(datadir, 'f_', folds[d], '_tr_embeddings.csv'), drop = 1))
-    x_test <- as.matrix(fread(paste0(datadir, 'f_', folds[d], '_te_embeddings.csv'), drop = 1))
+    #load only the embeddings - drop first 2 columns (index and note label)
+    x_train <- as.matrix(fread(paste0(datadir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2)))
+    x_test <- as.matrix(fread(paste0(datadir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2)))
   } else {
     #concatenate embeddings with structured data
-    x_train <- as.matrix(cbind(fread(paste0(datadir, 'f_', folds[d], '_tr_embeddings.csv'), drop = 1), get(paste0('f', folds[d], '_tr'))[,27:82]))
-    x_test <- as.matrix(cbind(fread(paste0(datadir, 'f_', folds[d], '_te_embeddings.csv'), drop = 1), get(paste0('f', folds[d], '_te'))[,27:82]))
+    x_train <- as.matrix(cbind(fread(paste0(datadir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_tr'))[,27:82]))
+    x_test <- as.matrix(cbind(fread(paste0(datadir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_te'))[,27:82]))
   }
   
   #load caseweights (weight non-neutral tokens by the inverse of their prevalence)

@@ -93,13 +93,13 @@ foreach (r = 1:nrow(mg)) %dopar% {
   
   #load embeddings with or without structured data
   if (inc_struc == FALSE) {
-    #load only the embeddings (drop first column, which labels note)
-    x_train <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_embeddings.csv'), drop = 1))
-    x_test <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_te_embeddings.csv'), drop = 1))
+    #load only the embeddings - drop first 2 columns (index and note label)
+    x_train <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_embeddings.csv'), drop = c(1,2)))
+    x_test <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_te_embeddings.csv'), drop = c(1,2)))
   } else {
     #concatenate embeddings with structured data
-    x_train <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_embeddings.csv'), drop = 1), get(paste0('f', mg$fold[r], '_tr'))[,27:82]))
-    x_test <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_te_embeddings.csv'), drop = 1), get(paste0('f', mg$fold[r], '_te'))[,27:82]))
+    x_train <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', mg$fold[r], '_tr'))[,27:82]))
+    x_test <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_te_embeddings.csv'), drop = c(1,1)), get(paste0('f', mg$fold[r], '_te'))[,27:82]))
   }
   
   #get matching training and test labels
