@@ -11,8 +11,8 @@ from timeit import default_timer as timer
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-#datadir = f"{os.getcwd()}/output/"
-datadir = "/media/drv2/andrewcd2/frailty/output/"
+datadir = f"{os.getcwd()}/output/"
+#datadir = "/media/drv2/andrewcd2/frailty/output/"
 outdir = f"{os.getcwd()}/output/_08_window_classifier_alt/"
 
 def slidingWindow(sequence, winSize, step=1):
@@ -74,6 +74,9 @@ for v in range(1,(embeddings.shape[1]-1)):
 #shows that this works:
 #embeddings[['identity_1','mean_1']].iloc[0:11]
 #embeddings['identity_1'].iloc[0:11].mean()
+
+# drop embeddings
+df2 = df2.loc[:, ~df2.columns.str.startswith('identity')].copy()
 
 # dummies for the outcomes
 y_dums = pd.concat([pd.get_dummies(df2[[i]].astype(str)) for i in out_varnames], axis=1)
