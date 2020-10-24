@@ -11,7 +11,7 @@ registerDoParallel(detectCores())
 #Experiment number (based on date):
 exp <- '102320'
 #Update exp numbrer to indicate penalized regression
-exp <- paste0(exp, '_logit')
+exp <- paste0(exp, '_logit_embed')
 
 #Include structured data?
 inc_struc = TRUE
@@ -68,7 +68,6 @@ seed = 92120
 #model grid
 mg <- expand_grid(
   fold = seq(1,10),
-  svd = seq(50, 300, 1000),
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
   alpha = c(0.9, 0.5, 0.1),
   class = c('neut', 'pos', 'neg')
@@ -104,19 +103,16 @@ foreach (r = 1:nrow(mg)) %dopar% {
   y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
   y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
   
-  #load truncated SVD of tf-idf of text & remove first row and first column (junk)
-  assign(paste0('f', mg$fold[r], '_tr_svd', mg$svd[r]), fread(paste0(datadir, 'f_', mg$fold[r], '_tr_svd', mg$svd[r], '.csv'), skip = 1, drop = 1))
-  assign(paste0('f', mg$fold[r], '_te_svd', mg$svd[r]), fread(paste0(datadir, 'f_', mg$fold[r], '_te_svd', mg$svd[r], '.csv'), skip = 1, drop = 1))
   
   #load features with or without structured data
   if (inc_struc == FALSE) {
-    #load only the SVD features
-    x_train <- as.matrix(get(paste0('f', mg$fold[r], '_tr_svd', mg$svd[r])))
-    x_test <- as.matrix(get(paste0('f', mg$fold[r], '_te_svd', mg$svd[r])))
+    #load only the embeddings
+    x_train <- as.matrix(get(paste0('f', mg$fold[r], '_tr'))[,85:385])
+    x_test <- as.matrix(get(paste0('f', mg$fold[r], '_te'))[,85:385])
   } else {
-    #concatenate structured data with SVD
-    x_train <- as.matrix(cbind(get(paste0('f', mg$fold[r], '_tr_svd', mg$svd[r])), get(paste0('f', mg$fold[r], '_tr'))[,27:82]))
-    x_test <- as.matrix(cbind(get(paste0('f', mg$fold[r], '_te_svd', mg$svd[r])), get(paste0('f', mg$fold[r], '_te'))[,27:82]))
+    #concatenate structured data with embeddings
+    x_train <- as.matrix(cbind(get(paste0('f', mg$fold[r], '_tr'))[,85:385], get(paste0('f', mg$fold[r], '_tr'))[,27:82]))
+    x_test <- as.matrix(cbind(get(paste0('f', mg$fold[r], '_te'))[,85:385], get(paste0('f', mg$fold[r], '_te'))[,27:82]))
   }
   
   #run elastic net across lambda grid for each class
@@ -133,13 +129,12 @@ foreach (r = 1:nrow(mg)) %dopar% {
   alpha_preds <- predict(frail_logit, x_test, type = 'response')
   
   #save predictions
-  fwrite(alpha_preds, paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+  fwrite(alpha_preds, paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.csv'))
   
   #build hyperparameter grid
   hyper_grid <- expand.grid(
     frail_lab = NA,
     fold = NA,
-    SVD = NA,
     class = NA,
     lambda = rep(NA, ncol(alpha_preds)),
     alpha = NA,
@@ -152,7 +147,6 @@ foreach (r = 1:nrow(mg)) %dopar% {
     #label each row
     hyper_grid$frail_lab[l] <- mg$frail_lab[r]
     hyper_grid$fold[l] <- mg$fold[r]
-    hyper_grid$SVD[l] <- mg$svd[r]
     hyper_grid$class[l] <- mg$class[r]
     hyper_grid$alpha[l] <- mg$alpha[r]
     
@@ -178,14 +172,14 @@ foreach (r = 1:nrow(mg)) %dopar% {
   }
   
   #save hyper_grid for each glmnet run
-  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$svd[r], '_', mg$class[r], '_r', r, '.csv'))
+  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_r', r, '.csv'))
   
   #calculate & save run time for each glmnet
   end_time <- Sys.time()
   duration <- difftime(end_time, start_time, units = 'sec')
   run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
   #save
-  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$svd[r], '_', mg$class[r], '_r', r, '.txt'))
+  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_r', r, '.txt'))
 }
 
 #calculate total run time
@@ -205,7 +199,7 @@ write(run_time, paste0(outdir, 'exp', exp, '_duration_logit.txt'))
 # 
 # #function to get mean loss across 10 folds
 # mean_loss <- function(h) {
-#   hyper_wide <- pivot_wider(h, id_cols = c('SVD', 'class', 'lambda', 'alpha', 'frail_lab'), names_from = 'fold',  values_from = 'cross_entropy_2', names_prefix = 'fold')
+#   hyper_wide <- pivot_wider(h, id_cols = c('class', 'lambda', 'alpha', 'frail_lab'), names_from = 'fold',  values_from = 'cross_entropy_2', names_prefix = 'fold')
 #   hyper_wide2 <- hyper_wide %>%
 #     mutate(mean_entropy = rowMeans(hyper_wide[,grep('fold', colnames(hyper_wide), value = TRUE)])) %>%
 #     select(-grep('fold', colnames(hyper_wide)))
@@ -236,7 +230,6 @@ write(run_time, paste0(outdir, 'exp', exp, '_duration_logit.txt'))
 #   aspect_grid <- expand.grid(
 #     frail_lab = NA,
 #     fold = NA,
-#     SVD = best_hyper$SVD,
 #     class = NA,
 #     lambda = best_hyper$lambda,
 #     alpha = best_hyper$alpha,
