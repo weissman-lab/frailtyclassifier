@@ -128,7 +128,7 @@ foreach (r = 1:nrow(mg)) %dopar% {
   alpha_preds <- predict(frail_logit, x_test, type = 'response')
   
   #save predictions
-  fwrite(alpha_preds, paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.csv'))
+  fwrite(as.data.table(alpha_preds), paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.csv'))
   
   #build hyperparameter grid
   hyper_grid <- expand.grid(

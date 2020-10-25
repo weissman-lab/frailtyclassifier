@@ -144,7 +144,7 @@ for (d in 1:length(folds)) {
       preds <- predict(frail_rf, data=x_test)$predictions
       
       #save predictions
-      fwrite(preds, paste0(predsdir, 'exp', exp, '_preds_', frail_lab[f], '_fold_', folds[d], '_mtry_', hyper_grid$mtry[i], '_sfr_', hyper_grid$sample_frac_l[i], '.csv'))
+      fwrite(as.data.table(preds), paste0(predsdir, 'exp', exp, '_preds_', frail_lab[f], '_fold_', folds[d], '_mtry_', hyper_grid$mtry[i], '_sfr_', hyper_grid$sample_frac_l[i], '.csv'))
       
       #cv brier score for each class
       hyper_grid$cv_brier_neut[i] <- brier_score(y_test_neut, preds[,'0'])
