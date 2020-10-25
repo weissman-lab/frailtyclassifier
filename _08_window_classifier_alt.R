@@ -199,17 +199,16 @@ for (d in 1:length(folds)) {
       #add new results from each aspect loop
       assign(paste0('hyper_', frail_lab[f], '_fold_', folds[d]), rbind(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), hyper_grid4))
     }
-    
-    #save each fold for each aspect
-    fwrite(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
-    
-    #calculate & save run time for each fold for each aspect
-    end_time <- Sys.time()
-    duration <- difftime(end_time, start_time, units = 'sec')
-    run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
-    #save
-    write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', frail_lab[f], '_fold_', folds[d], '.txt'))
   }
+  #save each fold for each aspect
+  fwrite(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
+  
+  #calculate & save run time for each fold for each aspect
+  end_time <- Sys.time()
+  duration <- difftime(end_time, start_time, units = 'sec')
+  run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
+  #save
+  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', frail_lab[f], '_fold_', folds[d], '.txt'))
 }
 
 #calculate total run time
