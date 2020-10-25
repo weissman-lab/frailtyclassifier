@@ -7,9 +7,6 @@ registerDoParallel(detectCores())
 
 
 
-
-
-
 #Experiment number (based on date):
 exp <- '102420'
 #Update exp numbrer to indicate rf with embeddings
@@ -25,6 +22,11 @@ if (inc_struc == FALSE) {
 
 
 
+seed = 92120
+folds <- seq(1, 10)
+frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
+
+
 
 datadir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
 #new directory for each experiment
@@ -33,7 +35,6 @@ dir.create(outdir)
 #new directory for predictions
 predsdir <- paste0(outdir,'preds/')
 dir.create(predsdir)
-
 
 
 
@@ -64,10 +65,6 @@ cross_entropy_2 <- function(obs, pred){
 }
 
 
-seed = 92120
-folds <- seq(1, 10)
-frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
-
 
 start_time <- Sys.time()
 
@@ -92,29 +89,6 @@ for (d in 1:length(folds)) {
   #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
   assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(datadir, 'f_', folds[d], '_tr_cw.csv')))
   
-  #hyper grid
-  hyper_grid <- expand.grid(
-    ntree           = 300,
-    mtry            = signif(seq(7, 45, length.out = 4), 2),
-    sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
-  )
-  #label sample fraction (for naming .csv files)
-  hyper_grid <- mutate(hyper_grid, sample_frac_l = ifelse(sample_frac == 0.6, 6,
-                                                          ifelse(sample_frac == 0.8, 8,
-                                                                 ifelse(sample_frac == 1.0, 10, NA))))
-  #tree grid
-  # hyper_grid <- expand.grid(
-  #   ntree      = signif(seq(100, 700, length.out = 4), 0),
-  #   mtry       = 20,
-  #   node_size  = 10
-  # )
-  #very small grid
-  # hyper_grid <- expand.grid(
-  #   ntree           = c(1, 2),
-  #   mtry            = 1,
-  #   sample_frac = .1
-  # )
-  
   for (f in 1:length(frail_lab)) {
     
     #get remainder of matching training and test data
@@ -127,66 +101,84 @@ for (d in 1:length(folds)) {
     #get matching caseweights
     cw <- get(paste0('f', folds[d], '_tr_cw'))[[paste0(frail_lab[f], '_cw')]]
     
-      for(i in 1:nrow(hyper_grid)) {
+    #hyper grid
+    hyper_grid <- expand.grid(
+      ntree           = 300,
+      mtry            = signif(seq(7, 45, length.out = 4), 2),
+      sample_frac = signif(seq(0.6, 1, length.out = 3), 1))
+    #label sample fraction (for naming .csv files)
+    hyper_grid <- mutate(hyper_grid, sample_frac_l = ifelse(sample_frac == 0.6, 6,
+                                                            ifelse(sample_frac == 0.8, 8,
+                                                                   ifelse(sample_frac == 1.0, 10, NA))))
+    #tree grid
+    # hyper_grid <- expand.grid(
+    #   ntree      = signif(seq(100, 700, length.out = 4), 0),
+    #   mtry       = 20,
+    #   node_size  = 10)
+    #very small grid
+    # hyper_grid <- expand.grid(
+    #   ntree           = c(1, 2),
+    #   mtry            = 1,
+    #   sample_frac = .1)
+    
+    for(i in 1:nrow(hyper_grid)) {
         
-        frail_rf <- ranger(y = factor(y_train, levels = c(0, 1, -1)), #relevel factors to match class.weights
-                           x = x_train,
-                           num.threads = detectCores(),
-                           probability = TRUE,
-                           num.trees = hyper_grid$ntree[i],
-                           mtry = hyper_grid$mtry[i],
-                           sample.fraction = hyper_grid$sample_frac[i],
-                           #leaving node size as default
-                           #min.node.size = hyper_grid$node_size[i],
-                           #class.weights in order of outcome factor levels
-                           #class.weights = as.integer(c(levels(factor(cw))[1], levels(factor(cw))[2], levels(factor(cw))[2])),
-                           #set oob.error=FALSE to save time/memory (using CV error)
-                           #case.weights
-                           case.weights = cw,
-                           oob.error = FALSE,
-                           seed = seed)
-        
-        
-        #make predictions on test fold
-        preds <- predict(frail_rf, data=x_test)$predictions
-        
-        #save predictions
-        fwrite(preds, paste0(predsdir, 'exp', exp, '_preds_', frail_lab[f], '_fold_', folds[d], '_mtry_', hyper_grid$mtry[i], '_sfr_', hyper_grid$sample_frac_l[i], '.csv'))
-        
-        #cv brier score for each class
-        hyper_grid$cv_brier_neut[i] <- brier_score(y_test_neut, preds[,'0'])
-        hyper_grid$cv_brier_pos[i] <- brier_score(y_test_pos, preds[,'1'])
-        hyper_grid$cv_brier_neg[i] <- brier_score(y_test_neg, preds[,'-1'])
-        #cv brier score for all classes
-        hyper_grid$cv_brier_all[i] <- brier_score(
-          c(y_test_neut, y_test_pos, y_test_neg), 
-          c(preds[,'0'], preds[,'1'], preds[,'-1']))
-        
-        
-        #cv scaled brier score for each class
-        hyper_grid$scaled_brier_neut[i] <- scaled_brier_score(y_test_neut, preds[,'0'])
-        hyper_grid$scaled_brier_pos[i] <- scaled_brier_score(y_test_pos, preds[,'1'])
-        hyper_grid$scaled_brier_neg[i] <- scaled_brier_score(y_test_neg, preds[,'-1'])
-        #mean scaled Brier score for all classes
-        hyper_grid$scaled_brier_all[i] <- mean(
-          scaled_brier_score(y_test_neut, preds[,'0']),
-          scaled_brier_score(y_test_pos, preds[,'1']),
-          scaled_brier_score(y_test_neg, preds[,'-1']))
-        
-        
-        #calculate cross-entropy
-        preds_ce <- preds
-        #set floor and ceiling for predictions (predictions of 1 or 0 create entropy of -inf)
-        preds_ce[preds_ce==0] <- 1e-3
-        preds_ce[preds_ce==1] <- 0.999
-        #calculate
-        hyper_grid$cross_entropy_2[i] <- cross_entropy_2(y_test, preds_ce)
-      }
+      frail_rf <- ranger(y = factor(y_train, levels = c(0, 1, -1)), #relevel factors to match class.weights
+                         x = x_train,
+                         num.threads = detectCores(),
+                         probability = TRUE,
+                         num.trees = hyper_grid$ntree[i],
+                         mtry = hyper_grid$mtry[i],
+                         sample.fraction = hyper_grid$sample_frac[i],
+                         #leaving node size as default
+                         #min.node.size = hyper_grid$node_size[i],
+                         #class.weights in order of outcome factor levels
+                         #class.weights = as.integer(c(levels(factor(cw))[1], levels(factor(cw))[2], levels(factor(cw))[2])),
+                         #set oob.error=FALSE to save time/memory (using CV error)
+                         #case.weights
+                         case.weights = cw,
+                         oob.error = FALSE,
+                         seed = seed)
+      
+      #make predictions on test fold
+      preds <- predict(frail_rf, data=x_test)$predictions
+      
+      #save predictions
+      fwrite(preds, paste0(predsdir, 'exp', exp, '_preds_', frail_lab[f], '_fold_', folds[d], '_mtry_', hyper_grid$mtry[i], '_sfr_', hyper_grid$sample_frac_l[i], '.csv'))
+      
+      #cv brier score for each class
+      hyper_grid$cv_brier_neut[i] <- brier_score(y_test_neut, preds[,'0'])
+      hyper_grid$cv_brier_pos[i] <- brier_score(y_test_pos, preds[,'1'])
+      hyper_grid$cv_brier_neg[i] <- brier_score(y_test_neg, preds[,'-1'])
+      #cv brier score for all classes
+      hyper_grid$cv_brier_all[i] <- brier_score(
+        c(y_test_neut, y_test_pos, y_test_neg), 
+        c(preds[,'0'], preds[,'1'], preds[,'-1']))
+      
+      #cv scaled brier score for each class
+      hyper_grid$scaled_brier_neut[i] <- scaled_brier_score(y_test_neut, preds[,'0'])
+      hyper_grid$scaled_brier_pos[i] <- scaled_brier_score(y_test_pos, preds[,'1'])
+      hyper_grid$scaled_brier_neg[i] <- scaled_brier_score(y_test_neg, preds[,'-1'])
+      #mean scaled Brier score for all classes
+      hyper_grid$scaled_brier_all[i] <- mean(
+        scaled_brier_score(y_test_neut, preds[,'0']),
+        scaled_brier_score(y_test_pos, preds[,'1']),
+        scaled_brier_score(y_test_neg, preds[,'-1']))
+      
+      #calculate cross-entropy
+      preds_ce <- preds
+      #set floor and ceiling for predictions (predictions of 1 or 0 create entropy of -inf)
+      preds_ce[preds_ce==0] <- 1e-3
+      preds_ce[preds_ce==1] <- 0.999
+      #calculate
+      hyper_grid$cross_entropy_2[i] <- cross_entropy_2(y_test, preds_ce)
+    }
     
     #add frail aspect label
-    hyper_grid4 <- get(paste0('hyper_grid_d', folds[d], '_f', f))
+    hyper_grid4 <- hyper_grid
     hyper_grid4$frail_lab <- frail_lab[f]
     
+    #start building the hyper_grid for the current loop
     if (exists(paste0('hyper_', frail_lab[f], '_fold_', folds[d])) == FALSE) {
       assign(paste0('hyper_', frail_lab[f], '_fold_', folds[d]), hyper_grid4)
     } else{
