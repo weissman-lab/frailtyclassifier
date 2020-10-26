@@ -9,13 +9,13 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- '102420'
-#Update exp numbrer to indicate penalized regression with embeddings
-exp <- paste0(exp, '_logit_embed')
-
+exp <- '102620'
 #Include structured data?
 inc_struc = TRUE
 
+
+#Update exp number to indicate penalized regression with embeddings
+exp <- paste0(exp, '_logit_embed')
 #Update exp number to indicate unstructured/structured
 if (inc_struc == FALSE) {
   exp <- paste0(exp, '_un')
@@ -171,14 +171,14 @@ foreach (r = 1:nrow(mg)) %dopar% {
   }
   
   #save hyper_grid for each glmnet run
-  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_r', r, '.csv'))
+  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.csv'))
   
   #calculate & save run time for each glmnet
   end_time <- Sys.time()
   duration <- difftime(end_time, start_time, units = 'sec')
   run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
   #save
-  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_r', r, '.txt'))
+  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.txt'))
 }
 
 #calculate total run time
