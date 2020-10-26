@@ -18,8 +18,8 @@ inc_struc = TRUE
 
 #Update exp number to indicate unstructured/structured
 if (inc_struc == FALSE) {
-  exp <- paste0(exp, '_un')
-} else {exp <- paste0(exp, '_str')}
+  exp <- paste0(exp, 'un')
+} else {exp <- paste0(exp, 'str')}
 
 
 
@@ -68,7 +68,7 @@ seed = 92120
 #model grid
 mg <- expand_grid(
   fold = seq(1,10),
-  svd = seq(50, 300, 1000),
+  svd = c(50, 300, 1000),
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
   alpha = c(0.9, 0.5, 0.1),
   class = c('neut', 'pos', 'neg')
@@ -83,25 +83,32 @@ lambda_seq <- c(10^seq(2, -5, length.out = 25))
 
 
 
+#load data for all folds prior to parallelizing
+folds <- seq(1, 10)
+svd <- c(50, 300, 1000)
+for (f in 1:length(folds)) {
+  #load labels and structured data
+  assign(paste0('f', folds[f], '_tr'), fread(paste0(datadir, 'f_', folds[f], '_tr_df.csv')))
+  assign(paste0('f', folds[f], '_te'), fread(paste0(datadir, 'f_', folds[f], '_te_df.csv')))
+  
+  for (s in 1:length(svd)) {
+    #load embeddings with or without structured data
+    if (inc_struc == FALSE) {
+      #load only the embeddings - drop first 2 columns (index and note label)
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(fread(paste0(datadir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1)))
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(fread(paste0(datadir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1)))
+    } else {
+      #concatenate embeddings with structured data
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(cbind(fread(paste0(datadir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82])))
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(cbind(fread(paste0(datadir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82])))
+    }
+  }
+}
+
 #start timer
 start_time <- Sys.time()
 
 foreach (r = 1:nrow(mg)) %dopar% {
-  
-  #load labels and structured data
-  assign(paste0('f', mg$fold[r], '_tr'), fread(paste0(datadir, 'f_', mg$fold[r], '_tr_df.csv')))
-  assign(paste0('f', mg$fold[r], '_te'), fread(paste0(datadir, 'f_', mg$fold[r], '_te_df.csv')))
-  
-  #load SVD with or without structured data & remove first row and first column (junk)
-  if (inc_struc == FALSE) {
-    #load only the SVD
-    x_train <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_svd', mg$svd[r], '.csv'), skip = 1, drop = 1))
-    x_test <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_te_svd', mg$svd[r], '.csv'), skip = 1, drop = 1))
-  } else {
-    #concatenate structured data with SVD
-    x_train <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_svd', mg$svd[r], '.csv'), skip = 1, drop = 1), get(paste0('f', mg$fold[r], '_tr'))[,27:82]))
-    x_test <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_te_svd', mg$svd[r], '.csv'), skip = 1, drop = 1), get(paste0('f', mg$fold[r], '_te'))[,27:82]))
-  }
   
   #get matching training and test labels
   y_train_neut <- get(paste0('f', mg$fold[r], '_tr'))[[paste0(mg$frail_lab[r], '_0')]]
@@ -119,14 +126,14 @@ foreach (r = 1:nrow(mg)) %dopar% {
   classes <- c('neut', 'pos', 'neg')
   
   #train model for each class
-  frail_logit <- glmnet(x = x_train,
+  frail_logit <- glmnet(x = get(paste0('f', folds[f], '_s_', svd[s], '_x_train')),
                         y = get(paste0('y_train_', mg$class[r])),
                         family = 'binomial',
                         alpha = mg$alpha[r],
                         lambda = lambda_seq)
   
   #make predictions on test fold for each alpha
-  alpha_preds <- predict(frail_logit, x_test, type = 'response')
+  alpha_preds <- predict(frail_logit, get(paste0('f', folds[f], '_s_', svd[s], '_x_test')), type = 'response')
   
   #save predictions
   fwrite(as.data.table(alpha_preds), paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))

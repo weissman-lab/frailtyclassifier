@@ -18,8 +18,8 @@ inc_struc = TRUE
 exp <- paste0(exp, '_logit_embed')
 #Update exp number to indicate unstructured/structured
 if (inc_struc == FALSE) {
-  exp <- paste0(exp, '_un')
-} else {exp <- paste0(exp, '_str')}
+  exp <- paste0(exp, 'un')
+} else {exp <- paste0(exp, 'str')}
 
 
 
@@ -82,25 +82,31 @@ lambda_seq <- c(10^seq(2, -5, length.out = 25))
 
 
 
-#start timer
-start_time <- Sys.time()
-
-foreach (r = 1:nrow(mg)) %dopar% {
-  
+#load data for all folds prior to parallelizing
+folds <- seq(1, 10)
+for (f in 1:length(folds)) {
   #load labels and structured data
-  assign(paste0('f', mg$fold[r], '_tr'), fread(paste0(datadir, 'f_', mg$fold[r], '_tr_df.csv')))
-  assign(paste0('f', mg$fold[r], '_te'), fread(paste0(datadir, 'f_', mg$fold[r], '_te_df.csv')))
+  assign(paste0('f', folds[f], '_tr'), fread(paste0(datadir, 'f_', folds[f], '_tr_df.csv')))
+  assign(paste0('f', folds[f], '_te'), fread(paste0(datadir, 'f_', folds[f], '_te_df.csv')))
   
   #load embeddings with or without structured data
   if (inc_struc == FALSE) {
     #load only the embeddings - drop first 2 columns (index and note label)
-    x_train <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_embeddings.csv'), drop = c(1,2)))
-    x_test <- as.matrix(fread(paste0(datadir, 'f_', mg$fold[r], '_te_embeddings.csv'), drop = c(1,2)))
+    assign(paste0('f', folds[f], '_x_train'), as.matrix(fread(paste0(datadir, 'f_', folds[f], '_tr_embeddings.csv'), drop = c(1,2))))
+    assign(paste0('f', folds[f], '_x_test'), as.matrix(fread(paste0(datadir, 'f_', folds[f], '_te_embeddings.csv'), drop = c(1,2))))
   } else {
     #concatenate embeddings with structured data
-    x_train <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', mg$fold[r], '_tr'))[,27:82]))
-    x_test <- as.matrix(cbind(fread(paste0(datadir, 'f_', mg$fold[r], '_te_embeddings.csv'), drop = c(1,1)), get(paste0('f', mg$fold[r], '_te'))[,27:82]))
+    assign(paste0('f', folds[f], '_x_train'), as.matrix(cbind(fread(paste0(datadir, 'f_', folds[f], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[f], '_tr'))[,27:82])))
+    assign(paste0('f', folds[f], '_x_test'), as.matrix(cbind(fread(paste0(datadir, 'f_', folds[f], '_te_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[f], '_te'))[,27:82])))
   }
+}
+
+
+
+#start timer
+start_time <- Sys.time()
+
+foreach (r = 1:nrow(mg)) %dopar% {
   
   #get matching training and test labels
   y_train_neut <- get(paste0('f', mg$fold[r], '_tr'))[[paste0(mg$frail_lab[r], '_0')]]
@@ -110,22 +116,15 @@ foreach (r = 1:nrow(mg)) %dopar% {
   y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
   y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
   
-  #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
-  #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
-  assign(paste0('f', mg$fold[r], '_tr_cw'), fread(paste0(datadir, 'f_', mg$fold[r], '_tr_cw.csv')))
-  
-  #run elastic net across lambda grid for each class
-  classes <- c('neut', 'pos', 'neg')
-  
   #train model for each class
-  frail_logit <- glmnet(x = x_train,
+  frail_logit <- glmnet(x = get(paste0('f', mg$fold[r], '_x_train')),
                         y = get(paste0('y_train_', mg$class[r])),
                         family = 'binomial',
                         alpha = mg$alpha[r],
                         lambda = lambda_seq)
   
   #make predictions on test fold for each alpha
-  alpha_preds <- predict(frail_logit, x_test, type = 'response')
+  alpha_preds <- predict(frail_logit, get(paste0('f', mg$fold[r], '_x_test')), type = 'response')
   
   #save predictions
   fwrite(as.data.table(alpha_preds), paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.csv'))
