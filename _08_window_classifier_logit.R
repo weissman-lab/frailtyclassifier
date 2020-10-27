@@ -78,6 +78,12 @@ mg <- mutate(mg, alpha_l = ifelse(alpha == 0.9, 9,
                                   ifelse(alpha == 0.5, 5,
                                          ifelse(alpha == 0.1, 1, NA))))
 
+#check for models that have already been completed & remove them from the grid
+mg <- mg %>%
+  mutate(filename = paste0('exp', exp, '_hyper_f', fold, '_', frail_lab, '_', class, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
+  filter(!filename %in% list.files(outdir)) %>%
+  select(-'filename')
+
 #lambda seq
 lambda_seq <- c(10^seq(2, -5, length.out = 25))
 
@@ -181,14 +187,14 @@ foreach (r = 1:nrow(mg)) %dopar% {
   }
   
   #save hyper_grid for each glmnet run
-  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$svd[r], '_', mg$class[r], '_r', r, '.csv'))
+  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
   
   #calculate & save run time for each glmnet
   end_time <- Sys.time()
   duration <- difftime(end_time, start_time, units = 'sec')
   run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
   #save
-  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$svd[r], '_', mg$class[r], '_r', r, '.txt'))
+  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
 }
 
 #calculate total run time
