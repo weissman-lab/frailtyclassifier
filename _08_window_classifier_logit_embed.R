@@ -77,9 +77,15 @@ mg <- mutate(mg, alpha_l = ifelse(alpha == 0.9, 9,
                                   ifelse(alpha == 0.5, 5,
                                          ifelse(alpha == 0.1, 1, NA))))
 
+#check for models that have already been completed & remove them from the grid
+mg <- mg %>%
+  mutate(filename = paste0('exp', exp, '_preds_f', fold, '_', frail_lab, '_', class, '_alpha', alpha_l, '.csv')) %>%
+  filter(!filename %in% list.files(outdir)) %>%
+  select(-'filename')
+
+
 #lambda seq
 lambda_seq <- c(10^seq(2, -5, length.out = 25))
-
 
 
 #load data for all folds prior to parallelizing
