@@ -7,8 +7,12 @@ registerDoParallel(detectCores())
 
 
 
-#Experiment number (based on date):
-exp <- '102820'
+#Experiment number from cmd line:
+exp <- commandArgs(trailingOnly = TRUE)
+#test if there is an exp number argument: if not, return an error
+if (length(exp)==0) {
+  stop("Exp number must be specified as an argument", call.=FALSE)
+}
 #Update exp numbrer to indicate rf with embeddings
 exp <- paste0(exp, '_rf_embed')
 
