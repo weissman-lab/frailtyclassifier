@@ -9,13 +9,13 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- '102620'
+exp <- '102820'
+#Update exp number to indicate penalized regression with embeddings
+exp <- paste0(exp, '_logit_embed')
+
 #Include structured data?
 inc_struc = TRUE
 
-
-#Update exp number to indicate penalized regression with embeddings
-exp <- paste0(exp, '_logit_embed')
 #Update exp number to indicate unstructured/structured
 if (inc_struc == FALSE) {
   exp <- paste0(exp, 'un')
@@ -68,18 +68,19 @@ seed = 92120
 #model grid
 mg <- expand_grid(
   fold = seq(1,10),
+  svd = 0, #included to match glmnet tf-idf output
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
   alpha = c(0.9, 0.5, 0.1),
   class = c('neut', 'pos', 'neg')
 )
-#label alpha (for naming .csv file)
+#label alpha (for naming .csv files)
 mg <- mutate(mg, alpha_l = ifelse(alpha == 0.9, 9,
                                   ifelse(alpha == 0.5, 5,
                                          ifelse(alpha == 0.1, 1, NA))))
 
 #check for models that have already been completed & remove them from the grid
 mg <- mg %>%
-  mutate(filename = paste0('exp', exp, '_preds_f', fold, '_', frail_lab, '_', class, '_alpha', alpha_l, '.csv')) %>%
+  mutate(filename = paste0('exp', exp, '_hyper_f', fold, '_', frail_lab, '_', class, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
   filter(!filename %in% list.files(outdir)) %>%
   select(-'filename')
 
@@ -133,7 +134,7 @@ foreach (r = 1:nrow(mg)) %dopar% {
   alpha_preds <- predict(frail_logit, get(paste0('f', mg$fold[r], '_x_test')), type = 'response')
   
   #save predictions
-  fwrite(as.data.table(alpha_preds), paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.csv'))
+  fwrite(as.data.table(alpha_preds), paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
   
   #build hyperparameter grid
   hyper_grid <- expand.grid(
@@ -176,14 +177,14 @@ foreach (r = 1:nrow(mg)) %dopar% {
   }
   
   #save hyper_grid for each glmnet run
-  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.csv'))
-  
+  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+
   #calculate & save run time for each glmnet
   end_time <- Sys.time()
   duration <- difftime(end_time, start_time, units = 'sec')
   run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
   #save
-  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_alpha', mg$alpha_l[r], '.txt'))
+  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
 }
 
 #calculate total run time
@@ -192,53 +193,3 @@ duration <- difftime(end_time, start_time, units = 'sec')
 run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
 #save
 write(run_time, paste0(outdir, 'exp', exp, '_duration_logit.txt'))
-
-# 
-# hyper_grid_d1_f1
-# 
-# 
-# ################
-# # Pick the best hyper-parameters and save predictions
-# 
-# 
-# #function to get mean loss across 10 folds
-# mean_loss <- function(h) {
-#   hyper_wide <- pivot_wider(h, id_cols = c('class', 'lambda', 'alpha', 'frail_lab'), names_from = 'fold',  values_from = 'cross_entropy_2', names_prefix = 'fold')
-#   hyper_wide2 <- hyper_wide %>%
-#     mutate(mean_entropy = rowMeans(hyper_wide[,grep('fold', colnames(hyper_wide), value = TRUE)])) %>%
-#     select(-grep('fold', colnames(hyper_wide)))
-#   return(hyper_wide2)
-# }
-# 
-# 
-# for (f in 1:length(frail_lab)) {
-#   
-#   #get the best hyperparameters for each aspect (avg across 10 folds)
-#   for (d in 1:length(folds)) {
-#     #get performance from each fold for each aspect
-#     assign(paste0('best_hyper_', mg$frail_lab[r], '_fold_', mg$fold[r]), fread(paste0(outdir, 'exp', exp, '_hyper_', mg$frail_lab[r], '_fold_', mg$fold[r], '.csv')))
-#     #add fold label
-#     hyper <- get(paste0('best_hyper_', mg$frail_lab[r], '_fold_', mg$fold[r]))
-#     hyper$fold <- mg$fold[r]
-#     assign(paste0('best_hyper_', mg$frail_lab[r], '_fold_', mg$fold[r]), hyper)
-#   }
-#   #combine all folds for each aspect
-#   assign(paste0(mg$frail_lab[r], '_hyper'), do.call(rbind, mget(objects(pattern = paste0(mg$frail_lab[r])))))
-#   #calculate mean loss for each set of hyperparameters
-#   best_hyper <- mean_loss(get(paste0(mg$frail_lab[r], '_hyper')))
-#   #pick the combo with lowest loss
-#   best_hyper <- best_hyper %>%
-#     arrange(mean_entropy) %>%
-#     slice(1)
-#   #insert into hyper grid
-#   aspect_grid <- expand.grid(
-#     frail_lab = NA,
-#     fold = NA,
-#     class = NA,
-#     lambda = best_hyper$lambda,
-#     alpha = best_hyper$alpha,
-#     df = NA,
-#     cross_entropy_2 = NA,
-#     bscore = NA,
-#     sbrier = NA)
-# }

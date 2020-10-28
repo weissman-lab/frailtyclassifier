@@ -9,8 +9,8 @@ registerDoParallel(detectCores())
 
 
 #Experiment number (based on date):
-exp <- '102420'
-#Update exp numbrer to indicate penalized regression
+exp <- '102820'
+#Update exp number to indicate penalized regression with tfidf
 exp <- paste0(exp, '_logit_tfidf')
 
 #Include structured data?
@@ -68,7 +68,7 @@ seed = 92120
 #model grid
 mg <- expand_grid(
   fold = seq(1,10),
-  svd = c(50, 300, 1000),
+  svd = c(300, 1000, 3000),
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
   alpha = c(0.9, 0.5, 0.1),
   class = c('neut', 'pos', 'neg')
@@ -83,6 +83,7 @@ mg <- mg %>%
   mutate(filename = paste0('exp', exp, '_hyper_f', fold, '_', frail_lab, '_', class, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
   filter(!filename %in% list.files(outdir)) %>%
   select(-'filename')
+
 
 #lambda seq
 lambda_seq <- c(10^seq(2, -5, length.out = 25))
@@ -124,22 +125,15 @@ foreach (r = 1:nrow(mg)) %dopar% {
   y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
   y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
   
-  #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
-  #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
-  assign(paste0('f', mg$fold[r], '_tr_cw'), fread(paste0(datadir, 'f_', mg$fold[r], '_tr_cw.csv')))
-  
-  #run elastic net across lambda grid for each class
-  classes <- c('neut', 'pos', 'neg')
-  
   #train model for each class
-  frail_logit <- glmnet(x = get(paste0('f', folds[f], '_s_', svd[s], '_x_train')),
+  frail_logit <- glmnet(x = get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train')),
                         y = get(paste0('y_train_', mg$class[r])),
                         family = 'binomial',
                         alpha = mg$alpha[r],
                         lambda = lambda_seq)
   
   #make predictions on test fold for each alpha
-  alpha_preds <- predict(frail_logit, get(paste0('f', folds[f], '_s_', svd[s], '_x_test')), type = 'response')
+  alpha_preds <- predict(frail_logit, get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_test')), type = 'response')
   
   #save predictions
   fwrite(as.data.table(alpha_preds), paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
@@ -203,54 +197,3 @@ duration <- difftime(end_time, start_time, units = 'sec')
 run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
 #save
 write(run_time, paste0(outdir, 'exp', exp, '_duration_logit.txt'))
-
-# 
-# hyper_grid_d1_f1
-# 
-# 
-# ################
-# # Pick the best hyper-parameters and save predictions
-# 
-# 
-# #function to get mean loss across 10 folds
-# mean_loss <- function(h) {
-#   hyper_wide <- pivot_wider(h, id_cols = c('SVD', 'class', 'lambda', 'alpha', 'frail_lab'), names_from = 'fold',  values_from = 'cross_entropy_2', names_prefix = 'fold')
-#   hyper_wide2 <- hyper_wide %>%
-#     mutate(mean_entropy = rowMeans(hyper_wide[,grep('fold', colnames(hyper_wide), value = TRUE)])) %>%
-#     select(-grep('fold', colnames(hyper_wide)))
-#   return(hyper_wide2)
-# }
-# 
-# 
-# for (f in 1:length(frail_lab)) {
-#   
-#   #get the best hyperparameters for each aspect (avg across 10 folds)
-#   for (d in 1:length(folds)) {
-#     #get performance from each fold for each aspect
-#     assign(paste0('best_hyper_', mg$frail_lab[r], '_fold_', mg$fold[r]), fread(paste0(outdir, 'exp', exp, '_hyper_', mg$frail_lab[r], '_fold_', mg$fold[r], '.csv')))
-#     #add fold label
-#     hyper <- get(paste0('best_hyper_', mg$frail_lab[r], '_fold_', mg$fold[r]))
-#     hyper$fold <- mg$fold[r]
-#     assign(paste0('best_hyper_', mg$frail_lab[r], '_fold_', mg$fold[r]), hyper)
-#   }
-#   #combine all folds for each aspect
-#   assign(paste0(mg$frail_lab[r], '_hyper'), do.call(rbind, mget(objects(pattern = paste0(mg$frail_lab[r])))))
-#   #calculate mean loss for each set of hyperparameters
-#   best_hyper <- mean_loss(get(paste0(mg$frail_lab[r], '_hyper')))
-#   #pick the combo with lowest loss
-#   best_hyper <- best_hyper %>%
-#     arrange(mean_entropy) %>%
-#     slice(1)
-#   #insert into hyper grid
-#   aspect_grid <- expand.grid(
-#     frail_lab = NA,
-#     fold = NA,
-#     SVD = best_hyper$SVD,
-#     class = NA,
-#     lambda = best_hyper$lambda,
-#     alpha = best_hyper$alpha,
-#     df = NA,
-#     cross_entropy_2 = NA,
-#     bscore = NA,
-#     sbrier = NA)
-# }
