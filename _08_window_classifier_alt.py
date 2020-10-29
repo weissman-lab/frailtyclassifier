@@ -70,20 +70,45 @@ embedding_colnames = [i for i in df.columns if re.match("identity", i)]
 out_varnames = df.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
 input_dims = len(embedding_colnames) + len(str_varnames)
 
-
 # reset the index
 df2 = df.reset_index()
 
 # split off embeddings
 embeddings = df2.loc[:, df2.columns.str.startswith('note') | df2.columns.str.startswith('identity')].copy()
-#calculate the mean of the embeddings for each 11 token rolling window
-for v in range(1,(embeddings.shape[1]-1)):
-    embeddings[f"mean_{v}"] = embeddings.iloc[:,v].rolling(window = 11, center = True, min_periods=0).mean()
-#shows that this works:
-#embeddings[['identity_1','mean_1']].iloc[0:11]
-#embeddings['identity_1'].iloc[0:11].mean()
+#for each note, calculate the mean of the embeddings for each 11 token rolling window. Get embeddings for the words before (lag) and after (lead) the center word.
+count = 0
+embeddings2 = None
+for i in list(embeddings.note.unique()):
+    # Create sliding window of 11 tokens for each note (important to copy the data in this step to avoid chained indexing)
+    note_i = embeddings.loc[embeddings['note'] == i].copy()
+    for v in range(0, (note_i.loc[:, note_i.columns.str.startswith('identity_')].shape[1])):
+        # rolling mean
+        note_i[f"mean_{v}"] = note_i[f"identity_{v}"].rolling(window=11, center=True, min_periods=0).mean()
+        # lag
+        note_i[f"lag_{v}"] = note_i[f"identity_{v}"].shift(periods=1)
+    #fill lag for first token by repeating first token
+    note_i = note_i.fillna(method='bfill')
+    #lead
+    for v in range(0, (note_i.loc[:, note_i.columns.str.startswith('identity_')].shape[1])):
+        note_i[f"lead_{v}"] = note_i[f"identity_{v}"].shift(periods=-1)
+    #fill lead for last token by repeating last token
+    note_i = note_i.fillna(method='ffill')
+    if embeddings2 is None:
+        embeddings2 = note_i
+    else:
+        embeddings2 = embeddings2.append(note_i, ignore_index=True)
+    count += 1
+# #show that lag and lead work:
+# embeddings2[['note', 'identity_0', 'lag_0', 'lead_0', 'identity_25', 'lag_25', 'lead_25']].iloc[0:10]
+# embeddings2[['note', 'identity_0', 'lag_0', 'lead_0', 'identity_25', 'lag_25', 'lead_25']].iloc[len(embeddings2)-10:len(embeddings2)]
+# #shows that mean of the window works:
+# embeddings2[['identity_10','mean_10']].iloc[0:11]
+# embeddings2['identity_10'].iloc[0:11].mean()
+#write out
+embeddings2.to_csv(f"{embeddingsdir}embed_mean_cent_lag_lead.csv")
 
-# drop embeddings
+
+# drop embeddings from df2
 df2 = df2.loc[:, ~df2.columns.str.startswith('identity')].copy()
 
 # dummies for the outcomes
@@ -137,10 +162,6 @@ for f in range(10):
     # Identify training (k-1) folds and test fold
     f_tr = df2[~df2.note.isin(fold)]
     f_te = df2[df2.note.isin(fold)]
-
-    # Get training embeddings and test embeddings for each fold
-    embeddings_tr = embeddings[~embeddings.note.isin(fold)]
-    embeddings_te = embeddings[embeddings.note.isin(fold)]
 
     # get a vector of caseweights for each frailty aspect
     # weight non-neutral tokens by the inverse of their prevalence
@@ -200,8 +221,6 @@ for f in range(10):
     ## Output for r
     f_tr.to_csv(f"{trtedatadir}f_{f+1}_tr_df.csv")
     f_te.to_csv(f"{trtedatadir}f_{f+1}_te_df.csv")
-    embeddings_tr.to_csv(f"{embeddingsdir}f_{f+1}_tr_embeddings.csv")
-    embeddings_te.to_csv(f"{embeddingsdir}f_{f+1}_te_embeddings.csv")
     f_tr_cw.to_csv(f"{trtedatadir}f_{f+1}_tr_cw.csv")
     f_tr_svd50.to_csv(f"{SVDdir}f_{f + 1}_tr_svd50.csv")
     f_tr_svd300.to_csv(f"{SVDdir}f_{f+1}_tr_svd300.csv")
