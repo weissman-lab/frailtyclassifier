@@ -8,20 +8,11 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.decomposition import TruncatedSVD
 from timeit import default_timer as timer
 
-pd.options.display.max_rows = 4000
-pd.options.display.max_columns = 4000
-
-# mb
-# datadir = f"{os.getcwd()}/output/"
-# grace
-# datadir = "/media/drv2/andrewcd2/frailty/output/"
-# azure
-datadir = "/share/gwlab/frailty/output/"
-#output:
-outdir = f"{os.getcwd()}/output/lin_trees/"
-SVDdir = f"{outdir}svd/"
-embeddingsdir = f"{outdir}embeddings/"
-trtedatadir = f"{outdir}trtedata/"
+def sheepish_mkdir(path):
+    try:
+        os.mkdir(path)
+    except FileExistsError:
+        pass
 
 def slidingWindow(sequence, winSize, step=1):
     """Returns a generator that will iterate through
@@ -44,6 +35,23 @@ def slidingWindow(sequence, winSize, step=1):
     # Center the window with 5 words on either side of the center word
     for i in range(int(winSize/2)+1, (int(winSize/2)+numOfChunks+1) * step, step):
         yield sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
+
+# mb
+# datadir = f"{os.getcwd()}/output/"
+# grace
+# datadir = "/media/drv2/andrewcd2/frailty/output/"
+# azure
+datadir = "/share/gwlab/frailty/output/"
+#output:
+outdir = f"{datadir}lin_trees/"
+SVDdir = f"{outdir}svd/"
+embeddingsdir = f"{outdir}embeddings/"
+trtedatadir = f"{outdir}trtedata/"
+
+sheepish_mkdir(outdir)
+sheepish_mkdir(SVDdir)
+sheepish_mkdir(embeddingsdir)
+sheepish_mkdir(trtedatadir)
 
 # load the notes from 2018
 notes_2018 = [i for i in os.listdir(datadir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
@@ -104,8 +112,6 @@ for i in list(embeddings.note.unique()):
 # #shows that mean of the window works:
 # embeddings2[['identity_10','mean_10']].iloc[0:11]
 # embeddings2['identity_10'].iloc[0:11].mean()
-#write out
-embeddings2.to_csv(f"{embeddingsdir}embed_mean_cent_lag_lead.csv")
 
 
 # drop embeddings from df2
@@ -222,6 +228,8 @@ for f in range(10):
     f_tr.to_csv(f"{trtedatadir}f_{f+1}_tr_df.csv")
     f_te.to_csv(f"{trtedatadir}f_{f+1}_te_df.csv")
     f_tr_cw.to_csv(f"{trtedatadir}f_{f+1}_tr_cw.csv")
+    embeddings2[~embeddings2.note.isin(fold)].to_csv(f"{embeddingsdir}f_{f + 1}_tr_embed_mean_cent_lag_lead.csv")
+    embeddings2[embeddings2.note.isin(fold)].to_csv(f"{embeddingsdir}f_{f + 1}_te_embed_mean_cent_lag_lead.csv")
     f_tr_svd50.to_csv(f"{SVDdir}f_{f + 1}_tr_svd50.csv")
     f_tr_svd300.to_csv(f"{SVDdir}f_{f+1}_tr_svd300.csv")
     f_tr_svd1000.to_csv(f"{SVDdir}f_{f+1}_tr_svd1000.csv")
