@@ -112,6 +112,8 @@ for i in list(embeddings.note.unique()):
 # #shows that mean of the window works:
 # embeddings2[['identity_10','mean_10']].iloc[0:11]
 # embeddings2['identity_10'].iloc[0:11].mean()
+#write out
+embeddings2.to_csv(f"{embeddingsdir}embed_mean_cent_lag_lead.csv")
 
 
 # drop embeddings from df2
@@ -228,8 +230,6 @@ for f in range(10):
     f_tr.to_csv(f"{trtedatadir}f_{f+1}_tr_df.csv")
     f_te.to_csv(f"{trtedatadir}f_{f+1}_te_df.csv")
     f_tr_cw.to_csv(f"{trtedatadir}f_{f+1}_tr_cw.csv")
-    embeddings2[~embeddings2.note.isin(fold)].to_csv(f"{embeddingsdir}f_{f + 1}_tr_embed_mean_cent_lag_lead.csv")
-    embeddings2[embeddings2.note.isin(fold)].to_csv(f"{embeddingsdir}f_{f + 1}_te_embed_mean_cent_lag_lead.csv")
     f_tr_svd50.to_csv(f"{SVDdir}f_{f + 1}_tr_svd50.csv")
     f_tr_svd300.to_csv(f"{SVDdir}f_{f+1}_tr_svd300.csv")
     f_tr_svd1000.to_csv(f"{SVDdir}f_{f+1}_tr_svd1000.csv")
