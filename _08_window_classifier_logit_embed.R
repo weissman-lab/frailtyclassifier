@@ -113,12 +113,12 @@ for (f in 1:length(folds)) {
   #load embeddings with or without structured data
   if (inc_struc == FALSE) {
     #load only the embeddings - drop first 2 columns (index and note label)
-    assign(paste0('f', folds[f], '_x_train'), as.matrix(fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embeddings.csv'), drop = c(1,2))))
-    assign(paste0('f', folds[f], '_x_test'), as.matrix(fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embeddings.csv'), drop = c(1,2))))
+    assign(paste0('f', folds[f], '_x_train'), as.matrix(fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embed_mean_cent_lag_lead.csv'), drop = c(1,2))))
+    assign(paste0('f', folds[f], '_x_test'), as.matrix(fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embed_mean_cent_lag_lead.csv'), drop = c(1,2))))
   } else {
     #concatenate embeddings with structured data
-    assign(paste0('f', folds[f], '_x_train'), as.matrix(cbind(fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[f], '_tr'))[,27:82])))
-    assign(paste0('f', folds[f], '_x_test'), as.matrix(cbind(fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[f], '_te'))[,27:82])))
+    assign(paste0('f', folds[f], '_x_train'), as.matrix(cbind(fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embed_mean_cent_lag_lead.csv'), drop = c(1,2)), get(paste0('f', folds[f], '_tr'))[,27:82])))
+    assign(paste0('f', folds[f], '_x_test'), as.matrix(cbind(fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embed_mean_cent_lag_lead.csv'), drop = c(1,2)), get(paste0('f', folds[f], '_te'))[,27:82])))
   }
 }
 
