@@ -29,11 +29,12 @@ if (inc_struc == FALSE) {
 
 # training & testing data:
 # mb
-# setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+datadir <- paste0(getwd(), '/output/lin_trees/')
 # grace
 # datadir <- paste0(getwd(), '/output/lin_trees/')
 # azure
-datadir <- '/share/gwlab/frailty/output/lin_trees/'
+#datadir <- '/share/gwlab/frailty/output/lin_trees/'
 SVDdir <- paste0(datadir, 'svd/') 
 embeddingsdir <- paste0(datadir, 'embeddings/')
 trtedatadir <- paste0(datadir, 'trtedata/')
