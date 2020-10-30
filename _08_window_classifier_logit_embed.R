@@ -102,6 +102,9 @@ mg <- mg %>%
 lambda_seq <- c(10^seq(2, -5, length.out = 25))
 
 
+#load all embeddings - drop index column
+embeddings <- fread(paste0(embeddingsdir, 'embed_mean_cent_lag_lead.csv'), drop = 1)
+
 #load data for all folds prior to parallelizing
 folds <- seq(1, 10)
 for (f in 1:length(folds)) {
@@ -109,19 +112,25 @@ for (f in 1:length(folds)) {
   assign(paste0('f', folds[f], '_tr'), fread(paste0(trtedatadir, 'f_', folds[f], '_tr_df.csv')))
   assign(paste0('f', folds[f], '_te'), fread(paste0(trtedatadir, 'f_', folds[f], '_te_df.csv')))
   
+  #load embeddings for each fold
+  assign(paste0('f', folds[f], '_x_train'), filter(embeddings, note %in% get(paste0('f', folds[f], '_tr'))$'note'))
+  assign(paste0('f', folds[f], '_x_test'), filter(embeddings, note %in% get(paste0('f', folds[f], '_te'))$'note'))
+  
+  #test that embeddings notes match training/test notes before dropping the 'notes' column
+  if (identical(distinct(get(paste0('f', folds[f], '_tr')), note)$note, distinct(get(paste0('f', folds[f], '_x_train')), note)$note) == FALSE) stop("embeddings do not match training data")
+  if (identical(distinct(get(paste0('f', folds[f], '_te')), note)$note, distinct(get(paste0('f', folds[f], '_x_test')), note)$note) == FALSE) stop("embeddings do not match test data")
+  
   #load embeddings with or without structured data
   if (inc_struc == FALSE) {
-    #load only the embeddings - drop first 2 columns (index and note label)
-    assign(paste0('f', folds[f], '_x_train'), as.matrix(fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embeddings.csv'), drop = c(1,2))))
-    assign(paste0('f', folds[f], '_x_test'), as.matrix(fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embeddings.csv'), drop = c(1,2))))
+    #drop 'note' column
+    assign(paste0('f', folds[f], '_x_train'), as.matrix(get(paste0('f', folds[f], '_x_train'))[-1]))
+    assign(paste0('f', folds[f], '_x_test'), as.matrix(get(paste0('f', folds[f], '_x_test'))[-1]))
   } else {
-    #concatenate embeddings with structured data
-    assign(paste0('f', folds[f], '_x_train'), as.matrix(cbind(fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[f], '_tr'))[,27:82])))
-    assign(paste0('f', folds[f], '_x_test'), as.matrix(cbind(fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[f], '_te'))[,27:82])))
+    #drop 'note' column & concatenate embeddings with structured data
+    assign(paste0('f', folds[f], '_x_train'), as.matrix(cbind(get(paste0('f', folds[f], '_x_train'))[-1], get(paste0('f', folds[f], '_tr'))[,27:82])))
+    assign(paste0('f', folds[f], '_x_test'), as.matrix(cbind(get(paste0('f', folds[f], '_x_test'))[-1], get(paste0('f', folds[f], '_te'))[,27:82])))
   }
 }
-
-
 
 #start timer
 start_time <- Sys.time()

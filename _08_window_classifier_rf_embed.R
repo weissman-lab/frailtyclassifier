@@ -80,6 +80,10 @@ cross_entropy_2 <- function(obs, pred){
 
 
 
+#load all embeddings - drop index column
+embeddings <- fread(paste0(embeddingsdir, 'embed_mean_cent_lag_lead.csv'), drop = 1)
+
+
 start_time <- Sys.time()
 
 for (d in 1:length(folds)) {
@@ -88,15 +92,23 @@ for (d in 1:length(folds)) {
   assign(paste0('f', folds[d], '_tr'), fread(paste0(trtedatadir, 'f_', folds[d], '_tr_df.csv')))
   assign(paste0('f', folds[d], '_te'), fread(paste0(trtedatadir, 'f_', folds[d], '_te_df.csv')))
   
+  #load embeddings for each fold
+  assign(paste0('f', folds[d], '_x_train'), filter(embeddings, note %in% get(paste0('f', folds[d], '_tr'))$'note'))
+  assign(paste0('f', folds[d], '_x_test'), filter(embeddings, note %in% get(paste0('f', folds[d], '_te'))$'note'))
+  
+  #test that embeddings notes match training/test notes before dropping the 'notes' column
+  if (identical(distinct(get(paste0('f', folds[d], '_tr')), note)$note, distinct(get(paste0('f', folds[d], '_x_train')), note)$note) == FALSE) stop("embeddings do not match training data")
+  if (identical(distinct(get(paste0('f', folds[d], '_te')), note)$note, distinct(get(paste0('f', folds[d], '_x_test')), note)$note) == FALSE) stop("embeddings do not match test data")
+  
   #load embeddings with or without structured data
   if (inc_struc == FALSE) {
-    #load only the embeddings - drop first 2 columns (index and note label)
-    x_train <- fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2))
-    x_test <- fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2))
+    #drop 'note' column
+    assign(paste0('f', folds[d], '_x_train'), as.matrix(get(paste0('f', folds[d], '_x_train'))[-1]))
+    assign(paste0('f', folds[d], '_x_test'), as.matrix(get(paste0('f', folds[d], '_x_test'))[-1]))
   } else {
-    #concatenate embeddings with structured data
-    x_train <- cbind(fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_tr'))[,27:82])
-    x_test <- cbind(fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_te'))[,27:82])
+    #drop 'note' column & concatenate embeddings with structured data
+    assign(paste0('f', folds[d], '_x_train'), as.matrix(cbind(get(paste0('f', folds[d], '_x_train'))[-1], get(paste0('f', folds[d], '_tr'))[,27:82])))
+    assign(paste0('f', folds[d], '_x_test'), as.matrix(cbind(get(paste0('f', folds[d], '_x_test'))[-1], get(paste0('f', folds[d], '_te'))[,27:82])))
   }
   
   #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
