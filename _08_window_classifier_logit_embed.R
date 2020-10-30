@@ -107,7 +107,7 @@ embeddings <- fread(paste0(embeddingsdir, 'embed_mean_cent_lag_lead.csv'), drop 
 
 #load data for all folds prior to parallelizing
 folds <- seq(1, 10)
-for (f in 1:length(folds)) {
+foreach (f = 1:length(folds)) %dopar% {
   #load labels and structured data
   assign(paste0('f', folds[f], '_tr'), fread(paste0(trtedatadir, 'f_', folds[f], '_tr_df.csv')))
   assign(paste0('f', folds[f], '_te'), fread(paste0(trtedatadir, 'f_', folds[f], '_te_df.csv')))
