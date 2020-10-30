@@ -106,7 +106,7 @@ lambda_seq <- c(10^seq(2, -5, length.out = 25))
 #load data for all folds prior to parallelizing
 folds <- seq(1, 10)
 svd <- c(300, 1000, 3000)
-for (f in 1:length(folds)) {
+foreach (f = 1:length(folds)) %dopar% {
   #load labels and structured data
   assign(paste0('f', folds[f], '_tr'), fread(paste0(trtedatadir, 'f_', folds[f], '_tr_df.csv')))
   assign(paste0('f', folds[f], '_te'), fread(paste0(trtedatadir, 'f_', folds[f], '_te_df.csv')))
