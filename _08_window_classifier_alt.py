@@ -37,11 +37,11 @@ def slidingWindow(sequence, winSize, step=1):
         yield sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
 
 # mb
-datadir = f"{os.getcwd()}/output/"
+# datadir = f"{os.getcwd()}/output/"
 # grace
 # datadir = "/media/drv2/andrewcd2/frailty/output/"
 # azure
-# datadir = "/share/gwlab/frailty/output/"
+datadir = "/share/gwlab/frailty/output/"
 #output:
 outdir = f"{datadir}lin_trees/"
 SVDdir = f"{outdir}svd/"
@@ -168,7 +168,7 @@ for f in range(10):
     # Identify training (k-1) folds and test fold
     f_tr = df2[~df2.note.isin(fold)]
     f_te = df2[df2.note.isin(fold)]
-    
+
     embeddings2[~embeddings2.note.isin(fold)].to_csv(f"{embeddingsdir}f_{f + 1}_tr_embed_mean_cent_lag_lead.csv")
     embeddings2[embeddings2.note.isin(fold)].to_csv(f"{embeddingsdir}f_{f + 1}_te_embed_mean_cent_lag_lead.csv")
 #
