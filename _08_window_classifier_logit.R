@@ -31,7 +31,7 @@ if (inc_struc == FALSE) {
 # mb
 # setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 # grace
-# datadir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
+# datadir <- paste0(getwd(), '/output/lin_trees/')
 # azure
 datadir <- '/share/gwlab/frailty/output/lin_trees/'
 SVDdir <- paste0(datadir, 'svd/') 
@@ -105,22 +105,22 @@ lambda_seq <- c(10^seq(2, -5, length.out = 25))
 
 #load data for all folds prior to parallelizing
 folds <- seq(1, 10)
-svd <- c(50, 300, 1000)
+svd <- c(300, 1000, 3000)
 for (f in 1:length(folds)) {
   #load labels and structured data
   assign(paste0('f', folds[f], '_tr'), fread(paste0(trtedatadir, 'f_', folds[f], '_tr_df.csv')))
   assign(paste0('f', folds[f], '_te'), fread(paste0(trtedatadir, 'f_', folds[f], '_te_df.csv')))
   
   for (s in 1:length(svd)) {
-    #load embeddings with or without structured data
+    #load svd with or without structured data
     if (inc_struc == FALSE) {
-      #load only the embeddings - drop first 2 columns (index and note label)
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1)))
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(fread(paste0(embeddingsdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1)))
+      #load only the svd - drop first 2 columns (index and note label)
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1)))
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1)))
     } else {
-      #concatenate embeddings with structured data
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(cbind(fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82])))
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(cbind(fread(paste0(embeddingsdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82])))
+      #concatenate svd with structured data
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82])))
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82])))
     }
   }
 }

@@ -32,11 +32,21 @@ frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 
 
 
-datadir <- paste0(getwd(), '/output/_08_window_classifier_alt/')
-#new directory for each experiment
-outdir <- paste0(getwd(), '/output/_08_window_classifier_alt/exp', exp, '/')
+# training & testing data:
+# mb
+# setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+# grace
+# datadir <- paste0(getwd(), '/output/lin_trees/')
+# azure
+datadir <- '/share/gwlab/frailty/output/lin_trees/'
+SVDdir <- paste0(datadir, 'svd/') 
+embeddingsdir <- paste0(datadir, 'embeddings/')
+trtedatadir <- paste0(datadir, 'trtedata/')
+
+#new output directory for each experiment:
+outdir <- paste0(datadir, 'exp', exp, '/')
 dir.create(outdir)
-#new directory for predictions
+#new directory for predictions:
 predsdir <- paste0(outdir,'preds/')
 dir.create(predsdir)
 
@@ -75,23 +85,23 @@ start_time <- Sys.time()
 for (d in 1:length(folds)) {
   
   #load labels and structured data
-  assign(paste0('f', folds[d], '_tr'), fread(paste0(datadir, 'f_', folds[d], '_tr_df.csv')))
-  assign(paste0('f', folds[d], '_te'), fread(paste0(datadir, 'f_', folds[d], '_te_df.csv')))
+  assign(paste0('f', folds[d], '_tr'), fread(paste0(trtedatadir, 'f_', folds[d], '_tr_df.csv')))
+  assign(paste0('f', folds[d], '_te'), fread(paste0(trtedatadir, 'f_', folds[d], '_te_df.csv')))
   
   #load embeddings with or without structured data
   if (inc_struc == FALSE) {
     #load only the embeddings - drop first 2 columns (index and note label)
-    x_train <- fread(paste0(datadir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2))
-    x_test <- fread(paste0(datadir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2))
+    x_train <- fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2))
+    x_test <- fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2))
   } else {
     #concatenate embeddings with structured data
-    x_train <- cbind(fread(paste0(datadir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_tr'))[,27:82])
-    x_test <- cbind(fread(paste0(datadir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_te'))[,27:82])
+    x_train <- cbind(fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_tr'))[,27:82])
+    x_test <- cbind(fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_te'))[,27:82])
   }
   
   #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
   #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
-  assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(datadir, 'f_', folds[d], '_tr_cw.csv')))
+  assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(trtedatadir, 'f_', folds[d], '_tr_cw.csv')))
   
   for (f in 1:length(frail_lab)) {
     
