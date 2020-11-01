@@ -172,7 +172,12 @@ for f in range(10):
     # Identify training (k-1) folds and test fold
     f_tr = df2[~df2.note.isin(fold)]
     f_te = df2[df2.note.isin(fold)]
-
+    #get embeddings for fold
+    embeddings_tr = embeddings2[~embeddings2.note.isin(fold)]
+    embeddings_te = embeddings2[embeddings2.note.isin(fold)]
+    #test for matching length
+    assert len(f_tr.note) == len(embeddings_tr.note), 'notes do not match embeddings'
+    assert len(f_te.note) == len(embeddings_te.note), 'notes do not match embeddings'
     # get a vector of caseweights for each frailty aspect
     # weight non-neutral tokens by the inverse of their prevalence
     # e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
@@ -188,7 +193,6 @@ for f in range(10):
         f_tr_cw[f'{v}_cw'] = tr_caseweights
     # make cw df
     f_tr_cw = pd.DataFrame(f_tr_cw)
-
     # Convert text into matrix of tf-idf features:
     # id documents
     tr_docs = f_tr['window'].tolist()
@@ -206,12 +210,10 @@ for f in range(10):
     # fit to count matrix, then transform to tf-idf representation
     tfidf_transformer = TfidfTransformer()
     f_tr_tfidf = tfidf_transformer.fit_transform(f_tr_tf)
-
     # apply feature extraction to test set (do NOT fit on test data)
     te_docs = f_te['window'].tolist()
     f_te_tf = cv.transform(te_docs)
     f_te_tfidf = tfidf_transformer.transform(f_te_tf)
-
     # dimensionality reduction with truncated SVD
     svd_50 = TruncatedSVD(n_components=50, n_iter=5, random_state=9082020)
     svd_300 = TruncatedSVD(n_components=300, n_iter=5, random_state=9082020)
@@ -227,13 +229,12 @@ for f in range(10):
     f_te_svd300 = pd.DataFrame(svd_300.transform(f_te_tfidf))
     f_te_svd1000 = pd.DataFrame(svd_1000.transform(f_te_tfidf))
     f_te_svd3000 = pd.DataFrame(svd_3000.transform(f_te_tfidf))
-
     ## Output for r
     f_tr.to_csv(f"{trtedatadir}f_{f+1}_tr_df.csv")
     f_te.to_csv(f"{trtedatadir}f_{f+1}_te_df.csv")
     f_tr_cw.to_csv(f"{trtedatadir}f_{f+1}_tr_cw.csv")
-    embeddings2[~embeddings2.note.isin(fold)].to_csv(f"{embeddingsdir}f_{f + 1}_tr_embed_mean_cent_lag_lead.csv")
-    embeddings2[embeddings2.note.isin(fold)].to_csv(f"{embeddingsdir}f_{f + 1}_te_embed_mean_cent_lag_lead.csv")
+    embeddings_tr.to_csv(f"{embeddingsdir}f_{f + 1}_tr_embed_mean_cent_lag_lead.csv")
+    embeddings_te.to_csv(f"{embeddingsdir}f_{f + 1}_te_embed_mean_cent_lag_lead.csv")
     f_tr_svd50.to_csv(f"{SVDdir}f_{f + 1}_tr_svd50.csv")
     f_tr_svd300.to_csv(f"{SVDdir}f_{f+1}_tr_svd300.csv")
     f_tr_svd1000.to_csv(f"{SVDdir}f_{f+1}_tr_svd1000.csv")
