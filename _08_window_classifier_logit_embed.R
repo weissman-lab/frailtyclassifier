@@ -125,8 +125,8 @@ for (f in 1:length(folds)) {
     assign(paste0('f', folds[f], '_x_test'), as.matrix(embeddings_te[-1]))
   } else {
     #drop 'note' column & concatenate embeddings with structured data
-    assign(paste0('f', folds[f], '_x_train'), as.matrix(cbind(embeddings_tr, get(paste0('f', folds[f], '_tr'))[,27:82])))
-    assign(paste0('f', folds[f], '_x_test'), as.matrix(cbind(embeddings_te, get(paste0('f', folds[f], '_te'))[,27:82])))
+    assign(paste0('f', folds[f], '_x_train'), as.matrix(cbind(embeddings_tr[-1], get(paste0('f', folds[f], '_tr'))[,27:82])))
+    assign(paste0('f', folds[f], '_x_test'), as.matrix(cbind(embeddings_te[-1], get(paste0('f', folds[f], '_te'))[,27:82])))
   }
 }
 
