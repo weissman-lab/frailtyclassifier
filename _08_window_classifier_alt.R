@@ -35,6 +35,7 @@ frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 # training & testing data:
 # mb
 # setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+# datadir <- paste0(getwd(), '/output/lin_trees/')
 # grace
 # datadir <- paste0(getwd(), '/output/lin_trees/')
 # azure
@@ -106,7 +107,7 @@ for (d in 1:length(folds)) {
     
     for(s in 1:length(svd)) {
       
-      #load features with or without structured data
+      #load text features with or without structured data
       if (inc_struc == FALSE) {
         #load only the SVD features & remove first row and first column (junk)
         x_train <- fread(paste0(SVDdir, 'f_', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1)
@@ -115,12 +116,16 @@ for (d in 1:length(folds)) {
         #concatenate structured data with SVD
         x_train <- cbind(fread(paste0(SVDdir, 'f_', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[d], '_tr'))[,27:82])
         x_test <- cbind(fread(paste0(SVDdir, 'f_', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[d], '_te'))[,27:82])
+        
+        #test that svd row length matches training/test row length
+        if ((nrow(x_train) == nrow(get(paste0('f', folds[d], '_tr')))) == FALSE) stop("svd do not match training data")
+        if ((nrow(x_test) == nrow(get(paste0('f', folds[d], '_te')))) == FALSE) stop("svd do not match test data")
       }
       
       # hyper grid
       hyper_grid <- expand.grid(
-        ntree           = 300,
-        mtry            = signif(seq(7, 45, length.out = 4), 2),
+        ntree       = 300,
+        mtry        = signif(seq(7, 45, length.out = 4), 2),
         sample_frac = signif(seq(0.6, 1, length.out = 3), 1))
       #label sample fraction (for naming .csv files)
       hyper_grid <- mutate(hyper_grid, sample_frac_l = ifelse(sample_frac == 0.6, 6,

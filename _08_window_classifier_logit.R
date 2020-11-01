@@ -30,6 +30,7 @@ if (inc_struc == FALSE) {
 # training & testing data:
 # mb
 # setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+# datadir <- paste0(getwd(), '/output/lin_trees/')
 # grace
 # datadir <- paste0(getwd(), '/output/lin_trees/')
 # azure
@@ -102,7 +103,6 @@ mg <- mg %>%
 lambda_seq <- c(10^seq(2, -5, length.out = 25))
 
 
-
 #load data for all folds prior to parallelizing
 folds <- seq(1, 10)
 svd <- c(300, 1000, 3000)
@@ -112,6 +112,7 @@ for (f in 1:length(folds)) {
   assign(paste0('f', folds[f], '_te'), fread(paste0(trtedatadir, 'f_', folds[f], '_te_df.csv')))
   
   for (s in 1:length(svd)) {
+
     #load svd with or without structured data
     if (inc_struc == FALSE) {
       #load only the svd - drop first 2 columns (index and note label)
@@ -122,6 +123,10 @@ for (f in 1:length(folds)) {
       assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82])))
       assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82])))
     }
+    
+    #test that svd row length matches training/test row length
+    if ((nrow(get(paste0('f', folds[f], '_s_', svd[s], '_x_train'))) == nrow(get(paste0('f', folds[f], '_tr')))) == FALSE) stop("svd do not match training data")
+    if ((nrow(get(paste0('f', folds[f], '_s_', svd[s], '_x_test'))) == nrow(get(paste0('f', folds[f], '_te')))) == FALSE) stop("svd do not match test data")
   }
 }
 

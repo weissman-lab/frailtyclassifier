@@ -35,6 +35,7 @@ frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 # training & testing data:
 # mb
 # setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+# datadir <- paste0(getwd(), '/output/lin_trees/')
 # grace
 # datadir <- paste0(getwd(), '/output/lin_trees/')
 # azure
@@ -80,10 +81,6 @@ cross_entropy_2 <- function(obs, pred){
 
 
 
-#load all embeddings - drop index column
-embeddings <- fread(paste0(embeddingsdir, 'embed_mean_cent_lag_lead.csv'), drop = 1)
-
-
 start_time <- Sys.time()
 
 for (d in 1:length(folds)) {
@@ -91,15 +88,23 @@ for (d in 1:length(folds)) {
   assign(paste0('f', folds[d], '_tr'), fread(paste0(trtedatadir, 'f_', folds[d], '_tr_df.csv')))
   assign(paste0('f', folds[d], '_te'), fread(paste0(trtedatadir, 'f_', folds[d], '_te_df.csv')))
   
+  #load embeddings for each fold (drop index)
+  x_train <- fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embed_mean_cent_lag_lead.csv'), drop = 1)
+  x_test <- fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embed_mean_cent_lag_lead.csv'), drop = 1)
+  
+  #test that embeddings notes match training/test notes before dropping the 'notes' column
+  if (identical(distinct(get(paste0('f', folds[d], '_tr')), note)$note, distinct(x_train, note)$note) == FALSE) stop("embeddings do not match training data")
+  if (identical(distinct(get(paste0('f', folds[d], '_te')), note)$note, distinct(x_test, note)$note) == FALSE) stop("embeddings do not match test data")
+  
   #load embeddings with or without structured data
   if (inc_struc == FALSE) {
-    #load only the embeddings - drop first 2 columns (index and note label)
-    x_train <- fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2))
-    x_test <- fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2))
+    #drop 'note' column
+    x_train <-  x_train[-1]
+    x_test <-  x_test[-1]
   } else {
-    #concatenate embeddings with structured data
-    x_train <- cbind(fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_tr'))[,27:82])
-    x_test <- cbind(fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embeddings.csv'), drop = c(1,2)), get(paste0('f', folds[d], '_te'))[,27:82])
+    #drop 'note' column & concatenate embeddings with structured data
+    x_train <- cbind(x_train[-1], get(paste0('f', folds[d], '_tr'))[,27:82])
+    x_test <- cbind(x_test[-1], get(paste0('f', folds[d], '_te'))[,27:82])
   }
   
   #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
@@ -120,8 +125,8 @@ for (d in 1:length(folds)) {
     
     #hyper grid
     hyper_grid <- expand.grid(
-      ntree           = 300,
-      mtry            = signif(seq(7, 45, length.out = 4), 2),
+      ntree       = 300,
+      mtry        = signif(seq(7, 45, length.out = 4), 2),
       sample_frac = signif(seq(0.6, 1, length.out = 3), 1))
     #label sample fraction (for naming .csv files)
     hyper_grid <- mutate(hyper_grid, sample_frac_l = ifelse(sample_frac == 0.6, 6,
