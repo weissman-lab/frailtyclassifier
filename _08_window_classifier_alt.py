@@ -7,6 +7,8 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.decomposition import TruncatedSVD
 from timeit import default_timer as timer
+pd.options.display.max_rows = 4000
+pd.options.display.max_columns = 4000
 
 def sheepish_mkdir(path):
     try:
@@ -151,11 +153,13 @@ for i in list(df2.note.unique()):
 df2['window'] = window3
 
 #split into 10 folds, each containing different notes
+notes = list(df2.note.unique())
 #sort notes before randomly splitting in order to standardize the random split based on the seed
-df2.sort_values('note')
-notes=list(df2.note.unique())
+notes.sort()
 random.seed(942020)
 np.random.shuffle(notes)
+#make a list of notes in each of the 10 test folds
+fold_list = np.array_split(notes, 10)
 
 #start timing tf-idf modeling strategy
 start = timer()
@@ -164,7 +168,7 @@ start = timer()
 # All steps past this point must be performed separately for each c-v fold
 for f in range(10):
     #split fold
-    fold = list(np.array_split(notes, 10)[f])
+    fold = list(fold_list[f])
     # Identify training (k-1) folds and test fold
     f_tr = df2[~df2.note.isin(fold)]
     f_te = df2[df2.note.isin(fold)]
