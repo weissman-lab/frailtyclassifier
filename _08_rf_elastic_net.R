@@ -65,29 +65,6 @@ cross_entropy_2 <- function(obs, pred){
 
 #set seed
 seed = 92120
-#model grid
-mg <- expand_grid(
-  fold = seq(1,10),
-  svd = c('embed', '1000'),
-  frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-  alpha = c(0.9, 0.5, 0.1),
-  class = c('neut', 'pos', 'neg')
-)
-#label alpha (for naming .csv files)
-mg <- mutate(mg, alpha_l = ifelse(alpha == 0.9, 9,
-                                  ifelse(alpha == 0.5, 5,
-                                         ifelse(alpha == 0.1, 1, NA))))
-#check for models that have already been completed & remove them from the grid
-mg <- mg %>%
-  mutate(filename = paste0('exp', exp, '_hyper_f', fold, '_', frail_lab, '_', class, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
-  filter(!filename %in% list.files(outdir)) %>%
-  select(-'filename')
-#set sequence of lambda values to test
-lambda_seq <- c(10^seq(2, -5, length.out = 25))
-
-
-#start timer
-start_time <- Sys.time()
 
 
 #load data for all folds prior to parallelizing
@@ -106,12 +83,12 @@ for (f in 1:length(folds)) {
   #embeddings with or without structured data
   if (inc_struc == FALSE) {
     #drop 'note' column
-    assign(paste0('f', folds[f], '_s_embed',  '_x_train'), embeddings_tr[-1])
-    assign(paste0('f', folds[f], '_s_embed', '_x_test'), embeddings_te[-1])
+    assign(paste0('f', folds[f], '_s_embed',  '_x_train'), embeddings_tr[, -1])
+    assign(paste0('f', folds[f], '_s_embed', '_x_test'), embeddings_te[, -1])
   } else {
     #drop 'note' column & concatenate embeddings with structured data
-    assign(paste0('f', folds[f], '_s_embed', '_x_train'), cbind(embeddings_tr[-1], get(paste0('f', folds[f], '_tr'))[,27:82]))
-    assign(paste0('f', folds[f], '_s_embed', '_x_test'), cbind(embeddings_te[-1], get(paste0('f', folds[f], '_te'))[,27:82]))
+    assign(paste0('f', folds[f], '_s_embed', '_x_train'), cbind(embeddings_tr[, -1], get(paste0('f', folds[f], '_tr'))[,27:82]))
+    assign(paste0('f', folds[f], '_s_embed', '_x_test'), cbind(embeddings_te[, -1], get(paste0('f', folds[f], '_te'))[,27:82]))
   }
   #load svd for each fold
   for (s in 1:length(svd)) {
@@ -132,7 +109,33 @@ for (f in 1:length(folds)) {
 }
 
 
-#run glmnet in parallel
+#start glmnet timer
+start_time <- Sys.time()
+
+
+#set sequence of lambda values to test
+lambda_seq <- c(10^seq(2, -5, length.out = 25))
+
+
+#model grid 1
+mg1 <- expand_grid(
+  fold = seq(1,10),
+  svd = c('embed', '1000'),
+  frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+  alpha = c(0.9, 0.5, 0.1),
+  class = c('neut', 'pos', 'neg')
+)
+#label alpha (for naming .csv files)
+mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
+                                  ifelse(alpha == 0.5, 5,
+                                         ifelse(alpha == 0.1, 1, NA))))
+#check for models that have already been completed & remove them from the grid
+mg1 <- mg1 %>%
+  mutate(filename = paste0('exp', exp, '_hyper_f', fold, '_', frail_lab, '_', class, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
+  filter(!filename %in% list.files(outdir)) %>%
+  select(-'filename')
+#run for first model grid
+mg <- mg1
 foreach (r = 1:nrow(mg)) %dopar% {
   #get matching training and test labels
   y_train_neut <- get(paste0('f', mg$fold[r], '_tr'))[[paste0(mg$frail_lab[r], '_0')]]
@@ -201,9 +204,8 @@ foreach (r = 1:nrow(mg)) %dopar% {
 }
 
 
-
-#model grid
-mg <- expand_grid(
+#model grid 2
+mg2 <- expand_grid(
   fold = seq(1,10),
   svd = c('300', '3000'),
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
@@ -211,16 +213,16 @@ mg <- expand_grid(
   class = c('neut', 'pos', 'neg')
 )
 #label alpha (for naming .csv files)
-mg <- mutate(mg, alpha_l = ifelse(alpha == 0.9, 9,
+mg2 <- mutate(mg2, alpha_l = ifelse(alpha == 0.9, 9,
                                   ifelse(alpha == 0.5, 5,
                                          ifelse(alpha == 0.1, 1, NA))))
 #check for models that have already been completed & remove them from the grid
-mg <- mg %>%
+mg2 <- mg2 %>%
   mutate(filename = paste0('exp', exp, '_hyper_f', fold, '_', frail_lab, '_', class, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
   filter(!filename %in% list.files(outdir)) %>%
   select(-'filename')
-
-#run glmnet in parallel
+#run for second model grid
+mg <- mg2
 foreach (r = 1:nrow(mg)) %dopar% {
   #get matching training and test labels
   y_train_neut <- get(paste0('f', mg$fold[r], '_tr'))[[paste0(mg$frail_lab[r], '_0')]]

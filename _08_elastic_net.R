@@ -106,12 +106,12 @@ for (f in 1:length(folds)) {
   #embeddings with or without structured data
   if (inc_struc == FALSE) {
     #drop 'note' column
-    assign(paste0('f', folds[f], '_s_embed',  '_x_train'), as.matrix(embeddings_tr[-1]))
-    assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(embeddings_te[-1]))
+    assign(paste0('f', folds[f], '_s_embed',  '_x_train'), as.matrix(embeddings_tr[, -1]))
+    assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(embeddings_te[, -1]))
   } else {
     #drop 'note' column & concatenate embeddings with structured data
-    assign(paste0('f', folds[f], '_s_embed', '_x_train'), as.matrix(cbind(embeddings_tr[-1], get(paste0('f', folds[f], '_tr'))[,27:82])))
-    assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(cbind(embeddings_te[-1], get(paste0('f', folds[f], '_te'))[,27:82])))
+    assign(paste0('f', folds[f], '_s_embed', '_x_train'), as.matrix(cbind(embeddings_tr[, -1], get(paste0('f', folds[f], '_tr'))[,27:82])))
+    assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(cbind(embeddings_te[, -1], get(paste0('f', folds[f], '_te'))[,27:82])))
   }
   #load svd for each fold
   for (s in 1:length(svd)) {

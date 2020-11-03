@@ -103,12 +103,12 @@ for (d in 1:length(folds)) {
         #load embeddings with or without structured data
         if (inc_struc == FALSE) {
           #drop 'note' column
-          x_train <-  x_train[-1]
-          x_test <-  x_test[-1]
+          x_train <-  x_train[, -1]
+          x_test <-  x_test[, -1]
         } else {
           #drop 'note' column & concatenate embeddings with structured data
-          x_train <- cbind(x_train[-1], get(paste0('f', folds[d], '_tr'))[,27:82])
-          x_test <- cbind(x_test[-1], get(paste0('f', folds[d], '_te'))[,27:82])
+          x_train <- cbind(x_train[, -1], get(paste0('f', folds[d], '_tr'))[,27:82])
+          x_test <- cbind(x_test[, -1], get(paste0('f', folds[d], '_te'))[,27:82])
         }
       } else {
         #load TF-IDF SVD with or without structured data
