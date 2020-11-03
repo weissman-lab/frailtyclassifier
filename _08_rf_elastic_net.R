@@ -83,24 +83,24 @@ for (f in 1:length(folds)) {
   #embeddings with or without structured data
   if (inc_struc == FALSE) {
     #drop 'note' column
-    assign(paste0('f', folds[f], '_s_embed',  '_x_train'), embeddings_tr[, -1])
-    assign(paste0('f', folds[f], '_s_embed', '_x_test'), embeddings_te[, -1])
+    assign(paste0('f', folds[f], '_s_embed',  '_x_train'), as.matrix(embeddings_tr[, -1]))
+    assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(embeddings_te[, -1]))
   } else {
     #drop 'note' column & concatenate embeddings with structured data
-    assign(paste0('f', folds[f], '_s_embed', '_x_train'), cbind(embeddings_tr[, -1], get(paste0('f', folds[f], '_tr'))[,27:82]))
-    assign(paste0('f', folds[f], '_s_embed', '_x_test'), cbind(embeddings_te[, -1], get(paste0('f', folds[f], '_te'))[,27:82]))
+    assign(paste0('f', folds[f], '_s_embed', '_x_train'), as.matrix(cbind(embeddings_tr[, -1], get(paste0('f', folds[f], '_tr'))[,27:82])))
+    assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(cbind(embeddings_te[, -1], get(paste0('f', folds[f], '_te'))[,27:82])))
   }
   #load svd for each fold
   for (s in 1:length(svd)) {
     #svd with or without structured data
     if (inc_struc == FALSE) {
       #load only the svd - drop first 2 columns (index and note label)
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1))
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1)))
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1)))
     } else {
       #concatenate svd with structured data
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), cbind(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82]))
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), cbind(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82]))
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82])))
+      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82])))
     }
     #test that svd row length matches training/test row length
     if ((nrow(get(paste0('f', folds[f], '_s_', svd[s], '_x_train'))) == nrow(get(paste0('f', folds[f], '_tr')))) == FALSE) stop("svd do not match training data")
@@ -145,7 +145,7 @@ foreach (r = 1:nrow(mg)) %dopar% {
   y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
   y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
   #train model for each class
-  frail_logit <- glmnet(x = as.matrix(get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train'))),
+  frail_logit <- glmnet(x = get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train')),
                         y = get(paste0('y_train_', mg$class[r])),
                         family = 'binomial',
                         alpha = mg$alpha[r],
@@ -232,7 +232,7 @@ foreach (r = 1:nrow(mg)) %dopar% {
   y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
   y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
   #train model for each class
-  frail_logit <- glmnet(x = as.matrix(get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train'))),
+  frail_logit <- glmnet(x = get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train')),
                         y = get(paste0('y_train_', mg$class[r])),
                         family = 'binomial',
                         alpha = mg$alpha[r],
