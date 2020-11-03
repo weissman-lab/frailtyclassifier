@@ -68,7 +68,7 @@ seed = 92120
 #model grid
 mg <- expand_grid(
   fold = seq(1,10),
-  svd = c('embed', '300', '1000', '3000'),
+  svd = c('embed', '1000'),
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
   alpha = c(0.9, 0.5, 0.1),
   class = c('neut', 'pos', 'neg')
@@ -199,6 +199,95 @@ foreach (r = 1:nrow(mg)) %dopar% {
   #save
   write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
 }
+
+
+
+#model grid
+mg <- expand_grid(
+  fold = seq(1,10),
+  svd = c('300', '3000'),
+  frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+  alpha = c(0.9, 0.5, 0.1),
+  class = c('neut', 'pos', 'neg')
+)
+#label alpha (for naming .csv files)
+mg <- mutate(mg, alpha_l = ifelse(alpha == 0.9, 9,
+                                  ifelse(alpha == 0.5, 5,
+                                         ifelse(alpha == 0.1, 1, NA))))
+#check for models that have already been completed & remove them from the grid
+mg <- mg %>%
+  mutate(filename = paste0('exp', exp, '_hyper_f', fold, '_', frail_lab, '_', class, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
+  filter(!filename %in% list.files(outdir)) %>%
+  select(-'filename')
+
+#run glmnet in parallel
+foreach (r = 1:nrow(mg)) %dopar% {
+  #get matching training and test labels
+  y_train_neut <- get(paste0('f', mg$fold[r], '_tr'))[[paste0(mg$frail_lab[r], '_0')]]
+  y_train_pos <- get(paste0('f', mg$fold[r], '_tr'))[[paste0(mg$frail_lab[r], '_1')]]
+  y_train_neg <- get(paste0('f', mg$fold[r], '_tr'))[[paste0(mg$frail_lab[r], '_-1')]]
+  y_test_neut <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_0')]]
+  y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
+  y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
+  #train model for each class
+  frail_logit <- glmnet(x = as.matrix(get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train'))),
+                        y = get(paste0('y_train_', mg$class[r])),
+                        family = 'binomial',
+                        alpha = mg$alpha[r],
+                        lambda = lambda_seq)
+  #make predictions on test fold for each alpha
+  alpha_preds <- predict(frail_logit, get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_test')), type = 'response')
+  #save predictions
+  fwrite(as.data.table(alpha_preds), paste0(predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+  #build hyperparameter grid
+  hyper_grid <- expand.grid(
+    frail_lab = NA,
+    fold = NA,
+    SVD = NA,
+    class = NA,
+    lambda = rep(NA, ncol(alpha_preds)),
+    alpha = NA,
+    df = NA,
+    cross_entropy_2 = NA,
+    bscore = NA,
+    sbrier = NA)
+  
+  for (l in 1:ncol(alpha_preds)) {
+    #label each row
+    hyper_grid$frail_lab[l] <- mg$frail_lab[r]
+    hyper_grid$fold[l] <- mg$fold[r]
+    hyper_grid$SVD[l] <- mg$svd[r]
+    hyper_grid$class[l] <- mg$class[r]
+    hyper_grid$alpha[l] <- mg$alpha[r]
+    #lambda
+    hyper_grid$lambda[l] <- frail_logit$lambda[l]
+    #number of nonzero coefficients (Df)
+    hyper_grid$df[l] <- frail_logit$df[l]
+    #preds for this lambda
+    preds <- alpha_preds[,l]
+    #brier score
+    hyper_grid$bscore[l] <- brier_score(get(paste0('y_test_', mg$class[r])), preds)
+    #scaled brier score
+    hyper_grid$sbrier[l] <- scaled_brier_score(get(paste0('y_test_', mg$class[r])), preds)
+    #calculate cross-entropy
+    preds_ce <- preds
+    #set floor and ceiling for predictions (predictions of 1 or 0 create entropy of -inf)
+    preds_ce[preds_ce==0] <- 1e-3
+    preds_ce[preds_ce==1] <- 0.999
+    #calculate
+    hyper_grid$cross_entropy_2[l] <- cross_entropy_2(get(paste0('y_test_', mg$class[r])), preds_ce)
+  }
+  
+  #save hyper_grid for each glmnet run
+  fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+  #calculate & save run time for each glmnet
+  end_time <- Sys.time()
+  duration <- difftime(end_time, start_time, units = 'sec')
+  run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
+  #save
+  write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
+}
+
 
 #calculate total run time
 end_time <- Sys.time()
