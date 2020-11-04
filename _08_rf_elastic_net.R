@@ -76,7 +76,7 @@ for (f in 1:length(folds)) {
 svd <- c('embed', '300', '1000', '3000')
 for (s in 1:length(svd)) {
   if (svd[s] == 'embed') {
-    embed_train <- foreach (f = 1:length(folds)) %dopar% {
+    train <- foreach (f = 1:length(folds)) %dopar% {
       #load embeddings for each fold (drop index)
       embeddings_tr <- fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embed_mean_cent_lag_lead.csv'), drop = 1)
       #test that embeddings notes match training/test notes before dropping the 'notes' column
@@ -91,7 +91,7 @@ for (s in 1:length(svd)) {
       }
       return(embeddings_tr)
     }
-    embed_test <- foreach (f = 1:length(folds)) %dopar% {
+    test <- foreach (f = 1:length(folds)) %dopar% {
       #load embeddings for each fold (drop index)
       embeddings_te <- fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embed_mean_cent_lag_lead.csv'), drop = 1)
       #test that embeddings notes match training/test notes before dropping the 'notes' column
