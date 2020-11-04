@@ -67,46 +67,128 @@ cross_entropy_2 <- function(obs, pred){
 seed = 92120
 
 
-#load data for all folds prior to parallelizing
+#load data in parallel
 folds <- seq(1, 10)
-svd <- c('300', '1000', '3000')
 for (f in 1:length(folds)) {
-  #load labels and structured data
   assign(paste0('f', folds[f], '_tr'), fread(paste0(trtedatadir, 'f_', folds[f], '_tr_df.csv')))
   assign(paste0('f', folds[f], '_te'), fread(paste0(trtedatadir, 'f_', folds[f], '_te_df.csv')))
-  #load embeddings for each fold (drop index)
-  embeddings_tr <- fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embed_mean_cent_lag_lead.csv'), drop = 1)
-  embeddings_te <- fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embed_mean_cent_lag_lead.csv'), drop = 1)
-  #test that embeddings notes match training/test notes before dropping the 'notes' column
-  if (identical(distinct(get(paste0('f', folds[f], '_tr')), note)$note, distinct(embeddings_tr, note)$note) == FALSE) stop("embeddings do not match training data")
-  if (identical(distinct(get(paste0('f', folds[f], '_te')), note)$note, distinct(embeddings_te, note)$note) == FALSE) stop("embeddings do not match test data")
-  #embeddings with or without structured data
-  if (inc_struc == FALSE) {
-    #drop 'note' column
-    assign(paste0('f', folds[f], '_s_embed',  '_x_train'), as.matrix(embeddings_tr[, -1]))
-    assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(embeddings_te[, -1]))
-  } else {
-    #drop 'note' column & concatenate embeddings with structured data
-    assign(paste0('f', folds[f], '_s_embed', '_x_train'), as.matrix(cbind(embeddings_tr[, -1], get(paste0('f', folds[f], '_tr'))[,27:82])))
-    assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(cbind(embeddings_te[, -1], get(paste0('f', folds[f], '_te'))[,27:82])))
-  }
-  #load svd for each fold
-  for (s in 1:length(svd)) {
-    #svd with or without structured data
-    if (inc_struc == FALSE) {
-      #load only the svd - drop first 2 columns (index and note label)
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1)))
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1)))
-    } else {
-      #concatenate svd with structured data
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82])))
-      assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82])))
+}
+svd <- c('embed', '300', '1000', '3000')
+for (s in 1:length(svd)) {
+  if (svd[s] == 'embed') {
+    embed_train <- foreach (f = 1:length(folds)) %dopar% {
+      #load embeddings for each fold (drop index)
+      embeddings_tr <- fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embed_mean_cent_lag_lead.csv'), drop = 1)
+      #test that embeddings notes match training/test notes before dropping the 'notes' column
+      if (identical(distinct(get(paste0('f', folds[f], '_tr')), note)$note, distinct(embeddings_tr, note)$note) == FALSE) stop("embeddings do not match training data")
+      #embeddings with or without structured data
+      if (inc_struc == FALSE) {
+        #drop 'note' column
+        embeddings_tr <- as.matrix(embeddings_tr[, -1])
+      } else {
+        #drop 'note' column & concatenate embeddings with structured data
+        embeddings_tr <- as.matrix(cbind(embeddings_tr[, -1], get(paste0('f', folds[f], '_tr'))[,27:82]))
+      }
+      return(embeddings_tr)
     }
-    #test that svd row length matches training/test row length
-    if ((nrow(get(paste0('f', folds[f], '_s_', svd[s], '_x_train'))) == nrow(get(paste0('f', folds[f], '_tr')))) == FALSE) stop("svd do not match training data")
-    if ((nrow(get(paste0('f', folds[f], '_s_', svd[s], '_x_test'))) == nrow(get(paste0('f', folds[f], '_te')))) == FALSE) stop("svd do not match test data")
+    embed_test <- foreach (f = 1:length(folds)) %dopar% {
+      #load embeddings for each fold (drop index)
+      embeddings_te <- fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embed_mean_cent_lag_lead.csv'), drop = 1)
+      #test that embeddings notes match training/test notes before dropping the 'notes' column
+      if (identical(distinct(get(paste0('f', folds[f], '_te')), note)$note, distinct(embeddings_te, note)$note) == FALSE) stop("embeddings do not match test data")
+      #embeddings with or without structured data
+      if (inc_struc == FALSE) {
+        #drop 'note' column
+        embeddings_te <- as.matrix(embeddings_te[, -1])
+      } else {
+        #drop 'note' column & concatenate embeddings with structured data
+        embeddings_te <- as.matrix(cbind(embeddings_te[, -1], get(paste0('f', folds[f], '_te'))[,27:82]))
+      }
+      return(embeddings_te)
+    }
+  } else {
+      train <- foreach (f = 1:length(folds)) %dopar% {
+        #svd with or without structured data
+        if (inc_struc == FALSE) {
+          #load only the svd - drop first 2 columns (index and note label)
+          x_train <- as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1))
+        } else {
+          #concatenate svd with structured data
+          x_train <- as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82]))
+        }
+        #test that svd row length matches training/test row length
+        if ((nrow(x_train) == nrow(get(paste0('f', folds[f], '_tr')))) == FALSE) stop("svd do not match training data")
+        return(x_train)
+      }
+      test <- foreach (f = 1:length(folds)) %dopar% {
+        #load labels and structured data
+        df_te <- fread(paste0(trtedatadir, 'f_', folds[f], '_te_df.csv'))
+        #svd with or without structured data
+        if (inc_struc == FALSE) {
+          #load only the svd - drop first 2 columns (index and note label)
+          x_test <- as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
+        } else {
+          #concatenate svd with structured data
+          x_test <- as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82]))
+        }
+        #test that svd row length matches training/test row length
+        if ((nrow(x_test) == nrow(get(paste0('f', folds[f], '_te')))) == FALSE) stop("svd do not match training data")
+        return(x_test)
+      }
+    }
+  assign(paste0('s_', svd[s], '_x_train'), train)
+  assign(paste0('s_', svd[s], '_x_test'), test)
+}
+#foreach output is in list format
+#rename each element of the list as a df
+for (s in 1:length(svd)) {
+  for (f in 1:length(folds)) {
+    assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), get(paste0('s_', svd[s], '_x_train'))[[f]])
+    assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), get(paste0('s_', svd[s], '_x_test'))[[f]])
   }
 }
+
+# old version (works)
+# #load data for all folds prior to parallelizing
+# folds <- seq(1, 10)
+# svd <- c('300', '1000', '3000')
+# for (f in 1:length(folds)) {
+#   #load labels and structured data
+#   assign(paste0('f', folds[f], '_tr'), fread(paste0(trtedatadir, 'f_', folds[f], '_tr_df.csv')))
+#   assign(paste0('f', folds[f], '_te'), fread(paste0(trtedatadir, 'f_', folds[f], '_te_df.csv')))
+#   #load embeddings for each fold (drop index)
+#   embeddings_tr <- fread(paste0(embeddingsdir, 'f_', folds[f], '_tr_embed_mean_cent_lag_lead.csv'), drop = 1)
+#   embeddings_te <- fread(paste0(embeddingsdir, 'f_', folds[f], '_te_embed_mean_cent_lag_lead.csv'), drop = 1)
+#   #test that embeddings notes match training/test notes before dropping the 'notes' column
+#   if (identical(distinct(get(paste0('f', folds[f], '_tr')), note)$note, distinct(embeddings_tr, note)$note) == FALSE) stop("embeddings do not match training data")
+#   if (identical(distinct(get(paste0('f', folds[f], '_te')), note)$note, distinct(embeddings_te, note)$note) == FALSE) stop("embeddings do not match test data")
+#   #embeddings with or without structured data
+#   if (inc_struc == FALSE) {
+#     #drop 'note' column
+#     assign(paste0('f', folds[f], '_s_embed',  '_x_train'), as.matrix(embeddings_tr[, -1]))
+#     assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(embeddings_te[, -1]))
+#   } else {
+#     #drop 'note' column & concatenate embeddings with structured data
+#     assign(paste0('f', folds[f], '_s_embed', '_x_train'), as.matrix(cbind(embeddings_tr[, -1], get(paste0('f', folds[f], '_tr'))[,27:82])))
+#     assign(paste0('f', folds[f], '_s_embed', '_x_test'), as.matrix(cbind(embeddings_te[, -1], get(paste0('f', folds[f], '_te'))[,27:82])))
+#   }
+#   #load svd for each fold
+#   for (s in 1:length(svd)) {
+#     #svd with or without structured data
+#     if (inc_struc == FALSE) {
+#       #load only the svd - drop first 2 columns (index and note label)
+#       assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1)))
+#       assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1)))
+#     } else {
+#       #concatenate svd with structured data
+#       assign(paste0('f', folds[f], '_s_', svd[s], '_x_train'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_tr'))[,27:82])))
+#       assign(paste0('f', folds[f], '_s_', svd[s], '_x_test'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[f], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[f], '_te'))[,27:82])))
+#     }
+#     #test that svd row length matches training/test row length
+#     if ((nrow(get(paste0('f', folds[f], '_s_', svd[s], '_x_train'))) == nrow(get(paste0('f', folds[f], '_tr')))) == FALSE) stop("svd do not match training data")
+#     if ((nrow(get(paste0('f', folds[f], '_s_', svd[s], '_x_test'))) == nrow(get(paste0('f', folds[f], '_te')))) == FALSE) stop("svd do not match test data")
+#   }
+# }
 
 
 #start glmnet timer
@@ -201,6 +283,10 @@ foreach (r = 1:nrow(mg)) %dopar% {
   run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
   #save
   write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
+  
+  #remove objects & garbage collection
+  rm(frail_logit, alpha_preds, hyper_grid, y_train_neut, y_train_pos, y_train_neg, y_test_neut, y_test_pos, y_test_neg)
+  gc()
 }
 
 
@@ -288,6 +374,10 @@ foreach (r = 1:nrow(mg)) %dopar% {
   run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
   #save
   write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
+  
+  #remove objects & garbage collection
+  rm(frail_logit, alpha_preds, hyper_grid, y_train_neut, y_train_pos, y_train_neg, y_test_neut, y_test_pos, y_test_neg)
+  gc()
 }
 
 
@@ -297,9 +387,7 @@ duration <- difftime(end_time, start_time, units = 'sec')
 run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
 #save
 write(run_time, paste0(outdir, 'exp', exp, '_duration_elastic_net.txt'))
-
-
-
+gc()
 
 
 
