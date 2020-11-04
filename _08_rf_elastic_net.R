@@ -148,6 +148,13 @@ for (s in 1:length(svd)) {
   }
 }
 
+#clear lists of dfs
+for (s in 1:length(svd)) {
+  rm(list = paste0('s_', svd[s], '_x_train'))
+  rm(list = paste0('s_', svd[s], '_x_test'))
+}
+gc()
+
 # old version (works)
 # #load data for all folds prior to parallelizing
 # folds <- seq(1, 10)
