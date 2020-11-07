@@ -4,6 +4,7 @@ library(dplyr)
 library(tidyr)
 library(foreach)
 library(doParallel)
+library(ranger)
 registerDoParallel(detectCores())
 
 
