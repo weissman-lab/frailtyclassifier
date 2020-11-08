@@ -144,8 +144,8 @@ for (s in 1:length(svd)) {
 #rename each element of the list as a df
 for (s in 1:length(svd)) {
   for (d in 1:length(folds)) {
-    assign(paste0('f', folds[d], '_s_', svd[s], '_x_train'), get(paste0('s_', svd[s], '_x_train'))[[f]])
-    assign(paste0('f', folds[d], '_s_', svd[s], '_x_test'), get(paste0('s_', svd[s], '_x_test'))[[f]])
+    assign(paste0('f', folds[d], '_s_', svd[s], '_x_train'), get(paste0('s_', svd[s], '_x_train'))[[d]])
+    assign(paste0('f', folds[d], '_s_', svd[s], '_x_test'), get(paste0('s_', svd[s], '_x_test'))[[d]])
   }
 }
 

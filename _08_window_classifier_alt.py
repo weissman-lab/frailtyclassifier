@@ -89,7 +89,7 @@ embeddings = df2.loc[:, df2.columns.str.startswith('note') | df2.columns.str.sta
 count = 0
 embeddings2 = None
 for i in list(embeddings.note.unique()):
-    # Create sliding window of 11 tokens for each note (important to copy the data in this step to avoid chained indexing)
+    # important to copy the data in this step to avoid chained indexing
     note_i = embeddings.loc[embeddings['note'] == i].copy()
     for v in range(0, (note_i.loc[:, note_i.columns.str.startswith('identity_')].shape[1])):
         # rolling mean
@@ -130,10 +130,11 @@ df2 = pd.concat([y_dums, df2], axis=1)
 # note: windowing must be done on a note-by-note basis. Windows should not overlap two notes.
 count = 0
 window3 = None
+win_size = 10
 for i in list(df2.note.unique()):
     #Create sliding window of 11 tokens for each note
     note_i = df2.loc[df2['note'] == i]
-    chunks = slidingWindow(note_i['token'].tolist(), winSize=10)
+    chunks = slidingWindow(note_i['token'].tolist(), winSize=win_size)
     #now concatenate output from generator separated by blank space
     window = []
     for each in chunks:
