@@ -53,9 +53,6 @@ outdir = f"{os.getcwd()}/output/n_nets/"
 pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
 
 sheepish_mkdir(outdir)
-sheepish_mkdir(SVDdir)
-sheepish_mkdir(embeddingsdir)
-sheepish_mkdir(trtedatadir)
 
 # load the notes from 2018
 notes_2018 = [i for i in os.listdir(datadir + "notes_labeled_embedded/") if int(i.split("_")[-2][1:]) < 13]
