@@ -259,7 +259,8 @@ for b in range(len(batch_s)):
                           batch_size=batch_s[b])
     loss_grid[b] = history.history['loss']
 
-loss_grid.to_csv(f"{outdir}batch_loss.csv")
+#save
+pd.DataFrame(loss_grid).to_csv(f"{outdir}batch_loss.csv")
 
 
 #
