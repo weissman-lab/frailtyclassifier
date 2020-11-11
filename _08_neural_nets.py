@@ -259,19 +259,18 @@ for b in range(len(batch_s)):
                           batch_size=batch_s[b])
     loss_grid[b] = history.history['loss']
 
-#save
+#convert to df and label
 loss_grid = pd.DataFrame(loss_grid)
-
 index_names = dict(zip((range(len(batch_s))), batch_s))
 col_names = dict(zip(range(epochs), range(1, epochs+1)))
-
 loss_grid = loss_grid.rename(index=index_names, columns=col_names)
-
+#save
 loss_grid.to_csv(f"{outdir}batch_loss.csv")
 
-#get the best batch size
+#get the batch size that had the lowest training loss for epoch 10
 best_batch_s = loss_grid[10].idxmin(axis='index')
-#more epochs
+
+#models with more epochs
 epochs = 50
 #set lists for output
 deep_loss = []
@@ -401,18 +400,14 @@ deep_loss.append(history.history['loss'])
 deep_val_loss.append(history.history['val_loss'])
 model_name.append(mod_name)
 
-deep_loss = []
-deep_loss.append([-1]*50)
-
+#make dfs and rename index & columns
 deep_loss = pd.DataFrame(np.vstack(deep_loss))
 deep_val_loss = pd.DataFrame(np.vstack(deep_val_loss))
-
 index_names = dict(zip((range(len(model_name))), model_name))
 col_names = dict(zip(range(epochs), range(1, epochs+1)))
-
 deep_loss = deep_loss.rename(index=index_names, columns=col_names)
 deep_val_loss = deep_val_loss.rename(index=index_names, columns=col_names)
-
+#save
 deep_loss.to_csv(f"{outdir}deep_loss.csv")
 deep_val_loss.to_csv(f"{outdir}deep_val_loss.csv")
 
