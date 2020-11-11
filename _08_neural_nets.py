@@ -260,7 +260,161 @@ for b in range(len(batch_s)):
     loss_grid[b] = history.history['loss']
 
 #save
-pd.DataFrame(loss_grid).to_csv(f"{outdir}batch_loss.csv")
+loss_grid = pd.DataFrame(loss_grid)
+
+index_names = dict(zip((range(len(batch_s))), batch_s))
+col_names = dict(zip(range(epochs), range(1, epochs+1)))
+
+loss_grid = loss_grid.rename(index=index_names, columns=col_names)
+
+loss_grid.to_csv(f"{outdir}batch_loss.csv")
+
+#get the best batch size
+best_batch_s = loss_grid[10].idxmin(axis='index')
+#more epochs
+epochs = 50
+#set lists for output
+deep_loss = []
+deep_val_loss = []
+model_name = []
+#model name
+mod_name = 'bl256_bl256_bl128_d128_d128_d64'
+nlp_input = Input(shape=(win_size,), name='nlp_input')
+meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+emb = cr_embed_layer(nlp_input)
+emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
+emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
+nlp_out = Bidirectional(LSTM(128))(emb)
+x = concatenate([nlp_out, meta_input])
+x = Dense(128, activation='relu')(x)
+x = Dense(128, activation='relu')(x)
+x = Dense(64, activation='relu')(x)
+x = Dense(3, activation='sigmoid')(x)
+model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+#fit model
+history = model_2.fit([x_train, train_struc],
+                      tr_Msk_prob,
+                      validation_data=([x_test, test_struc], te_Msk_prob),
+                      epochs=epochs,
+                      batch_size=best_batch_s)
+#add loss to list
+deep_loss.append(history.history['loss'])
+deep_val_loss.append(history.history['val_loss'])
+model_name.append(mod_name)
+
+#model name
+mod_name = 'bl256_bl256_bl128_d128_d64'
+nlp_input = Input(shape=(win_size,), name='nlp_input')
+meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+emb = cr_embed_layer(nlp_input)
+emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
+emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
+nlp_out = Bidirectional(LSTM(128))(emb)
+x = concatenate([nlp_out, meta_input])
+x = Dense(128, activation='relu')(x)
+x = Dense(64, activation='relu')(x)
+x = Dense(3, activation='sigmoid')(x)
+model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+#fit model
+history = model_2.fit([x_train, train_struc],
+                      tr_Msk_prob,
+                      validation_data=([x_test, test_struc], te_Msk_prob),
+                      epochs=epochs,
+                      batch_size=best_batch_s)
+#add loss to list
+deep_loss.append(history.history['loss'])
+deep_val_loss.append(history.history['val_loss'])
+model_name.append(mod_name)
+
+#model name
+mod_name = 'bl256_bl256_bl128_d128'
+nlp_input = Input(shape=(win_size,), name='nlp_input')
+meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+emb = cr_embed_layer(nlp_input)
+emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
+emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
+nlp_out = Bidirectional(LSTM(128))(emb)
+x = concatenate([nlp_out, meta_input])
+x = Dense(128, activation='relu')(x)
+x = Dense(3, activation='sigmoid')(x)
+model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+#fit model
+history = model_2.fit([x_train, train_struc],
+                      tr_Msk_prob,
+                      validation_data=([x_test, test_struc], te_Msk_prob),
+                      epochs=epochs,
+                      batch_size=best_batch_s)
+#add loss to list
+deep_loss.append(history.history['loss'])
+deep_val_loss.append(history.history['val_loss'])
+model_name.append(mod_name)
+
+#model name
+mod_name = 'bl256_bl128_d128_d128_d64'
+nlp_input = Input(shape=(win_size,), name='nlp_input')
+meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+emb = cr_embed_layer(nlp_input)
+emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
+nlp_out = Bidirectional(LSTM(128))(emb)
+x = concatenate([nlp_out, meta_input])
+x = Dense(128, activation='relu')(x)
+x = Dense(128, activation='relu')(x)
+x = Dense(64, activation='relu')(x)
+x = Dense(3, activation='sigmoid')(x)
+model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+#fit model
+history = model_2.fit([x_train, train_struc],
+                      tr_Msk_prob,
+                      validation_data=([x_test, test_struc], te_Msk_prob),
+                      epochs=epochs,
+                      batch_size=best_batch_s)
+#add loss to list
+deep_loss.append(history.history['loss'])
+deep_val_loss.append(history.history['val_loss'])
+model_name.append(mod_name)
+
+#model name
+mod_name = 'bl256_d128_d128_d64'
+nlp_input = Input(shape=(win_size,), name='nlp_input')
+meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+emb = cr_embed_layer(nlp_input)
+nlp_out = Bidirectional(LSTM(256))(emb)
+x = concatenate([nlp_out, meta_input])
+x = Dense(128, activation='relu')(x)
+x = Dense(128, activation='relu')(x)
+x = Dense(64, activation='relu')(x)
+x = Dense(3, activation='sigmoid')(x)
+model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+#fit model
+history = model_2.fit([x_train, train_struc],
+                      tr_Msk_prob,
+                      validation_data=([x_test, test_struc], te_Msk_prob),
+                      epochs=epochs,
+                      batch_size=best_batch_s)
+#add loss to list
+deep_loss.append(history.history['loss'])
+deep_val_loss.append(history.history['val_loss'])
+model_name.append(mod_name)
+
+deep_loss = []
+deep_loss.append([-1]*50)
+
+deep_loss = pd.DataFrame(np.vstack(deep_loss))
+deep_val_loss = pd.DataFrame(np.vstack(deep_val_loss))
+
+index_names = dict(zip((range(len(model_name))), model_name))
+col_names = dict(zip(range(epochs), range(1, epochs+1)))
+
+deep_loss = deep_loss.rename(index=index_names, columns=col_names)
+deep_val_loss = deep_val_loss.rename(index=index_names, columns=col_names)
+
+deep_loss.to_csv(f"{outdir}deep_loss.csv")
+deep_val_loss.to_csv(f"{outdir}deep_val_loss.csv")
 
 
 #
