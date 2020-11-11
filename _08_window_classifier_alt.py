@@ -17,10 +17,8 @@ def sheepish_mkdir(path):
         pass
 
 def slidingWindow(sequence, winSize, step=1):
-    """Returns a generator that will iterate through
-    the defined chunks of input sequence.  Input sequence
-    must be iterable."""
     # Verify the inputs
+    # winSize is the total size of the window (including the center word)
     try:
         it = iter(sequence)
     except TypeError:
@@ -32,11 +30,11 @@ def slidingWindow(sequence, winSize, step=1):
     if winSize > len(sequence):
         raise Exception("**ERROR** winSize must not be larger than sequence length.")
     # Pre-compute number of chunks to emit
-    numOfChunks = int((len(sequence) - winSize) / step)
+    numOfChunks = int((len(sequence) - (winSize-1)) / step)
     # Start half a window into the text
-    # Center the window with 5 words on either side of the center word
-    for i in range(int(winSize/2)+1, (int(winSize/2)+numOfChunks+1) * step, step):
-        yield sequence[i - (int(winSize/2)+1) : i + int(winSize/2)]
+    # Create a window by adding words on either side of the center word
+    for i in range(int(np.ceil((winSize-1)/2))+1, (int(np.floor((winSize-1)/2))+numOfChunks+1) * step, step):
+        yield sequence[i - (int(np.ceil((winSize-1)/2))+1) : i + int(np.floor((winSize-1)/2))]
 
 # mb
 # datadir = f"{os.getcwd()}/output/"
@@ -130,7 +128,8 @@ df2 = pd.concat([y_dums, df2], axis=1)
 # note: windowing must be done on a note-by-note basis. Windows should not overlap two notes.
 count = 0
 window3 = None
-win_size = 10
+#set window size (includes center word)
+win_size = 11
 for i in list(df2.note.unique()):
     #Create sliding window of 11 tokens for each note
     note_i = df2.loc[df2['note'] == i]
@@ -139,10 +138,10 @@ for i in list(df2.note.unique()):
     window = []
     for each in chunks:
         window.append(' '.join(each))
-    #repeat the first and final windows (first 5 and last 5 tokens will have off-center windows)
-    window2 = list(np.repeat(window[0], 5))
+    #repeat the first and final windows (first and last few tokens ((winSize-1)/2) will have off-center windows)
+    window2 = list(np.repeat(window[0], np.floor((win_size-1)/2)))
     window2.extend(window)
-    repeats_end = list(np.repeat(window2[len(window2)-1], 5))
+    repeats_end = list(np.repeat(window2[len(window2)-1], np.ceil((win_size-1)/2)))
     window2.extend(repeats_end)
     #repeat for all notes
     if window3 is None:
