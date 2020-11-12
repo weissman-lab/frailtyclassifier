@@ -43,9 +43,9 @@ def scaled_brier(obs, pred):
     return(1 - (numerator/denominator))
 
 # mb
-# datadir = f"{os.getcwd()}/output/"
+datadir = f"{os.getcwd()}/output/"
 # grace
-datadir = "/media/drv2/andrewcd2/frailty/output/"
+#datadir = "/media/drv2/andrewcd2/frailty/output/"
 # azure
 # datadir = "/share/gwlab/frailty/output/"
 #output:
@@ -236,42 +236,55 @@ cr_embed_layer = Embedding(embedding_matrix.shape[0],
 #         if word not in missing_df_embed:
 #             missing_layer_embed.append(word)
 
-batch_s = [16, 32, 64, 128, 256]
-epochs = 10
-loss_grid = np.zeros((len(batch_s), epochs))
-for b in range(len(batch_s)):
-    from keras.models import Model
-    from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
-    nlp_input = Input(shape=(win_size,), name='nlp_input')
-    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-    emb = cr_embed_layer(nlp_input)
-    nlp_out = Bidirectional(LSTM(128))(emb)
-    x = concatenate([nlp_out, meta_input])
-    x = Dense(64, activation='relu')(x)
-    x = Dense(3, activation='sigmoid')(x)
-    model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
-    model_2.compile(loss='categorical_crossentropy', optimizer='Adam', metrics=['acc'])
-    #fit model
-    history = model_2.fit([x_train, train_struc],
-                          tr_Msk_prob,
-                          validation_data=([x_test, test_struc], te_Msk_prob),
-                          epochs=epochs,
-                          batch_size=batch_s[b])
-    loss_grid[b] = history.history['loss']
+#test for missing values before training
+def test_nan_inf(tensor):
+    if np.isnan(tensor).any():
+        raise ValueError('Tensor contains nan.')
+    if np.isinf(tensor).any():
+        raise ValueError('Tensor contains inf.')
+test_nan_inf(x_train)
+test_nan_inf(x_test)
+test_nan_inf(tr_Msk_prob)
+test_nan_inf(te_Msk_prob)
 
-#convert to df and label
-loss_grid = pd.DataFrame(loss_grid)
-index_names = dict(zip((range(len(batch_s))), batch_s))
-col_names = dict(zip(range(epochs), range(1, epochs+1)))
-loss_grid = loss_grid.rename(index=index_names, columns=col_names)
-#save
-loss_grid.to_csv(f"{outdir}batch_loss.csv")
+# batch_s = [16, 32, 64, 128, 256]
+# epochs = 10
+# loss_grid = np.zeros((len(batch_s), epochs))
+# for b in range(len(batch_s)):
+#     from keras.models import Model
+#     from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
+#     nlp_input = Input(shape=(win_size,), name='nlp_input')
+#     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+#     emb = cr_embed_layer(nlp_input)
+#     nlp_out = Bidirectional(LSTM(128))(emb)
+#     x = concatenate([nlp_out, meta_input])
+#     x = Dense(64, activation='relu')(x)
+#     x = Dense(3, activation='sigmoid')(x)
+#     model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+#     model_2.compile(loss='categorical_crossentropy', optimizer='Adam', metrics=['acc'])
+#     #fit model
+#     history = model_2.fit([x_train, train_struc],
+#                           tr_Msk_prob,
+#                           validation_data=([x_test, test_struc], te_Msk_prob),
+#                           epochs=epochs,
+#                           batch_size=batch_s[b])
+#     loss_grid[b] = history.history['loss']
+#
+# #convert to df and label
+# loss_grid = pd.DataFrame(loss_grid)
+# index_names = dict(zip((range(len(batch_s))), batch_s))
+# col_names = dict(zip(range(epochs), range(1, epochs+1)))
+# loss_grid = loss_grid.rename(index=index_names, columns=col_names)
+# #save
+# loss_grid.to_csv(f"{outdir}batch_loss.csv")
+#
+# #get the batch size that had the lowest training loss for epoch 10
+# best_batch_s = loss_grid[10].idxmin(axis='index')
 
-#get the batch size that had the lowest training loss for epoch 10
-best_batch_s = loss_grid[10].idxmin(axis='index')
-
+#pd.read_csv(f"{outdir}batch_loss_grace.csv")
+best_batch_s = 32
 #models with more epochs
-epochs = 50
+epochs = 10
 #set lists for output
 deep_loss = []
 deep_val_loss = []
@@ -290,7 +303,9 @@ x = Dense(128, activation='relu')(x)
 x = Dense(64, activation='relu')(x)
 x = Dense(3, activation='sigmoid')(x)
 model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
-model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+model_2.compile(loss='categorical_crossentropy',
+                optimizer=tf.keras.optimizers.Adam(1e-4),
+                metrics=['acc'])
 #fit model
 history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
@@ -315,7 +330,9 @@ x = Dense(128, activation='relu')(x)
 x = Dense(64, activation='relu')(x)
 x = Dense(3, activation='sigmoid')(x)
 model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
-model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+model_2.compile(loss='categorical_crossentropy',
+                optimizer=tf.keras.optimizers.Adam(1e-4),
+                metrics=['acc'])
 #fit model
 history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
@@ -339,7 +356,9 @@ x = concatenate([nlp_out, meta_input])
 x = Dense(128, activation='relu')(x)
 x = Dense(3, activation='sigmoid')(x)
 model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
-model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+model_2.compile(loss='categorical_crossentropy',
+                optimizer=tf.keras.optimizers.Adam(1e-4),
+                metrics=['acc'])
 #fit model
 history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
@@ -364,7 +383,9 @@ x = Dense(128, activation='relu')(x)
 x = Dense(64, activation='relu')(x)
 x = Dense(3, activation='sigmoid')(x)
 model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
-model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+model_2.compile(loss='categorical_crossentropy',
+                optimizer=tf.keras.optimizers.Adam(1e-4),
+                metrics=['acc'])
 #fit model
 history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
@@ -388,7 +409,9 @@ x = Dense(128, activation='relu')(x)
 x = Dense(64, activation='relu')(x)
 x = Dense(3, activation='sigmoid')(x)
 model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
-model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+model_2.compile(loss='categorical_crossentropy',
+                optimizer=tf.keras.optimizers.Adam(1e-4),
+                metrics=['acc'])
 #fit model
 history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
@@ -410,7 +433,6 @@ deep_val_loss = deep_val_loss.rename(index=index_names, columns=col_names)
 #save
 deep_loss.to_csv(f"{outdir}deep_loss.csv")
 deep_val_loss.to_csv(f"{outdir}deep_val_loss.csv")
-
 
 #
 #
