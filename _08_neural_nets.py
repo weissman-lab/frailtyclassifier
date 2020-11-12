@@ -42,16 +42,19 @@ def scaled_brier(obs, pred):
     denominator = brier_score(obs, np.mean(obs))
     return(1 - (numerator/denominator))
 
-# mb
-datadir = f"{os.getcwd()}/output/"
-# grace
-#datadir = "/media/drv2/andrewcd2/frailty/output/"
-# azure
-# datadir = "/share/gwlab/frailty/output/"
-#output:
-outdir = f"{os.getcwd()}/output/n_nets/"
-pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
+#get the correct directories
+dirs = [f"{os.getcwd()}/output/", "/media/drv2/andrewcd2/frailty/output/", "/share/gwlab/frailty/output/"]
+for d in dirs:
+    if os.path.exists(d):
+        datadir = d
+if datadir == dirs[2]: #grace
+    outdir = f"{os.getcwd()}/output/n_nets/"
+    pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
+else: #azure and mb
+    outdir = f"{datadir}n_nets/"
+    pretr_embeddingsdir = f"{datadir}embeddings/"
 
+#makedir if missing
 sheepish_mkdir(outdir)
 
 # load the notes from 2018
