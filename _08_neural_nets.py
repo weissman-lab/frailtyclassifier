@@ -47,7 +47,7 @@ dirs = [f"{os.getcwd()}/output/", "/media/drv2/andrewcd2/frailty/output/", "/sha
 for d in dirs:
     if os.path.exists(d):
         datadir = d
-if datadir == dirs[2]: #grace
+if datadir == dirs[1]: #grace
     outdir = f"{os.getcwd()}/output/n_nets/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
 else: #azure and mb
