@@ -5,6 +5,12 @@ import numpy as np
 import copy
 from sklearn.preprocessing import StandardScaler
 from timeit import default_timer as timer
+from gensim.models import KeyedVectors
+import tensorflow as tf
+from tensorflow import keras
+from keras.utils import to_categorical
+from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
+from tensorflow.keras.layers import Embedding
 from keras.models import Model
 from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
 pd.options.display.max_rows = 4000
@@ -45,16 +51,20 @@ def scaled_brier(obs, pred):
     return(1 - (numerator/denominator))
 
 #get the correct directories
-dirs = [f"{os.getcwd()}/output/", "/media/drv2/andrewcd2/frailty/output/", "/share/gwlab/frailty/output/"]
+dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/", "/media/drv2/andrewcd2/frailty/output/", "/share/gwlab/frailty/"]
 for d in dirs:
     if os.path.exists(d):
         datadir = d
+if datadir == dirs[0]: #mb
+    outdir = f"{datadir}n_nets/"
+    pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
 if datadir == dirs[1]: #grace
     outdir = f"{os.getcwd()}/output/n_nets/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
-else: #azure and mb
-    outdir = f"{datadir}n_nets/"
+if datadir == dirs[2]: #azure
+    outdir = f"{datadir}output/n_nets/"
     pretr_embeddingsdir = f"{datadir}embeddings/"
+    datadir == f"{datadir}output/"
 
 #makedir if missing
 sheepish_mkdir(outdir)
@@ -138,7 +148,6 @@ test_windows = df2[df2.note.isin(tenotes)]['window']
 train_labels = df2[df2.note.isin(trnotes)][out_varnames]
 test_labels = df2[df2.note.isin(tenotes)][out_varnames]
 #make categorical labels in correct tensor shape
-from keras.utils import to_categorical
 tr_Msk_prob = to_categorical(train_labels[['Msk_prob']].values+1)
 te_Msk_prob = to_categorical(test_labels[['Msk_prob']].values+1)
 
@@ -155,9 +164,6 @@ test_struc = np.asarray(sdf[sdf.note.isin(tenotes)][str_varnames]).astype('float
 #create vocabulary index
 #from keras.preprocessing.text import Tokenizer
 #vectorize text (must use venv_ft environment -- not a conda environment, which only allows tensorflow 2.0 on mac)
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
 vectorizer = TextVectorization(output_sequence_length=win_size,
                                standardize=None) #this is CRITICAL -- default will strip '_' and smash multi-word-expressions together
 #train_windows_s = tf.data.Dataset.from_tensor_slices(train_windows)
@@ -191,7 +197,6 @@ word_index = dict(zip(vocab, range(len(vocab))))
 #next, pick up at "load pre-trained word embeddings"
 # https://keras.io/examples/nlp/pretrained_word_embeddings/
 # https://rajmak.in/2017/12/07/text-classification-classifying-product-titles-using-convolutional-neural-network-and-word2vec-embedding/
-from gensim.models import KeyedVectors
 # from gensim.test.utils import datapath
 #from gensim.models import Word2Vec
 # Load the model
@@ -224,7 +229,6 @@ for word, i in word_index.items():
 print("Converted %s words (%s misses)" % (hits, misses))
 
 #load embeddings matrix into an Embeddings layer
-from tensorflow.keras.layers import Embedding
 cr_embed_layer = Embedding(embedding_matrix.shape[0],
                            embedding_matrix.shape[1],
                            embeddings_initializer=keras.initializers.Constant(embedding_matrix),
@@ -251,7 +255,8 @@ test_nan_inf(x_train)
 test_nan_inf(x_test)
 test_nan_inf(tr_Msk_prob)
 test_nan_inf(te_Msk_prob)
-
+test_nan_inf(train_struc)
+test_nan_inf(test_struc)
 
 # batch_s = [16, 32, 64, 128, 256]
 # epochs = 10
