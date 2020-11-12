@@ -5,6 +5,8 @@ import numpy as np
 import copy
 from sklearn.preprocessing import StandardScaler
 from timeit import default_timer as timer
+from keras.models import Model
+from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
@@ -250,12 +252,11 @@ test_nan_inf(x_test)
 test_nan_inf(tr_Msk_prob)
 test_nan_inf(te_Msk_prob)
 
+
 # batch_s = [16, 32, 64, 128, 256]
 # epochs = 10
 # loss_grid = np.zeros((len(batch_s), epochs))
 # for b in range(len(batch_s)):
-#     from keras.models import Model
-#     from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
 #     nlp_input = Input(shape=(win_size,), name='nlp_input')
 #     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
 #     emb = cr_embed_layer(nlp_input)
