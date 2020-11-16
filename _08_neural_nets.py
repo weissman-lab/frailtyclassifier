@@ -52,6 +52,7 @@ def scaled_brier(obs, pred):
     return(1 - (numerator/denominator))
 
 #get experiment number from command line arguments
+assert len(sys.argv) == 2, 'Exp number must be specified as an argument'
 exp = sys.argv[1]
 exp = f"exp{exp}"
 
