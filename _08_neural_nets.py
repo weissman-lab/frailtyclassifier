@@ -54,7 +54,7 @@ def scaled_brier(obs, pred):
 #get experiment number from command line arguments
 assert len(sys.argv) == 2, 'Exp number must be specified as an argument'
 exp = sys.argv[1]
-exp = f"exp{exp}"
+exp = f"exp{exp}_nnet_str"
 
 #get the correct directories
 dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/", "/media/drv2/andrewcd2/frailty/output/", "/share/gwlab/frailty/"]
@@ -299,7 +299,8 @@ test_nan_inf(test_struc)
 #pd.read_csv(f"{outdir}batch_loss_grace.csv")
 best_batch_s = 32
 #models with more epochs
-epochs = 10
+epochs = 50
+tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
 #set lists for output
 deep_loss = []
 deep_val_loss = []
@@ -326,7 +327,8 @@ history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
                       validation_data=([x_test, test_struc], te_Msk_prob),
                       epochs=epochs,
-                      batch_size=best_batch_s)
+                      batch_size=best_batch_s,
+                      callbacks=[tr_loss_earlystopping])
 #add loss to list
 deep_loss.append(history.history['loss'])
 deep_val_loss.append(history.history['val_loss'])
@@ -353,7 +355,8 @@ history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
                       validation_data=([x_test, test_struc], te_Msk_prob),
                       epochs=epochs,
-                      batch_size=best_batch_s)
+                      batch_size=best_batch_s,
+                      callbacks=[tr_loss_earlystopping])
 #add loss to list
 deep_loss.append(history.history['loss'])
 deep_val_loss.append(history.history['val_loss'])
@@ -379,7 +382,8 @@ history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
                       validation_data=([x_test, test_struc], te_Msk_prob),
                       epochs=epochs,
-                      batch_size=best_batch_s)
+                      batch_size=best_batch_s,
+                      callbacks=[tr_loss_earlystopping])
 #add loss to list
 deep_loss.append(history.history['loss'])
 deep_val_loss.append(history.history['val_loss'])
@@ -406,7 +410,8 @@ history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
                       validation_data=([x_test, test_struc], te_Msk_prob),
                       epochs=epochs,
-                      batch_size=best_batch_s)
+                      batch_size=best_batch_s,
+                      callbacks=[tr_loss_earlystopping])
 #add loss to list
 deep_loss.append(history.history['loss'])
 deep_val_loss.append(history.history['val_loss'])
@@ -432,7 +437,8 @@ history = model_2.fit([x_train, train_struc],
                       tr_Msk_prob,
                       validation_data=([x_test, test_struc], te_Msk_prob),
                       epochs=epochs,
-                      batch_size=best_batch_s)
+                      batch_size=best_batch_s,
+                      callbacks=[tr_loss_earlystopping])
 #add loss to list
 deep_loss.append(history.history['loss'])
 deep_val_loss.append(history.history['val_loss'])
@@ -446,35 +452,58 @@ col_names = dict(zip(range(epochs), range(1, epochs+1)))
 deep_loss = deep_loss.rename(index=index_names, columns=col_names)
 deep_val_loss = deep_val_loss.rename(index=index_names, columns=col_names)
 #save
-deep_loss.to_csv(f"{outdir}deep_loss.csv")
-deep_val_loss.to_csv(f"{outdir}deep_val_loss.csv")
+deep_loss.to_csv(f"{outdir}{exp}_train_loss.csv")
+deep_val_loss.to_csv(f"{outdir}{exp}_val_loss.csv")
 
+
+#prep for tuning regularization
+# best_batch_s = 32
+# #models with more epochs
+# epochs = 10
+# #set lists for output
+# deep_loss = []
+# deep_val_loss = []
+# model_name = []
+# def reg_test(bilstm, dense, dropout, reg):
+#     #model name
+#     mod_name = f"bl{bilstm}_dense{dense}_drop_{dropout}_reg_{reg}"
+#     nlp_input = Input(shape=(win_size,), name='nlp_input')
+#     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+#     emb = cr_embed_layer(nlp_input)
+#     nlp_out = Bidirectional(LSTM(bilstm))(emb)
+#     x = concatenate([nlp_out, meta_input])
+#     x = Dense(dense, activation='relu')(x)
+#     x = Dense(dense/2, activation='relu')(x)
+#     x = Dense(dense/4, activation='relu')(x)
+#     x = Dense(3, activation='sigmoid')(x)
+#     model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+#     model_2.compile(loss='categorical_crossentropy',
+#                     optimizer=tf.keras.optimizers.Adam(1e-4),
+#                     metrics=['acc'])
+#     #fit model
+#     history = model_2.fit([x_train, train_struc],
+#                           tr_Msk_prob,
+#                           validation_data=([x_test, test_struc], te_Msk_prob),
+#                           epochs=epochs,
+#                           batch_size=best_batch_s)
+#     #add loss to list
+#     deep_loss.append(history.history['loss'])
+#     deep_val_loss.append(history.history['val_loss'])
+#     model_name.append(mod_name)
 #
-#
-# #overfit model
-# from keras.models import Model
-# from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
-# from keras import regularizers
-# nlp_input = Input(shape=(win_size,), name='nlp_input')
-# meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-# emb = cr_embed_layer(nlp_input)
-# #emb = Bidirectional(LSTM(512, return_sequences=True))(emb)
-# #emb = Bidirectional(LSTM(512, return_sequences=True))(emb)
-# nlp_out = Bidirectional(LSTM(256))(emb)
-# x = concatenate([nlp_out, meta_input])
-# x = Dense(256, activation='relu')(x)
-# x = Dense(256, activation='relu')(x)
-# x = Dense(128, activation='relu')(x)
-# x = Dense(3, activation='sigmoid')(x)
-# model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
-# model_2.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
-# #fit model
-# history = model_2.fit([x_train, train_struc],
-#                       tr_Msk_prob,
-#                       validation_data=([x_test, test_struc], te_Msk_prob),
-#                       epochs=5,
-#                       batch_size=56)
-#
+# #make dfs and rename index & columns
+# deep_loss = pd.DataFrame(np.vstack(deep_loss))
+# deep_val_loss = pd.DataFrame(np.vstack(deep_val_loss))
+# index_names = dict(zip((range(len(model_name))), model_name))
+# col_names = dict(zip(range(epochs), range(1, epochs+1)))
+# deep_loss = deep_loss.rename(index=index_names, columns=col_names)
+# deep_val_loss = deep_val_loss.rename(index=index_names, columns=col_names)
+# #save
+# deep_loss.to_csv(f"{outdir}deep_loss.csv")
+# deep_val_loss.to_csv(f"{outdir}deep_val_loss.csv")
+
+
+
 # #plot loss
 # import matplotlib.pyplot as plt
 # loss = history.history['loss']
