@@ -63,13 +63,13 @@ for d in dirs:
         datadir = d
 if datadir == dirs[0]: #mb
     outdir = f"{datadir}n_nets/{exp}/"
-    pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
+    pretr_embeddingsdir = f"{os.getcwd()}/embeddings/W2V_300_all/"
 if datadir == dirs[1]: #grace
     outdir = f"{os.getcwd()}/output/n_nets/{exp}/"
-    pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
+    pretr_embeddingsdir = f"{os.getcwd()}/embeddings/W2V_300_all/"
 if datadir == dirs[2]: #azure
     outdir = f"{datadir}output/n_nets/{exp}/"
-    pretr_embeddingsdir = f"{datadir}embeddings/"
+    pretr_embeddingsdir = "/share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/"
     datadir = f"{datadir}output/"
 
 #makedir if missing
@@ -211,7 +211,7 @@ word_index = dict(zip(vocab, range(len(vocab))))
 #cr_embed.wv.get_keras_embedding(train_embeddings=False).input_dim
 # Load a word2vec model stored in the C *binary* format.
 #cr_embed = KeyedVectors.load(f"{pretr_embeddingsdir}W2V_300_cr/w2v_OA_CR_300d.bin", mmap='r')
-cr_embed = KeyedVectors.load(f"{pretr_embeddingsdir}W2V_300_all/w2v_oa_all_300d.bin", mmap='r')
+cr_embed = KeyedVectors.load(f"{pretr_embeddingsdir}w2v_oa_all_300d.bin", mmap='r')
 #check if word is in vocab
 #'note' in cr_embed.wv.vocab
 #get word vec for a given word
