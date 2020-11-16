@@ -70,7 +70,7 @@ if datadir == dirs[1]: #grace
 if datadir == dirs[2]: #azure
     outdir = f"{datadir}output/n_nets/{exp}/"
     pretr_embeddingsdir = f"{datadir}embeddings/"
-    datadir == f"{datadir}output/"
+    datadir = f"{datadir}output/"
 
 #makedir if missing
 sheepish_mkdir(outdir)
