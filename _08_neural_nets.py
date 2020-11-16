@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import pandas as pd
 import numpy as np
@@ -50,19 +51,23 @@ def scaled_brier(obs, pred):
     denominator = brier_score(obs, np.mean(obs))
     return(1 - (numerator/denominator))
 
+#get experiment number from command line arguments
+exp = sys.argv[1]
+exp = f"exp{exp}"
+
 #get the correct directories
 dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/", "/media/drv2/andrewcd2/frailty/output/", "/share/gwlab/frailty/"]
 for d in dirs:
     if os.path.exists(d):
         datadir = d
 if datadir == dirs[0]: #mb
-    outdir = f"{datadir}n_nets/"
+    outdir = f"{datadir}n_nets/{exp}/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
 if datadir == dirs[1]: #grace
-    outdir = f"{os.getcwd()}/output/n_nets/"
+    outdir = f"{os.getcwd()}/output/n_nets/{exp}/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/"
 if datadir == dirs[2]: #azure
-    outdir = f"{datadir}output/n_nets/"
+    outdir = f"{datadir}output/n_nets/{exp}/"
     pretr_embeddingsdir = f"{datadir}embeddings/"
     datadir == f"{datadir}output/"
 
