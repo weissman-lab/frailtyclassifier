@@ -5,6 +5,7 @@ library(tidyr)
 library(foreach)
 library(doParallel)
 library(ranger)
+library(rbenchmark)
 registerDoParallel(detectCores())
 
 
@@ -24,15 +25,13 @@ if (inc_struc == FALSE) {
   exp <- paste0(exp, 'un')
 } else {exp <- paste0(exp, 'str')}
 
-
-# training & testing data:
-# mb
-# setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-# datadir <- paste0(getwd(), '/output/lin_trees/')
-# grace
-# datadir <- paste0(getwd(), '/output/lin_trees/')
-# azure
-datadir <- '/share/gwlab/frailty/output/lin_trees/'
+#set directories based on location
+dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees/', '/media/drv2/andrewcd2/frailty/output/lin_trees/', '/share/gwlab/frailty/lin_trees/')
+for (d in 1:length(dirs)) {
+  if (dir.exists(dirs[d])) {
+    datadir = dirs[d]
+  }
+}
 SVDdir <- paste0(datadir, 'svd/') 
 embeddingsdir <- paste0(datadir, 'embeddings/')
 trtedatadir <- paste0(datadir, 'trtedata/')
@@ -156,56 +155,11 @@ for (s in 1:length(svd)) {
 }
 gc()
 
-# old version (works)
-# #load data for all folds prior to parallelizing
-# folds <- seq(1, 10)
-# svd <- c('300', '1000', '3000')
-# for (d in 1:length(folds)) {
-#   #load labels and structured data
-#   assign(paste0('f', folds[d], '_tr'), fread(paste0(trtedatadir, 'f_', folds[d], '_tr_df.csv')))
-#   assign(paste0('f', folds[d], '_te'), fread(paste0(trtedatadir, 'f_', folds[d], '_te_df.csv')))
-#   #load embeddings for each fold (drop index)
-#   embeddings_tr <- fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embed_mean_cent_lag_lead.csv'), drop = 1)
-#   embeddings_te <- fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embed_mean_cent_lag_lead.csv'), drop = 1)
-#   #test that embeddings notes match training/test notes before dropping the 'notes' column
-#   if (identical(distinct(get(paste0('f', folds[d], '_tr')), note)$note, distinct(embeddings_tr, note)$note) == FALSE) stop("embeddings do not match training data")
-#   if (identical(distinct(get(paste0('f', folds[d], '_te')), note)$note, distinct(embeddings_te, note)$note) == FALSE) stop("embeddings do not match test data")
-#   #embeddings with or without structured data
-#   if (inc_struc == FALSE) {
-#     #drop 'note' column
-#     assign(paste0('f', folds[d], '_s_embed',  '_x_train'), as.matrix(embeddings_tr[, -1]))
-#     assign(paste0('f', folds[d], '_s_embed', '_x_test'), as.matrix(embeddings_te[, -1]))
-#   } else {
-#     #drop 'note' column & concatenate embeddings with structured data
-#     assign(paste0('f', folds[d], '_s_embed', '_x_train'), as.matrix(cbind(embeddings_tr[, -1], get(paste0('f', folds[d], '_tr'))[,27:82])))
-#     assign(paste0('f', folds[d], '_s_embed', '_x_test'), as.matrix(cbind(embeddings_te[, -1], get(paste0('f', folds[d], '_te'))[,27:82])))
-#   }
-#   #load svd for each fold
-#   for (s in 1:length(svd)) {
-#     #svd with or without structured data
-#     if (inc_struc == FALSE) {
-#       #load only the svd - drop first 2 columns (index and note label)
-#       assign(paste0('f', folds[d], '_s_', svd[s], '_x_train'), as.matrix(fread(paste0(SVDdir, 'f_', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1)))
-#       assign(paste0('f', folds[d], '_s_', svd[s], '_x_test'), as.matrix(fread(paste0(SVDdir, 'f_', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1)))
-#     } else {
-#       #concatenate svd with structured data
-#       assign(paste0('f', folds[d], '_s_', svd[s], '_x_train'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[d], '_tr'))[,27:82])))
-#       assign(paste0('f', folds[d], '_s_', svd[s], '_x_test'), as.matrix(cbind(fread(paste0(SVDdir, 'f_', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('f', folds[d], '_te'))[,27:82])))
-#     }
-#     #test that svd row length matches training/test row length
-#     if ((nrow(get(paste0('f', folds[d], '_s_', svd[s], '_x_train'))) == nrow(get(paste0('f', folds[d], '_tr')))) == FALSE) stop("svd do not match training data")
-#     if ((nrow(get(paste0('f', folds[d], '_s_', svd[s], '_x_test'))) == nrow(get(paste0('f', folds[d], '_te')))) == FALSE) stop("svd do not match test data")
-#   }
-# }
-
-
-#start glmnet timer
+#start timer
 start_time <- Sys.time()
-
 
 #set sequence of lambda values to test
 lambda_seq <- c(10^seq(2, -5, length.out = 25))
-
 
 #model grid 1
 mg1 <- expand_grid(
@@ -236,12 +190,18 @@ if ((nrow(mg1) == 0) == FALSE) {
     y_test_neut <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_0')]]
     y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
     y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
+    #measure CPU time for glmnet
+    benchmark <- benchmark("glmnet" = {
     #train model for each class
     frail_logit <- glmnet(x = get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train')),
                           y = get(paste0('y_train_', mg$class[r])),
                           family = 'binomial',
                           alpha = mg$alpha[r],
                           lambda = lambda_seq)
+    }, replications = 1
+    )
+    #save benchmarking
+    fwrite(benchmark, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
     #make predictions on test fold for each alpha
     alpha_preds <- predict(frail_logit, get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_test')), type = 'response')
     #save predictions
@@ -287,13 +247,6 @@ if ((nrow(mg1) == 0) == FALSE) {
     
     #save hyper_grid for each glmnet run
     fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
-    #calculate & save run time for each glmnet
-    end_time <- Sys.time()
-    duration <- difftime(end_time, start_time, units = 'sec')
-    run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
-    #save
-    write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
-    
     #remove objects & garbage collection
     rm(frail_logit, alpha_preds, hyper_grid, y_train_neut, y_train_pos, y_train_neg, y_test_neut, y_test_pos, y_test_neg)
     gc()
@@ -329,12 +282,18 @@ if ((nrow(mg2) == 0) == FALSE) {
     y_test_neut <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_0')]]
     y_test_pos <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_1')]]
     y_test_neg <- get(paste0('f', mg$fold[r], '_te'))[[paste0(mg$frail_lab[r], '_-1')]]
-    #train model for each class
-    frail_logit <- glmnet(x = get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train')),
-                          y = get(paste0('y_train_', mg$class[r])),
-                          family = 'binomial',
-                          alpha = mg$alpha[r],
-                          lambda = lambda_seq)
+    #measure CPU time for glmnet
+    benchmark <- benchmark("glmnet" = {
+      #train model for each class
+      frail_logit <- glmnet(x = get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train')),
+                            y = get(paste0('y_train_', mg$class[r])),
+                            family = 'binomial',
+                            alpha = mg$alpha[r],
+                            lambda = lambda_seq)
+    }, replications = 1
+    )
+    #save benchmarking
+    fwrite(benchmark, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
     #make predictions on test fold for each alpha
     alpha_preds <- predict(frail_logit, get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_test')), type = 'response')
     #save predictions
@@ -380,13 +339,6 @@ if ((nrow(mg2) == 0) == FALSE) {
     
     #save hyper_grid for each glmnet run
     fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
-    #calculate & save run time for each glmnet
-    end_time <- Sys.time()
-    duration <- difftime(end_time, start_time, units = 'sec')
-    run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
-    #save
-    write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
-    
     #remove objects & garbage collection
     rm(frail_logit, alpha_preds, hyper_grid, y_train_neut, y_train_pos, y_train_neg, y_test_neut, y_test_pos, y_test_neg)
     gc()
@@ -479,22 +431,28 @@ for (d in 1:length(folds)) {
                                                                      ifelse(sample_frac == 1.0, 10, NA))))
       
       for(i in 1:nrow(hyper_grid)) {
-        frail_rf <- ranger(y = factor(y_train, levels = c(0, 1, -1)), #relevel factors to match class.weights
-                           x = x_train,
-                           num.threads = detectCores(),
-                           probability = TRUE,
-                           num.trees = hyper_grid$ntree[i],
-                           mtry = hyper_grid$mtry[i],
-                           sample.fraction = hyper_grid$sample_frac[i],
-                           #leaving node size as default
-                           #min.node.size = hyper_grid$node_size[i],
-                           #class.weights in order of outcome factor levels
-                           #class.weights = as.integer(c(levels(factor(cw))[1], levels(factor(cw))[2], levels(factor(cw))[2])),
-                           #set oob.error=FALSE to save time/memory (using CV error)
-                           #case.weights
-                           case.weights = cw,
-                           oob.error = FALSE,
-                           seed = seed)
+        #measure CPU time for rf
+        benchmark <- benchmark("rf" = {
+          frail_rf <- ranger(y = factor(y_train, levels = c(0, 1, -1)), #relevel factors to match class.weights
+                             x = x_train,
+                             num.threads = detectCores(),
+                             probability = TRUE,
+                             num.trees = hyper_grid$ntree[i],
+                             mtry = hyper_grid$mtry[i],
+                             sample.fraction = hyper_grid$sample_frac[i],
+                             #leaving node size as default
+                             #min.node.size = hyper_grid$node_size[i],
+                             #class.weights in order of outcome factor levels
+                             #class.weights = as.integer(c(levels(factor(cw))[1], levels(factor(cw))[2], levels(factor(cw))[2])),
+                             #set oob.error=FALSE to save time/memory (using CV error)
+                             #case.weights
+                             case.weights = cw,
+                             oob.error = FALSE,
+                             seed = seed)
+        }, replications = 1
+        )
+        #save benchmarking
+        fwrite(benchmark, paste0(outdir, 'exp', exp, '_duration_hyper_', frail_lab[f], '_fold_', folds[d], '_mtry_', hyper_grid$mtry[i], '_sfr_', hyper_grid$sample_frac_l[i], '.csv'))
         #make predictions on test fold
         preds <- predict(frail_rf, data=x_test)$predictions
         #save predictions
@@ -547,12 +505,6 @@ for (d in 1:length(folds)) {
     }
     #save each fold for each aspect
     fwrite(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), paste0(outdir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
-    #calculate & save run time for each fold for each aspect
-    end_time <- Sys.time()
-    duration <- difftime(end_time, start_time, units = 'sec')
-    run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
-    #save
-    write(run_time, paste0(outdir, 'exp', exp, '_duration_hyper_', frail_lab[f], '_fold_', folds[d], '.txt'))
   }
 }
 #calculate total run time
