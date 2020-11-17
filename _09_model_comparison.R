@@ -6,23 +6,218 @@ library(ggplot2)
 library(openxlsx)
 
 #set experiment numbers
-rf_tfidf_exp <- 'exp100920str'
-rf_embed_exp <- 'exp102420_rf_embedstr'
-enet_tfidf_exp <- 'exp102320_logit_str'
-enet_embed_exp <- 'exp102620_logit_embedstr'
+nnet_exp <- 'exp111120_nnet_str'
+rf_exp <- 'exp110320_rf_tfidfstr'
+enet_exp <- 'exp110320_enetstr'
 
 #set directories based on exp numbers
-outdir <- paste0(getwd(), '/output/')
-obsdir <- paste0(outdir, '_08_window_classifier_alt/')
-rf_tfidf <- paste0(outdir, '_08_window_classifier_alt/', rf_tfidf_exp, '/')
-rf_embed <- paste0(outdir, '_08_window_classifier_alt/', rf_embed_exp, '/')
-enet_tfidf <- paste0(outdir, '_08_window_classifier_logit/', enet_tfidf_exp, '/')
-enet_embed <- paste0(outdir, '_08_window_classifier_logit/', enet_embed_exp, '/')
+dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/', '/media/drv2/andrewcd2/frailty/output/', '/share/gwlab/frailty/')
+for (d in 1:length(dirs)) {
+  if (dir.exists(dirs[d])) {
+    outdir = dirs[d]
+  }
+}
+nnet_dir <- paste0(outdir, 'n_nets/', nnet_exp, '/')
+rf_dir <- paste0(outdir, 'lin_trees/', rf_exp, '/')
+enet_dir <- paste0(outdir, 'lin_trees/', enet_exp, '/')
 
 #standard error
 se <- function(x) {
+  #remove NA (necessary if there is a major fold error (e.g. test fold is completely missing pos/neg class))
+  x <- x[!is.na(x)]
   sd(x)/sqrt(length(x))
   }
+
+#mean & se of loss across fold 
+mean_se <- function(loss) {
+  loss <- loss %>%
+    mutate(mean_sbrier_neut = signif(rowMeans(loss[,grep('sbrier_neut', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_sbrier_neut = signif(apply(loss[,grep('sbrier_neut', colnames(loss), value = TRUE)], 1, se), 1),
+           mean_sbrier_pos = signif(rowMeans(loss[,grep('sbrier_pos', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_sbrier_pos = signif(apply(loss[,grep('sbrier_pos', colnames(loss), value = TRUE)], 1, se), 1),
+           mean_sbrier_neg = signif(rowMeans(loss[,grep('sbrier_neg', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_sbrier_neg = signif(apply(loss[,grep('sbrier_neg', colnames(loss), value = TRUE)], 1, se), 1),
+           mean_sbrier_all = signif(rowMeans(loss[,grep('sbrier_mean', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_sbrier_all = signif(apply(loss[,grep('sbrier_mean', colnames(loss), value = TRUE)], 1, se), 1),
+           mean_entropy = signif(rowMeans(loss[,grep('cross_entropy_2', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_entropy = signif(apply(loss[,grep('cross_entropy_2', colnames(loss), value = TRUE)], 1, se), 1),
+           mean_bscore_neut = signif(rowMeans(loss[,grep('bscore_neut', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_bscore_neut = signif(apply(loss[,grep('bscore_neut', colnames(loss), value = TRUE)], 1, se), 1),
+           mean_bscore_pos = signif(rowMeans(loss[,grep('bscore_pos', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_bscore_pos = signif(apply(loss[,grep('bscore_pos', colnames(loss), value = TRUE)], 1, se), 1),
+           mean_bscore_neg = signif(rowMeans(loss[,grep('bscore_neg', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_bscore_neg = signif(apply(loss[,grep('bscore_neg', colnames(loss), value = TRUE)], 1, se), 1),
+           mean_bscore_all = signif(rowMeans(loss[,grep('bscore_all', colnames(loss), value = TRUE)], na.rm = TRUE), 2),
+           se_bscore_all = signif(apply(loss[,grep('bscore_all', colnames(loss), value = TRUE)], 1, se), 1)) %>%
+    select(-grep('fold', colnames(loss)))
+  return(loss)}
+
+######## Summarize neural net output #########
+
+#plot loss by batch size
+cols <- 'batch_size'
+epochs <- 1:10
+cols <- append(cols, epochs)
+batch_loss <- fread(paste0(nnet_dir, 'batch_loss_grace.csv'), skip = 1)
+colnames(batch_loss) <- cols
+batch_loss_long <- pivot_longer(batch_loss, cols = 2:11, names_to = 'epoch', values_to = 'cross_entropy')
+ggplot(batch_loss_long, aes(x = reorder(as.integer(epoch), sort(as.integer(epoch))), y = cross_entropy, group = batch_size)) +
+  geom_line(aes(color = as.factor(batch_size))) +
+  labs(title = 'Loss by epoch stratified by batch size', y = 'Categorical cross entropy', x = 'Epoch', color = 'Batch size')
+
+#training loss by model type
+cols <- 'model'
+epochs <- 1:10
+cols <- append(cols, epochs)
+train_loss <- fread(paste0(nnet_dir, 'deep_loss.csv'), skip = 1)
+colnames(train_loss) <- cols
+train_loss_long <- pivot_longer(train_loss, cols = 2:11, names_to = 'epoch', values_to = 'cross_entropy')
+#put legend labels in order of loss in 10th epoch
+train_loss_long$model <- factor(train_loss_long$model, levels = arrange(filter(train_loss_long, epoch == 10), cross_entropy)$model)
+ggplot(train_loss_long, aes(x = reorder(as.integer(epoch), sort(as.integer(epoch))), y = cross_entropy, group = model)) +
+  geom_line(aes(color = as.factor(model))) +
+  labs(title = 'Training loss by epoch stratified by model', y = 'Categorical cross entropy', x = 'Epoch', color = 'Model', 
+       caption = 'Model titles include the type of layer (bl = bidirectional LSTM, d = dense) and size of layer (256, 128, or 64 units)')
+
+#validation loss by model type
+val_loss <- fread(paste0(nnet_dir, 'deep_val_loss.csv'), skip = 1)
+colnames(val_loss) <- cols
+val_loss_long <- pivot_longer(val_loss, cols = 2:11, names_to = 'epoch', values_to = 'cross_entropy')
+#put legend labels in order of loss in 10th epoch
+val_loss_long$model <- factor(val_loss_long$model, levels = arrange(filter(train_loss_long, epoch == 10), cross_entropy)$model)
+ggplot(val_loss_long, aes(x = reorder(as.integer(epoch), sort(as.integer(epoch))), y = cross_entropy, group = model)) +
+  geom_line(aes(color = as.factor(model))) +
+  labs(title = 'Validation loss by epoch stratified by model', y = 'Categorical cross entropy', x = 'Epoch', color = 'Model',
+       caption = 'Model titles include the type of layer (bl = bidirectional LSTM, d = dense) and size of layer (256, 128, or 64 units)')
+
+
+######## Summarize RF output #########
+
+#list all output to read
+rf_loss <- expand.grid(
+  model = 'rf',
+  exp = rf_exp,
+  frail_lab = c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition'),
+  fold = seq(1, 10))
+#read all output
+for (r in 1:nrow(rf_loss)) {
+      hyper <- fread(paste0(rf_dir, rf_loss$exp[r], '_hyper_', rf_loss$frail_lab[r], '_fold_', rf_loss$fold[r], '.csv'))
+      hyper$model <- rf_loss$model[r]
+      hyper$exp <- rf_loss$exp[r]
+      hyper$fold <- rf_loss$fold[r]
+      assign(paste0('rf_hyper_', rf_loss$frail_lab[r], '_fold_', rf_loss$fold[r]), hyper)
+}
+#gather into one table
+rf_loss_all <- do.call(rbind, mget(objects(pattern = 'rf_hyper_')))
+#drop fold 7 for nutrition (test set had 0 positive observations, therefore unable to calculate scaled brier score)
+rf_loss_all <- filter(rf_loss_all, !(frail_lab == 'Nutrition' & fold ==7))
+#summarize mean and SE for loss across fold
+rf_loss_wide <- pivot_wider(rf_loss_all, 
+                             id_cols = c('model', 'exp', 'frail_lab', 'fold' ,'SVD', 'ntree', 'mtry', 'sample_frac'), 
+                             names_from = fold, names_prefix = 'fold', 
+                             values_from = c(grep("bscore_|sbrier_|cross_entropy_", colnames(rf_loss_all), value=TRUE)))
+rf_mean_loss <- mean_se(rf_loss_wide)
+#save output
+write.csv(rf_mean_loss, paste0(rf_dir, rf_exp, '_mean_loss'))
+
+#find best model for each aspect
+#embeddings
+rf_embed_best <- rf_mean_loss %>%
+  filter(SVD == 'embed') %>%
+  group_by(frail_lab) %>%
+  arrange(desc(mean_sbrier_all)) %>%
+  slice(1) %>%
+  select('model', 'frail_lab', 'SVD', 'mtry', 'sample_frac', grep('sbrier', colnames(rf_mean_loss), value = TRUE))
+#tfidf
+rf_tfidf_best <- rf_mean_loss %>%
+  filter(!SVD == 'embed') %>%
+  group_by(frail_lab) %>%
+  arrange(desc(mean_sbrier_all)) %>%
+  slice(1) %>%
+  select('model', 'frail_lab', 'SVD', 'mtry', 'sample_frac', grep('sbrier', colnames(rf_mean_loss), value = TRUE))
+#plot loss by text featurization strategy
+rf_mean_loss_plot <- rf_mean_loss
+rf_mean_loss_plot$SVD <- factor(rf_mean_loss_plot$SVD, levels = c('300', '1000', '3000', 'embed'))
+ggplot(rf_mean_loss_plot, aes(x = SVD, y = mean_sbrier_all, ymin = (mean_sbrier_all - se_sbrier_all), ymax = (mean_sbrier_all + se_sbrier_all)))+
+  geom_pointrange(stat='identity', position = 'jitter', aes(color = SVD))+
+  scale_color_discrete(name = 'SVD') +
+  labs(title = 'Scaled Brier score by SVD', y = 'Scaled Brier score') +
+  theme(legend.position = 'bottom')
+
+
+
+######## Summarize elastic net output #########
+#list all output to read
+enet_loss <- expand.grid(
+  model = 'enet',
+  exp = enet_exp,
+  fold = seq(1, 10),
+  frail_lab = c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition'),
+  class = c('neut', 'pos', 'neg'),
+  SVD = c('300', '1000', '3000', 'embed'),
+  alpha_l = c(9, 5, 1))
+#read all output
+for (r in 1:nrow(enet_loss)) {
+  hyper <- fread(paste0(enet_dir, enet_loss$exp[r], '_hyper_f', enet_loss$fold[r], '_', enet_loss$frail_lab[r], '_', enet_loss$class[r], '_svd_', enet_loss$SVD[r], '_alpha', enet_loss$alpha_l[r], '.csv'))
+  hyper$model <- enet_loss$model[r]
+  hyper$exp <- enet_loss$exp[r]
+  hyper$fold <- enet_loss$fold[r]
+  assign(paste0('enet_f', enet_loss$fold[r], '_', enet_loss$frail_lab[r], '_', enet_loss$class[r], '_s_', enet_loss$SVD[r], '_alpha', enet_loss$alpha_l[r]), hyper)
+}
+#gather into one table
+enet_loss_all <- do.call(rbind, mget(objects(pattern = 'enet_f')))
+#drop fold 7 for nutrition (test set had 0 positive observations, therefore unable to calculate scaled brier score)
+enet_loss_all <- filter(enet_loss_all, !(frail_lab == 'Nutrition' & fold ==7))
+#get arrange scores by hyperparameter (consolidate all classes)
+enet_loss_all <- pivot_wider(enet_loss_all, 
+                               id_cols = c('model', 'exp', 'fold' ,'SVD', 'frail_lab', 'alpha', 'lambda', 'class'), 
+                               names_from = class, 
+                               values_from = c(sbrier, bscore, cross_entropy_2))
+#get mean across all classes
+enet_loss_all <- mutate(enet_loss_all,
+                          sbrier_mean = rowMeans(enet_loss_all[,grep('sbrier_', colnames(enet_loss_all), value = TRUE)]),
+                          bscore_all = rowMeans(enet_loss_all[,grep('bscore_', colnames(enet_loss_all), value = TRUE)]),
+                          cross_entropy_2 = rowMeans(enet_loss_all[,grep('cross_entropy_2', colnames(enet_loss_all), value = TRUE)]))
+#summarize mean and SE for loss across fold
+enet_loss_wide <- pivot_wider(enet_loss_all, 
+                               id_cols = c('model', 'exp', 'fold' ,'SVD', 'frail_lab', 'alpha', 'lambda'), 
+                               names_from = fold, names_prefix = 'fold', 
+                              values_from = c(grep("bscore_|sbrier_|cross_entropy_", colnames(enet_loss_all), value=TRUE)))
+enet_mean_loss <- mean_se(enet_loss_wide)
+#find best model for each aspect
+#embeddings
+enet_embed_best <- enet_mean_loss %>%
+  filter(SVD == 'embed') %>%
+  group_by(frail_lab) %>%
+  arrange(desc(mean_sbrier_all)) %>%
+  slice(1) %>%
+  select('model', 'frail_lab', 'SVD', 'alpha', 'lambda', grep('sbrier', colnames(enet_mean_loss), value = TRUE))
+#tfidf
+enet_tfidf_best <- enet_mean_loss %>%
+  filter(!SVD == 'embed') %>%
+  group_by(frail_lab) %>%
+  arrange(desc(mean_sbrier_all)) %>%
+  slice(1) %>%
+  select('model', 'frail_lab', 'SVD', 'alpha', 'lambda', grep('sbrier', colnames(enet_mean_loss), value = TRUE))
+#plot loss by text featurization strategy
+enet_mean_loss_plot <- enet_mean_loss
+enet_mean_loss_plot$SVD <- factor(enet_mean_loss_plot$SVD, levels = c('300', '1000', '3000', 'embed'))
+ggplot(enet_mean_loss_plot, aes(x = SVD, y = mean_sbrier_all, ymin = (mean_sbrier_all - se_sbrier_all), ymax = (mean_sbrier_all + se_sbrier_all)))+
+  geom_pointrange(stat='identity', position = 'jitter', aes(color = SVD))+
+  scale_color_discrete(name = 'SVD') +
+  labs(title = 'Scaled Brier score by SVD', y = 'Scaled Brier score') +
+  theme(legend.position = 'bottom') +
+  ylim(-.01, 0.45)
+
+
+
+
+#Comparing to prior embeddings (mean of 11-token window & center word; NO lead/lag)
+rf_embed_exp <- 'exp102420_rf_embedstr'
+enet_embed_exp <- 'exp102620_logit_embedstr'
+
+rf_embed <- paste0(outdir, '_08_window_classifier_alt/', rf_embed_exp, '/')
+enet_embed <- paste0(outdir, '_08_window_classifier_logit/', enet_embed_exp, '/')
 
 #mean & se of loss across fold - wrote out all of the names explicity to help rename and merge all of the output together
 rf_mean_se <- function(loss) {
@@ -71,42 +266,7 @@ glmnet_mean_se <- function(loss) {
     select(-grep('fold', colnames(loss)))
   return(loss)}
 
-
-######## Summarize RF output #########
-
-#TF-IDF
-#list all output to read
-rf_loss <- expand.grid(
-  model = 'rf_tfidf',
-  frail_lab = c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition'),
-  fold = seq(1, 10))
-rf_loss <- mutate(rf_loss, exp = ifelse(model == 'rf_tfidf', rf_tfidf_exp,
-                                        ifelse(model == 'rf_embed', rf_embed_exp, NA)))
-#read all output
-for (r in 1:nrow(rf_loss)) {
-      hyper <- fread(paste0(get(paste0(rf_loss$model[r])), rf_loss$exp[r], '_hyper_', rf_loss$frail_lab[r], '_fold_', rf_loss$fold[r], '.csv'))
-      hyper$model <- rf_loss$model[r]
-      hyper$exp <- rf_loss$exp[r]
-      hyper$fold <- rf_loss$fold[r]
-      assign(paste0('rftfidf_hyper_', rf_loss$frail_lab[r], '_fold_', rf_loss$fold[r]), hyper)
-}
-#gather into one table
-rf_tfidf_loss <- do.call(rbind, mget(objects(pattern = 'rftfidf_hyper_')))
-#fix scaled_brier_all (erroneously copied scaled_brier_neut in original script)
-rf_tfidf_loss <- mutate(rf_tfidf_loss, scaled_brier_all = rowMeans(rf_tfidf_loss[,c('scaled_brier_neut', 'scaled_brier_pos', 'scaled_brier_neg')]))
-#summarize mean and SE for loss across fold
-rf_tfidf_loss <- pivot_wider(rf_tfidf_loss, 
-                             id_cols = c('model', 'exp', 'frail_lab', 'fold' ,'SVD', 'ntree', 'mtry', 'sample_frac'), 
-                             names_from = fold, names_prefix = 'fold', 
-                             values_from = c(scaled_brier_neut, scaled_brier_pos, scaled_brier_neg, scaled_brier_all, cross_entropy_2, cv_brier_neut, cv_brier_pos, cv_brier_neg, cv_brier_all))
-rf_tfidf_loss <- rf_mean_se(rf_tfidf_loss)
-#find best model for each aspect
-rf_tfidf_best <- rf_tfidf_loss %>%
-  group_by(frail_lab) %>%
-  arrange(desc(mean_sbrier_all)) %>%
-  slice(1)
-
-#Embeddings
+#RF with Old Embeddings
 #list all output to read
 rf_loss <- expand.grid(
   model = 'rf_embed',
@@ -134,18 +294,13 @@ rf_embed_loss <- pivot_wider(rf_embed_loss,
                              values_from = c(scaled_brier_neut, scaled_brier_pos, scaled_brier_neg, scaled_brier_all, cross_entropy_2, cv_brier_neut, cv_brier_pos, cv_brier_neg, cv_brier_all))
 rf_embed_loss <- rf_mean_se(rf_embed_loss)
 #find best model for each aspect
-rf_embed_best <- rf_embed_loss %>%
+rf_oldembed_best <- rf_embed_loss %>%
   group_by(frail_lab) %>%
   arrange(desc(mean_sbrier_all)) %>%
   slice(1)
 
 
-
-
-
-######## Summarize elastic net output #########
-
-#Embeddings
+#Elastic net with Old Embeddings
 #list all output to read
 enet_loss <- expand_grid(
   model = 'enet_embed',
@@ -183,57 +338,37 @@ enet_embed_loss <- pivot_wider(enet_embed_loss,
                                values_from = c(sbrier_neut, sbrier_pos, sbrier_neg, sbrier_all, cross_entropy_2, bscore_neut, bscore_pos, bscore_neg, bscore_all))
 enet_embed_loss <- glmnet_mean_se(enet_embed_loss)
 #find best model for each aspect
-enet_embed_best <- enet_embed_loss %>%
+enet_oldembed_best <- enet_embed_loss %>%
   group_by(frail_lab) %>%
   arrange(desc(mean_sbrier_all)) %>%
   slice(1)
 
-#TF-IDF - not ready yet -- need to re-run
-#list all output to read (NOTE: FOR THIS EXP, MUST USE EXACTLY THIS GRID TO MATCH "r" IN THE .csv OUTPUT - SOLVED THIS PROBLEM LATER)
-# enet_loss <- expand_grid(
-#   fold = seq(1,10),
-#   svd = seq(50, 300, 1000),
-#   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-#   alpha = c(0.9, 0.5, 0.1),
-#   class = c('neut', 'pos', 'neg')
-# )
-# enet_loss$model <- 'enet_tfidf'
-# enet_loss <- mutate(enet_loss, exp = ifelse(model == 'enet_tfidf', enet_tfidf_exp,
-#                                             ifelse(model == 'enet_embed', enet_embed_exp, NA)))
-# enet_loss$r <- seq.int(nrow(enet_loss))
-# 
-# 
-# #read all output
-# for (r in 1:nrow(enet_loss)) {
-#   hyper <- fread(paste0(get(paste0(enet_loss$model[r])), enet_loss$exp[r], '_hyper_f', enet_loss$fold[r], '_', enet_loss$frail_lab[r], '_', enet_loss$svd[r], '_', enet_loss$class[r], '_r', r, '.csv'))
-#   hyper$model <- enet_loss$model[r]
-#   hyper$exp <- enet_loss$exp[r]
-#   assign(paste0('enet_tfidf_hyper_', enet_loss$model[r], '_', enet_loss$frail_lab[r], '_fold_', enet_loss$fold[r]), hyper)
-# }
-# #gather into one table
-# enet_tfidf_loss <- do.call(rbind, mget(objects(pattern = 'enet_tfidf_hyper_')))
-# #summarize mean and SE for loss across fold
-# enet_tfidf_loss <- pivot_wider(enet_tfidf_loss, 
-#                              id_cols = c('model', 'exp', 'frail_lab', 'fold' ,'SVD', 'ntree', 'mtry', 'sample_frac'), 
-#                              names_from = fold, names_prefix = 'fold', 
-#                              values_from = c(scaled_brier_neut, scaled_brier_pos, scaled_brier_neg, scaled_brier_all, cross_entropy_2, cv_brier_neut, cv_brier_pos, cv_brier_neg, cv_brier_all))
-# enet_tfidf_loss <- rf_mean_se(enet_tfidf_loss)
-# #find best model for each aspect
-# enet_tfidf_best <- enet_tfidf_loss %>%
-#   group_by(frail_lab) %>%
-#   arrange(desc(enet_mean_sbrier_all)) %>%
-#   slice(1)
-
-
-
 
 
 ######## Output ########
-
+#label old embeddings
+rf_oldembed_best$SVD <- 'Old embeddings'
+rf_oldembed_best$model <- 'rf'
+enet_oldembed_best$SVD <- 'Old embeddings'
+enet_oldembed_best$model <- 'enet'
 #output table of performance for all classes
-bestcols <- c('model', 'exp', 'frail_lab', 'mean_sbrier_all', 'se_sbrier_all')
-best <- rbind(rf_embed_best[,bestcols], rf_tfidf_best[,bestcols], enet_embed_best[,bestcols])
-best <- pivot_wider(best, id_cols = c('model', 'exp', 'frail_lab'), names_from = frail_lab, values_from = c('mean_sbrier_all', 'se_sbrier_all'))
+tabs <- c('rf_embed_best', 'rf_tfidf_best', 'enet_embed_best', 'enet_tfidf_best', 'rf_oldembed_best', 'enet_oldembed_best')
+bestcols <- c('model', 'text_features', 'frail_lab', 'mean_sbrier_all', 'se_sbrier_all')
+#allocate list of tables
+tab_list <- vector("list", length(tabs))
+#get columns
+bestc <- function(tab){
+  tab2 <- mutate(tab, text_features = ifelse(SVD %in% c('300', '1000', '3000'), 'TF-IDF', 
+                                             ifelse(SVD == 'embed', 'Embeddings', SVD)))
+  x <- tab2[,bestcols]
+}
+#make list of tables
+for (t in 1:length(tabs)){
+  tab_list[[t]] <- bestc(get(tabs[t]))
+}
+
+best <- rbindlist(tab_list)
+best <- pivot_wider(best, id_cols = c('model', 'text_features', 'frail_lab'), names_from = frail_lab, values_from = c('mean_sbrier_all', 'se_sbrier_all'))
 best <- mutate(best,
                all_mean = signif(rowMeans(best[, grep('mean_sbrier_all', colnames(best), value = TRUE)]), 2),
                all_se = signif(apply(best[, grep('mean_sbrier_all', colnames(best), value = TRUE)], 1, se), 1))
@@ -245,16 +380,30 @@ best2 <- best %>%
          `All aspects` = paste0(all_mean, ' (', all_se, ')'))%>%
   select(-grep('all_', colnames(best), value = TRUE))
 #write out
-write.xlsx(best2, paste0(rf_embed, 'best_sbrier.xlsx'))
+write.xlsx(best2, paste0(outdir, 'best_sbrier.xlsx'))
 
 
 #output table of performance for each class for the best model
-best_class <- rbind(rf_embed_best, rf_tfidf_best, enet_embed_best)
+tabs <- c('rf_embed_best', 'rf_tfidf_best', 'enet_embed_best', 'enet_tfidf_best')
+#allocate list of tables
+tab_list <- vector("list", length(tabs))
+#get columns
+cols <- c('model', 'frail_lab', 'text_features', grep('sbrier', colnames(rf_embed_best), value = TRUE))
+bestc <- function(tab){
+  tab2 <- mutate(tab, text_features = ifelse(SVD %in% c('300', '1000', '3000'), 'TF-IDF', 
+                                             ifelse(SVD == 'embed', 'Embeddings', SVD)))
+  x <- tab2[,cols]
+}
+#make list of tables
+for (t in 1:length(tabs)){
+  tab_list[[t]] <- bestc(get(tabs[t]))
+}
+best_class <- rbindlist(tab_list)
 best_class <- best_class %>%
   group_by(frail_lab) %>% 
   arrange(desc(mean_sbrier_all)) %>%
   slice(1) %>%
-  select('model', 'frail_lab', 'mean_sbrier_neut', 'se_sbrier_neut', 'mean_sbrier_all', 'se_sbrier_all', 'mean_sbrier_pos','se_sbrier_pos', 'mean_sbrier_neg', 'se_sbrier_neg')
+  select('model', 'frail_lab', 'text_features', 'mean_sbrier_neut', 'se_sbrier_neut', 'mean_sbrier_all', 'se_sbrier_all', 'mean_sbrier_pos','se_sbrier_pos', 'mean_sbrier_neg', 'se_sbrier_neg')
 #write out
 write.xlsx(best_class, paste0(rf_embed, 'all_classes.xlsx'))
 
@@ -348,26 +497,5 @@ mc_calib_plot(Fall_risk_obs + Msk_prob_obs + Nutrition_obs + Resp_imp_obs ~ `Fal
   labs(title = 'Calibration across all classes for each fraily aspect')
 #write out
 ggsave(filename = paste0(get(paste0(best_model$model[b])), 'all_aspects_calib.pdf'), device= 'pdf') 
-
-
-preds <- df
-
-##troubleshooting
-# problem: scaled_brier_neut = scaled_brier_all
-rftfidf_hyper_Fall_risk_fold_1[, c('model', 'frail_lab', 'scaled_brier_neut', 'scaled_brier_all', 'cv_brier_neut', 'cv_brier_all')]
-
-#cv scaled brier score for each class
-scaled_brier_neut <- scaled_brier_score(y_test_neut, preds$`0`)
-scaled_brier_pos <- scaled_brier_score(y_test_pos, preds$`1`)
-scaled_brier_neg <- scaled_brier_score(y_test_neg, preds$`-1`)
-#mean scaled Brier score for all classes
-scaled_brier_all <- mean(c(
-  scaled_brier_score(y_test_neut, preds$`0`),
-  scaled_brier_score(y_test_pos, preds$`1`),
-  scaled_brier_score(y_test_neg, preds$`-1`)))
-
-scaled_brier_all <-scaled_brier_score(
-  c(y_test_pos, y_test_neg),
-  c(preds$`1`, preds$`-1`))
 
 
