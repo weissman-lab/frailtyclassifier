@@ -3,6 +3,7 @@ import sys
 import re
 import pandas as pd
 import numpy as np
+from itertools import product
 import copy
 from sklearn.preprocessing import StandardScaler
 from timeit import default_timer as timer
@@ -281,92 +282,48 @@ test_nan_inf(train_struc)
 test_nan_inf(test_struc)
 
 best_batch_s = 32
-epochs = 50
-tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
-# #set lists for output
-# deep_loss = []
-# deep_val_loss = []
-# model_name = []
-# #iterate over the frailty aspects
-# for m in range(len(tr_labels)):
-#     frail_lab = out_varnames[m]
-#     #model name
-#     mod_name = 'bl256_d128_d128_d64'
-#     #model
-#     nlp_input = Input(shape=(win_size,), name='nlp_input')
-#     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-#     emb = cr_embed_layer(nlp_input)
-#     nlp_out = Bidirectional(LSTM(256))(emb)
-#     x = concatenate([nlp_out, meta_input])
-#     x = Dense(128, activation='relu')(x)
-#     x = Dense(128, activation='relu')(x)
-#     x = Dense(64, activation='relu')(x)
-#     x = Dense(3, activation='sigmoid')(x)
-#     model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
-#     model_2.compile(loss='categorical_crossentropy',
-#                     optimizer=tf.keras.optimizers.Adam(1e-4),
-#                     metrics=['acc'])
-#     #fit model
-#     history = model_2.fit([x_train, train_struc],
-#                           tr_labels[m],
-#                           validation_data=([x_test, test_struc], te_labels[m]),
-#                           epochs=epochs,
-#                           batch_size=best_batch_s,
-#                           sample_weight=tr_cw[m],
-#                           callbacks=[tr_loss_earlystopping])
-#     #add loss to list
-#     deep_loss.append(history.history['loss'])
-#     deep_val_loss.append(history.history['val_loss'])
-#     model_name.append(f"{frail_lab}_{mod_name}")
-#     #save as df
-#     tr_m_loss = pd.DataFrame(history.history['loss']).transpose()
-#     val_m_loss = pd.DataFrame(history.history['val_loss']).transpose()
-#     index_names = dict(zip((range(len(model_name))), model_name))
-#     col_names = dict(zip(range(tr_m_loss.shape[1]), range(1, tr_m_loss.shape[1] + 1)))
-#     tr_m_loss = tr_m_loss.rename(index=index_names, columns=col_names)
-#     val_m_loss = val_m_loss.rename(index=index_names, columns=col_names)
-#     tr_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_train_loss.csv")
-#     val_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_val_loss.csv")
-#
-# # early stopping causes differences in epochs -- pad with NA so columns match
-# train_loss = np.ones((len(deep_loss), np.max([len(e) for e in deep_loss]))) * np.nan
-# val_loss = train_loss
-# for i, c in enumerate(deep_loss):
-#     train_loss[i, :len(c)] = c
-# train_loss = pd.DataFrame(train_loss)
-# for i, c in enumerate(deep_val_loss):
-#     val_loss[i, :len(c)] = c
-# val_loss = pd.DataFrame(val_loss)
-# # rename index and columns
-# index_names = dict(zip((range(len(model_name))), model_name))
-# col_names = dict(zip(range(train_loss.shape[1]), range(1, train_loss.shape[1] + 1)))
-# train_loss = train_loss.rename(index=index_names, columns=col_names)
-# val_loss = val_loss.rename(index=index_names, columns=col_names)
-# # save
-# train_loss.to_csv(f"{outdir}{exp}_{mod_name}_train_loss.csv")
-# val_loss.to_csv(f"{outdir}{exp}_{mod_name}_val_loss.csv")
-
+epochs = 80
+tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=10)
 #set lists for output
 deep_loss = []
 deep_val_loss = []
 model_name = []
+train_sbriers = []
+test_sbriers = []
+
+def kerasmodel(n_units, n_lstm, n_dense):
+    nlp_input = Input(shape=(win_size,), name='nlp_input')
+    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+    x = cr_embed_layer(nlp_input)
+    for l in range(n_lstm-1):
+        x = Bidirectional(LSTM(n_units, return_sequences=True))(x)
+    nlp_out = Bidirectional(LSTM(n_units))(x)
+    y = concatenate([nlp_out, meta_input])
+    for i in range(n_dense):
+        y = Dense(n_units, activation='relu')(y)
+    z = Dense(3, activation='sigmoid')(y)
+    model = Model(inputs=[nlp_input, meta_input], outputs=[z])
+    return(model)
+
+#eventually convert to iterating over model parameters
+# m_grid = pd.DataFrame([[64, 1, 1],
+#                        [64, 3, 3],
+#                        [256, 1, 1],
+#                        [256, 3, 3,]])
+# m_grid = m_grid.rename(columns=dict({0: 'n_units', 1: 'n_lstm', 2: 'n_dense'}))
+#
+# for r in m_grid.shape[0]:
+
 #iterate over the frailty aspects
 for m in range(len(tr_labels)):
+    n_units = 64
+    n_lstm = 3
+    n_dense = 3
     frail_lab = out_varnames[m]
     #model name
-    mod_name = 'bl256_bl256_bl128_d128_d128_d64'
-    nlp_input = Input(shape=(win_size,), name='nlp_input')
-    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-    emb = cr_embed_layer(nlp_input)
-    emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
-    emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
-    nlp_out = Bidirectional(LSTM(128))(emb)
-    x = concatenate([nlp_out, meta_input])
-    x = Dense(128, activation='relu')(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dense(64, activation='relu')(x)
-    x = Dense(3, activation='sigmoid')(x)
-    model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+    mod_name = f"bl{n_units}_bl{n_units}_bl{n_units}_d{n_units}_d{n_units}_d{n_units}"
+    fr_mod = f"{frail_lab}_{mod_name}"
+    model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
                     optimizer=tf.keras.optimizers.Adam(1e-4),
                     metrics=['acc'])
@@ -381,20 +338,42 @@ for m in range(len(tr_labels)):
     #add loss to list
     deep_loss.append(history.history['loss'])
     deep_val_loss.append(history.history['val_loss'])
-    model_name.append(f"{frail_lab}_{mod_name}")
+    model_name.append(fr_mod)
     #save as df
     tr_m_loss = pd.DataFrame(history.history['loss']).transpose()
     val_m_loss = pd.DataFrame(history.history['val_loss']).transpose()
-    index_names = dict(zip((range(len(model_name))), model_name))
+    index_names = dict({1: fr_mod})
     col_names = dict(zip(range(tr_m_loss.shape[1]), range(1, tr_m_loss.shape[1] + 1)))
     tr_m_loss = tr_m_loss.rename(index=index_names, columns=col_names)
     val_m_loss = val_m_loss.rename(index=index_names, columns=col_names)
-    tr_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_train_loss.csv")
-    val_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_val_loss.csv")
+    tr_m_loss.to_csv(f"{outdir}{fr_mod}_train_loss.csv")
+    val_m_loss.to_csv(f"{outdir}{fr_mod}_val_loss.csv")
+    # make predictions on training data
+    tr_probs = model_2.predict([x_train, train_struc])
+    # scaled brier for each class
+    tr_sb = []
+    for i in range(3):
+        tr_sb.append(scaled_brier(tr_labels[m][:, i], tr_probs[:, i]))
+    tr_sb = pd.DataFrame(tr_sb).transpose().rename(columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
+    train_sbriers.append(tr_sb)
+    # save sbrier
+    tr_sb.to_csv(f"{outdir}{fr_mod}_tr_sbrier.csv")
+    #make predictions on testing data
+    te_probs = model_2.predict([x_test, test_struc])
+    #save predictions
+    pd.DataFrame(te_probs).to_csv(f"{outdir}{fr_mod}_val_preds.csv")
+    #scaled briers for each class
+    te_sb = []
+    for i in range(3):
+        te_sb.append(scaled_brier(te_labels[m][:, i], te_probs[:, i]))
+    te_sb = pd.DataFrame(te_sb).transpose().rename(columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
+    test_sbriers.append(te_sb)
+    # save sbrier
+    te_sb.to_csv(f"{outdir}{fr_mod}_te_sbrier.csv")
 
 # early stopping causes differences in epochs -- pad with NA so columns match
 train_loss = np.ones((len(deep_loss), np.max([len(e) for e in deep_loss]))) * np.nan
-val_loss = train_loss
+val_loss = train_loss.copy()
 for i, c in enumerate(deep_loss):
     train_loss[i, :len(c)] = c
 train_loss = pd.DataFrame(train_loss)
@@ -409,30 +388,23 @@ val_loss = val_loss.rename(index=index_names, columns=col_names)
 # save
 train_loss.to_csv(f"{outdir}{exp}_{mod_name}_train_loss.csv")
 val_loss.to_csv(f"{outdir}{exp}_{mod_name}_val_loss.csv")
+#combine all sbriers together and save
+train_sbrier_out = pd.concat(train_sbriers)
+test_sbrier_out = pd.concat(test_sbriers)
+train_sbrier_out = train_sbrier_out.rename(index=index_names)
+test_sbrier_out = test_sbrier_out.rename(index=index_names)
 
 
 
-
-#set lists for output
-deep_loss = []
-deep_val_loss = []
-model_name = []
-#iterate over the frailty aspects
 for m in range(len(tr_labels)):
+    n_units = 64
+    n_lstm = 1
+    n_dense = 1
     frail_lab = out_varnames[m]
-    # model name
-    mod_name = 'bl256_bl256_bl128_d128_d64'
-    nlp_input = Input(shape=(win_size,), name='nlp_input')
-    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-    emb = cr_embed_layer(nlp_input)
-    emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
-    emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
-    nlp_out = Bidirectional(LSTM(128))(emb)
-    x = concatenate([nlp_out, meta_input])
-    x = Dense(128, activation='relu')(x)
-    x = Dense(64, activation='relu')(x)
-    x = Dense(3, activation='sigmoid')(x)
-    model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+    #model name
+    mod_name = f"bl{n_units}_d{n_units}"
+    fr_mod = f"{frail_lab}_{mod_name}"
+    model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
                     optimizer=tf.keras.optimizers.Adam(1e-4),
                     metrics=['acc'])
@@ -447,20 +419,42 @@ for m in range(len(tr_labels)):
     #add loss to list
     deep_loss.append(history.history['loss'])
     deep_val_loss.append(history.history['val_loss'])
-    model_name.append(f"{frail_lab}_{mod_name}")
+    model_name.append(fr_mod)
     #save as df
     tr_m_loss = pd.DataFrame(history.history['loss']).transpose()
     val_m_loss = pd.DataFrame(history.history['val_loss']).transpose()
-    index_names = dict(zip((range(len(model_name))), model_name))
+    index_names = dict({1: fr_mod})
     col_names = dict(zip(range(tr_m_loss.shape[1]), range(1, tr_m_loss.shape[1] + 1)))
     tr_m_loss = tr_m_loss.rename(index=index_names, columns=col_names)
     val_m_loss = val_m_loss.rename(index=index_names, columns=col_names)
-    tr_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_train_loss.csv")
-    val_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_val_loss.csv")
+    tr_m_loss.to_csv(f"{outdir}{fr_mod}_train_loss.csv")
+    val_m_loss.to_csv(f"{outdir}{fr_mod}_val_loss.csv")
+    # make predictions on training data
+    tr_probs = model_2.predict([x_train, train_struc])
+    # scaled brier for each class
+    tr_sb = []
+    for i in range(3):
+        tr_sb.append(scaled_brier(tr_labels[m][:, i], tr_probs[:, i]))
+    tr_sb = pd.DataFrame(tr_sb).transpose().rename(columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
+    train_sbriers.append(tr_sb)
+    # save sbrier
+    tr_sb.to_csv(f"{outdir}{fr_mod}_tr_sbrier.csv")
+    #make predictions on testing data
+    te_probs = model_2.predict([x_test, test_struc])
+    #save predictions
+    pd.DataFrame(te_probs).to_csv(f"{outdir}{fr_mod}_val_preds.csv")
+    #scaled briers for each class
+    te_sb = []
+    for i in range(3):
+        te_sb.append(scaled_brier(te_labels[m][:, i], te_probs[:, i]))
+    te_sb = pd.DataFrame(te_sb).transpose().rename(columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
+    test_sbriers.append(te_sb)
+    # save sbrier
+    te_sb.to_csv(f"{outdir}{fr_mod}_te_sbrier.csv")
 
 # early stopping causes differences in epochs -- pad with NA so columns match
 train_loss = np.ones((len(deep_loss), np.max([len(e) for e in deep_loss]))) * np.nan
-val_loss = train_loss
+val_loss = train_loss.copy()
 for i, c in enumerate(deep_loss):
     train_loss[i, :len(c)] = c
 train_loss = pd.DataFrame(train_loss)
@@ -475,28 +469,22 @@ val_loss = val_loss.rename(index=index_names, columns=col_names)
 # save
 train_loss.to_csv(f"{outdir}{exp}_{mod_name}_train_loss.csv")
 val_loss.to_csv(f"{outdir}{exp}_{mod_name}_val_loss.csv")
+#combine all sbriers together and save
+train_sbrier_out = pd.concat(train_sbriers)
+test_sbrier_out = pd.concat(test_sbriers)
+train_sbrier_out = train_sbrier_out.rename(index=index_names)
+test_sbrier_out = test_sbrier_out.rename(index=index_names)
 
 
-
-#set lists for output
-deep_loss = []
-deep_val_loss = []
-model_name = []
-#iterate over the frailty aspects
 for m in range(len(tr_labels)):
+    n_units = 256
+    n_lstm = 3
+    n_dense = 3
     frail_lab = out_varnames[m]
-    # model name
-    mod_name = 'bl256_bl256_bl128_d128'
-    nlp_input = Input(shape=(win_size,), name='nlp_input')
-    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-    emb = cr_embed_layer(nlp_input)
-    emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
-    emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
-    nlp_out = Bidirectional(LSTM(128))(emb)
-    x = concatenate([nlp_out, meta_input])
-    x = Dense(128, activation='relu')(x)
-    x = Dense(3, activation='sigmoid')(x)
-    model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+    #model name
+    mod_name = f"bl{n_units}_bl{n_units}_bl{n_units}_d{n_units}_d{n_units}_d{n_units}"
+    fr_mod = f"{frail_lab}_{mod_name}"
+    model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
                     optimizer=tf.keras.optimizers.Adam(1e-4),
                     metrics=['acc'])
@@ -511,20 +499,42 @@ for m in range(len(tr_labels)):
     #add loss to list
     deep_loss.append(history.history['loss'])
     deep_val_loss.append(history.history['val_loss'])
-    model_name.append(f"{frail_lab}_{mod_name}")
+    model_name.append(fr_mod)
     #save as df
     tr_m_loss = pd.DataFrame(history.history['loss']).transpose()
     val_m_loss = pd.DataFrame(history.history['val_loss']).transpose()
-    index_names = dict(zip((range(len(model_name))), model_name))
+    index_names = dict({1: fr_mod})
     col_names = dict(zip(range(tr_m_loss.shape[1]), range(1, tr_m_loss.shape[1] + 1)))
     tr_m_loss = tr_m_loss.rename(index=index_names, columns=col_names)
     val_m_loss = val_m_loss.rename(index=index_names, columns=col_names)
-    tr_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_train_loss.csv")
-    val_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_val_loss.csv")
+    tr_m_loss.to_csv(f"{outdir}{fr_mod}_train_loss.csv")
+    val_m_loss.to_csv(f"{outdir}{fr_mod}_val_loss.csv")
+    # make predictions on training data
+    tr_probs = model_2.predict([x_train, train_struc])
+    # scaled brier for each class
+    tr_sb = []
+    for i in range(3):
+        tr_sb.append(scaled_brier(tr_labels[m][:, i], tr_probs[:, i]))
+    tr_sb = pd.DataFrame(tr_sb).transpose().rename(columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
+    train_sbriers.append(tr_sb)
+    # save sbrier
+    tr_sb.to_csv(f"{outdir}{fr_mod}_tr_sbrier.csv")
+    #make predictions on testing data
+    te_probs = model_2.predict([x_test, test_struc])
+    #save predictions
+    pd.DataFrame(te_probs).to_csv(f"{outdir}{fr_mod}_val_preds.csv")
+    #scaled briers for each class
+    te_sb = []
+    for i in range(3):
+        te_sb.append(scaled_brier(te_labels[m][:, i], te_probs[:, i]))
+    te_sb = pd.DataFrame(te_sb).transpose().rename(columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
+    test_sbriers.append(te_sb)
+    # save sbrier
+    te_sb.to_csv(f"{outdir}{fr_mod}_te_sbrier.csv")
 
 # early stopping causes differences in epochs -- pad with NA so columns match
 train_loss = np.ones((len(deep_loss), np.max([len(e) for e in deep_loss]))) * np.nan
-val_loss = train_loss
+val_loss = train_loss.copy()
 for i, c in enumerate(deep_loss):
     train_loss[i, :len(c)] = c
 train_loss = pd.DataFrame(train_loss)
@@ -539,29 +549,22 @@ val_loss = val_loss.rename(index=index_names, columns=col_names)
 # save
 train_loss.to_csv(f"{outdir}{exp}_{mod_name}_train_loss.csv")
 val_loss.to_csv(f"{outdir}{exp}_{mod_name}_val_loss.csv")
+#combine all sbriers together and save
+train_sbrier_out = pd.concat(train_sbriers)
+test_sbrier_out = pd.concat(test_sbriers)
+train_sbrier_out = train_sbrier_out.rename(index=index_names)
+test_sbrier_out = test_sbrier_out.rename(index=index_names)
 
 
-
-#set lists for output
-deep_loss = []
-deep_val_loss = []
-model_name = []
-#iterate over the frailty aspects
 for m in range(len(tr_labels)):
+    n_units = 256
+    n_lstm = 1
+    n_dense = 1
     frail_lab = out_varnames[m]
-    # model name
-    mod_name = 'bl256_bl128_d128_d128_d64'
-    nlp_input = Input(shape=(win_size,), name='nlp_input')
-    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-    emb = cr_embed_layer(nlp_input)
-    emb = Bidirectional(LSTM(256, return_sequences=True))(emb)
-    nlp_out = Bidirectional(LSTM(128))(emb)
-    x = concatenate([nlp_out, meta_input])
-    x = Dense(128, activation='relu')(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dense(64, activation='relu')(x)
-    x = Dense(3, activation='sigmoid')(x)
-    model_2 = Model(inputs=[nlp_input, meta_input], outputs=[x])
+    #model name
+    mod_name = f"bl{n_units}_d{n_units}"
+    fr_mod = f"{frail_lab}_{mod_name}"
+    model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
                     optimizer=tf.keras.optimizers.Adam(1e-4),
                     metrics=['acc'])
@@ -576,20 +579,42 @@ for m in range(len(tr_labels)):
     #add loss to list
     deep_loss.append(history.history['loss'])
     deep_val_loss.append(history.history['val_loss'])
-    model_name.append(f"{frail_lab}_{mod_name}")
+    model_name.append(fr_mod)
     #save as df
     tr_m_loss = pd.DataFrame(history.history['loss']).transpose()
     val_m_loss = pd.DataFrame(history.history['val_loss']).transpose()
-    index_names = dict(zip((range(len(model_name))), model_name))
+    index_names = dict({1: fr_mod})
     col_names = dict(zip(range(tr_m_loss.shape[1]), range(1, tr_m_loss.shape[1] + 1)))
     tr_m_loss = tr_m_loss.rename(index=index_names, columns=col_names)
     val_m_loss = val_m_loss.rename(index=index_names, columns=col_names)
-    tr_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_train_loss.csv")
-    val_m_loss.to_csv(f"{outdir}{frail_lab}_{mod_name}_val_loss.csv")
+    tr_m_loss.to_csv(f"{outdir}{fr_mod}_train_loss.csv")
+    val_m_loss.to_csv(f"{outdir}{fr_mod}_val_loss.csv")
+    # make predictions on training data
+    tr_probs = model_2.predict([x_train, train_struc])
+    # scaled brier for each class
+    tr_sb = []
+    for i in range(3):
+        tr_sb.append(scaled_brier(tr_labels[m][:, i], tr_probs[:, i]))
+    tr_sb = pd.DataFrame(tr_sb).transpose().rename(columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
+    train_sbriers.append(tr_sb)
+    # save sbrier
+    tr_sb.to_csv(f"{outdir}{fr_mod}_tr_sbrier.csv")
+    #make predictions on testing data
+    te_probs = model_2.predict([x_test, test_struc])
+    #save predictions
+    pd.DataFrame(te_probs).to_csv(f"{outdir}{fr_mod}_val_preds.csv")
+    #scaled briers for each class
+    te_sb = []
+    for i in range(3):
+        te_sb.append(scaled_brier(te_labels[m][:, i], te_probs[:, i]))
+    te_sb = pd.DataFrame(te_sb).transpose().rename(columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
+    test_sbriers.append(te_sb)
+    # save sbrier
+    te_sb.to_csv(f"{outdir}{fr_mod}_te_sbrier.csv")
 
 # early stopping causes differences in epochs -- pad with NA so columns match
 train_loss = np.ones((len(deep_loss), np.max([len(e) for e in deep_loss]))) * np.nan
-val_loss = train_loss
+val_loss = train_loss.copy()
 for i, c in enumerate(deep_loss):
     train_loss[i, :len(c)] = c
 train_loss = pd.DataFrame(train_loss)
@@ -604,16 +629,25 @@ val_loss = val_loss.rename(index=index_names, columns=col_names)
 # save
 train_loss.to_csv(f"{outdir}{exp}_{mod_name}_train_loss.csv")
 val_loss.to_csv(f"{outdir}{exp}_{mod_name}_val_loss.csv")
+#combine all sbriers together and save
+train_sbrier_out = pd.concat(train_sbriers)
+test_sbrier_out = pd.concat(test_sbriers)
+train_sbrier_out = train_sbrier_out.rename(index=index_names)
+test_sbrier_out = test_sbrier_out.rename(index=index_names)
 
 
 
 
-
-
-
-
-
-
+#
+# def expand_grid(grid):
+#    return pd.DataFrame([row for row in product(*grid.values())],
+#                        columns=grid.keys())
+#
+# mgrid_dict = {'n_units': [64, 256],
+#               'n_lstm': [1, 3],
+#               'n_dense': [1, 3]}
+#
+# expand_grid(mgrid_dict)
 
 #
 # #pd.read_csv(f"{outdir}batch_loss_grace.csv")
