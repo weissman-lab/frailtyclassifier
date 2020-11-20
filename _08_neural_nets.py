@@ -281,6 +281,16 @@ test_nan_inf(te_labels)
 test_nan_inf(train_struc)
 test_nan_inf(test_struc)
 
+#test for lack of obs in test or training data
+def test_zero_obs(tensor):
+    for l in range(len(tensor)):
+        for c in range(tensor[l].shape[1]):
+            if sum(tensor[l][:, c]) == 0:
+                raise ValueError('No observations in test set.')
+test_zero_obs(tr_labels)
+test_zero_obs(te_labels)
+
+
 best_batch_s = 32
 epochs = 80
 tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=10)
@@ -555,6 +565,8 @@ train_sbrier_out = pd.concat(train_sbriers)
 test_sbrier_out = pd.concat(test_sbriers)
 train_sbrier_out = train_sbrier_out.rename(index=index_names)
 test_sbrier_out = test_sbrier_out.rename(index=index_names)
+train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
+test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
 
 
 #iterate over the frailty aspects
@@ -635,6 +647,8 @@ train_sbrier_out = pd.concat(train_sbriers)
 test_sbrier_out = pd.concat(test_sbriers)
 train_sbrier_out = train_sbrier_out.rename(index=index_names)
 test_sbrier_out = test_sbrier_out.rename(index=index_names)
+train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
+test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
 
 for m in range(len(tr_labels)):
     n_units = 256
@@ -713,6 +727,8 @@ train_sbrier_out = pd.concat(train_sbriers)
 test_sbrier_out = pd.concat(test_sbriers)
 train_sbrier_out = train_sbrier_out.rename(index=index_names)
 test_sbrier_out = test_sbrier_out.rename(index=index_names)
+train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
+test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
 
 
 for m in range(len(tr_labels)):
@@ -792,6 +808,8 @@ train_sbrier_out = pd.concat(train_sbriers)
 test_sbrier_out = pd.concat(test_sbriers)
 train_sbrier_out = train_sbrier_out.rename(index=index_names)
 test_sbrier_out = test_sbrier_out.rename(index=index_names)
+train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
+test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
 
 
 #
