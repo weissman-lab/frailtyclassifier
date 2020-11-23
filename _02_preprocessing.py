@@ -668,3 +668,50 @@ for i in range(30):
         fi = f"batch_08_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
     with open(f'{outdir}/notes_output/batch_08/{fi}', "w") as f:
         f.write(towrite)
+
+# 25 random notes from 2019
+# batch 9
+import os
+os.mkdir(f'{outdir}/notes_output/batch_09/')
+subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
+previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
+           os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04") + \
+           os.listdir(f"{outdir}notes_output/batch_05") + os.listdir(f"{outdir}notes_output/batch_06") + \
+           os.listdir(f"{outdir}notes_output/batch_07") + os.listdir(f"{outdir}notes_output/batch_08")
+previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+np.random.seed(20201020)
+subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
+for i in range(30):
+    towrite = subsubsubset.combined_notes.iloc[i]
+    fi = f"batch_09_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    if i < 25:
+        fi = f"batch_09_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    else:
+        fi = f"batch_09_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    with open(f'{outdir}/notes_output/batch_09/{fi}', "w") as f:
+        f.write(towrite)
+
+# 25 random notes from 2019
+# batch 10
+import os
+os.mkdir(f'{outdir}/notes_output/batch_10/')
+subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
+previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
+           os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04") + \
+           os.listdir(f"{outdir}notes_output/batch_05") + os.listdir(f"{outdir}notes_output/batch_06") + \
+           os.listdir(f"{outdir}notes_output/batch_07") + os.listdir(f"{outdir}notes_output/batch_08") + \
+           os.listdir(f"{outdir}notes_output/batch_09")
+previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+np.random.seed(20201111)
+subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 30)]
+for i in range(30):
+    towrite = subsubsubset.combined_notes.iloc[i]
+    fi = f"batch_10_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    if i < 25:
+        fi = f"batch_10_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    else:
+        fi = f"batch_10_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    with open(f'{outdir}/notes_output/batch_10/{fi}', "w") as f:
+        f.write(towrite)

@@ -1,3 +1,4 @@
+
 import os
 import pandas as pd
 pd.options.display.max_rows = 4000
@@ -109,13 +110,14 @@ def ce(y, yhat):
         mat = np.concatenate([plus, minus], axis = 1)
         h = np.sum(mat, axis = 1).mean()
         H += h 
-    return H
+    return -H
+
 
 
 if __name__ == '__main__':
 
     # #########################################
-    # # set some globals
+    # # set some globals while debugging
     # batchstring = "02"
     # # set the seed and define the training and test sets
     # # mainseed = 8675309
@@ -123,6 +125,7 @@ if __name__ == '__main__':
     # mainseed = 20200813  # 13 August 2020 batch 2
     # mainseed = 20200824  # 24 August 2020 batch 2 reboot, after fixing sortedness issue
     # initialize_inprog = True
+    # batchsize = 32
     # ##########################################
     p = ArgParser()
     p.add("--batchstring", help="the batch number", type=str)
@@ -206,7 +209,6 @@ if __name__ == '__main__':
             np.sum(y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]], axis=1)).astype \
             ('float32')
         nnweight = 1 / np.mean(non_neutral[df.note.isin(trnotes)])
-        print(np.mean(non_neutral[df.note.isin(trnotes)]))
         caseweights = np.ones(df.shape[0])
         caseweights[non_neutral.astype(bool)] *= nnweight
         tr_caseweights = caseweights[df.note.isin(trnotes)]
@@ -306,19 +308,52 @@ if __name__ == '__main__':
                       callbacks=[earlystopping_callback, tensorboard_callback, model_checkpoint_callback],
                       sample_weight=tr_cw,
                       verbose=1,
-                      validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))
+                      validation_data=([Xte_np, Xte_p], yte) if hps[5] is True else (Xte, yte))           
+            
+            earlystopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                                      patience=20,
+                                                                      restore_best_weights=True)
+
             pred = model.predict([Xte_np, Xte_p] if hps[5] is True else Xte)
             # initialize the loss and the optimizer
             loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
             loss = loss_object(yte, pred)
             loss_v2 = ce(yte, pred)
+            
+            # compute event rate, brier, and entropy for each outcome
+            event_rate = y_dums[df.note.isin(tenotes)].mean(axis=0)
+            metrics = {} # the metrics dict will have a key for each outcome, and contain objects for computing GOF measures, as well as the GOF measures themselves
+            for idx, i in enumerate(out_varnames):
+                yhat_er = np.repeat(np.expand_dims(np.array(event_rate.filter(like=i)),-1), 
+                                    sum(df.note.isin(tenotes)),
+                                    axis=1).T
+                yi = np.array(y_dums.loc[df.note.isin(tenotes), [j for j in y_dums.columns if i in j]])
+                hmax = ce(yi, yhat_er)
+                bmax = np.mean((yi - yhat_er)**2) # brier is vector-valued, so we can differentiate for different classes
+                h = ce(yi, pred[idx])
+                b = np.mean((yi-pred[idx])**2)
+                scaled_entropy = 1-h/hmax
+                scaled_brier = 1-b/bmax
+                metrics[i] = dict(hmax = hmax, bmax = bmax, h = h, b = b, 
+                                  scaled_entropy = scaled_entropy,
+                                  scaled_brier = scaled_brier)
 
-            hps += (float(loss),)
-            hps += (time.time() - start_time,)
-            hps += (loss_v2,)
+
+
+            hps += (float(loss),) # these should be removed from hps, their info in now in the outdict in it's own key
+            hps += (time.time() - start_time,) # these should be removed from hps, their info in now in the outdict in it's own key
+            hps += (loss_v2,) # these should be removed from hps, their info in now in the outdict in it's own key
             print(f"**************\n\n v2 loss was {loss_v2} \n******************")
             outdict = dict(weights=model.get_weights(),
-                           hps=hps)
+                           hps=hps,
+                           loss = loss,
+                           loss_v2 = loss_v2,
+                           metrics = metrics,
+                           event_rate = event_rate,
+                           predictions = {k:pred[i] for i, k in enumerate(out_varnames)},
+                           label_val = {k:yte[i] for i, k in enumerate(out_varnames)},
+                           val_notes = tenotes
+                           )
             write_pickle(outdict, f"{ALdir}/model_{batchstring}_{seed}.pkl")
 
             catprop = np.mean([np.mean(x[:, 1]) for x in pred])
