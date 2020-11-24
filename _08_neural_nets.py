@@ -3,12 +3,11 @@ import sys
 import re
 import pandas as pd
 import numpy as np
-from itertools import product
 import copy
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import brier_score_loss
 from timeit import default_timer as timer
 from gensim.models import KeyedVectors
-from _99_project_module import inv_logit
 import tensorflow as tf
 from tensorflow import keras
 from keras.utils import to_categorical
@@ -45,12 +44,9 @@ def slidingWindow(sequence, winSize, step=1):
     for i in range(int(np.ceil((winSize-1)/2))+1, (int(np.floor((winSize-1)/2))+numOfChunks+1) * step, step):
         yield sequence[i - (int(np.ceil((winSize-1)/2))+1) : i + int(np.floor((winSize-1)/2))]
 
-def brier_score(obs, pred):
-    return np.mean((obs - pred) ** 2)
-
 def scaled_brier(obs, pred):
-    numerator = brier_score(obs,pred)
-    denominator = brier_score(obs, np.mean(obs))
+    numerator = brier_score_loss(obs, pred)
+    denominator = brier_score_loss(obs, [np.mean(obs)]*len(obs))
     return(1 - (numerator/denominator))
 
 #get experiment number from command line arguments
@@ -331,7 +327,7 @@ for m in range(len(tr_labels)):
     n_dense = 3
     frail_lab = out_varnames[m]
     #model name
-    mod_name = f"bl{n_units}_bl{n_units}_bl{n_units}_d{n_units}_d{n_units}_d{n_units}_sw"
+    mod_name = f"bl{n_lstm}_den{n_dense}_u{n_units}_sw"
     fr_mod = f"{frail_lab}_{mod_name}"
     model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
@@ -405,14 +401,19 @@ train_sbrier_out = train_sbrier_out.rename(index=index_names)
 test_sbrier_out = test_sbrier_out.rename(index=index_names)
 
 
-
+#set lists for output
+deep_loss = []
+deep_val_loss = []
+model_name = []
+train_sbriers = []
+test_sbriers = []
 for m in range(len(tr_labels)):
     n_units = 256
     n_lstm = 1
     n_dense = 1
     frail_lab = out_varnames[m]
     #model name
-    mod_name = f"bl{n_units}_d{n_units}_sw"
+    mod_name = f"bl{n_lstm}_den{n_dense}_u{n_units}_sw"
     fr_mod = f"{frail_lab}_{mod_name}"
     model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
@@ -486,14 +487,19 @@ train_sbrier_out = train_sbrier_out.rename(index=index_names)
 test_sbrier_out = test_sbrier_out.rename(index=index_names)
 
 
-
+#set lists for output
+deep_loss = []
+deep_val_loss = []
+model_name = []
+train_sbriers = []
+test_sbriers = []
 for m in range(len(tr_labels)):
     n_units = 64
     n_lstm = 1
     n_dense = 1
     frail_lab = out_varnames[m]
     #model name
-    mod_name = f"bl{n_units}_d{n_units}_sw"
+    mod_name = f"bl{n_lstm}_den{n_dense}_u{n_units}_sw"
     fr_mod = f"{frail_lab}_{mod_name}"
     model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
@@ -569,6 +575,12 @@ train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
 test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
 
 
+#set lists for output
+deep_loss = []
+deep_val_loss = []
+model_name = []
+train_sbriers = []
+test_sbriers = []
 #iterate over the frailty aspects
 for m in range(len(tr_labels)):
     n_units = 256
@@ -576,7 +588,7 @@ for m in range(len(tr_labels)):
     n_dense = 3
     frail_lab = out_varnames[m]
     #model name
-    mod_name = f"bl{n_units}_bl{n_units}_bl{n_units}_d{n_units}_d{n_units}_d{n_units}"
+    mod_name = f"bl{n_lstm}_den{n_dense}_u{n_units}_sw"
     fr_mod = f"{frail_lab}_{mod_name}"
     model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
@@ -650,13 +662,20 @@ test_sbrier_out = test_sbrier_out.rename(index=index_names)
 train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
 test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
 
+
+#set lists for output
+deep_loss = []
+deep_val_loss = []
+model_name = []
+train_sbriers = []
+test_sbriers = []
 for m in range(len(tr_labels)):
     n_units = 256
     n_lstm = 1
     n_dense = 1
     frail_lab = out_varnames[m]
     #model name
-    mod_name = f"bl{n_units}_d{n_units}"
+    mod_name = f"bl{n_lstm}_den{n_dense}_u{n_units}_sw"
     fr_mod = f"{frail_lab}_{mod_name}"
     model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
@@ -731,13 +750,19 @@ train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
 test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
 
 
+#set lists for output
+deep_loss = []
+deep_val_loss = []
+model_name = []
+train_sbriers = []
+test_sbriers = []
 for m in range(len(tr_labels)):
     n_units = 64
     n_lstm = 1
     n_dense = 1
     frail_lab = out_varnames[m]
     #model name
-    mod_name = f"bl{n_units}_d{n_units}"
+    mod_name = f"bl{n_lstm}_den{n_dense}_u{n_units}_sw"
     fr_mod = f"{frail_lab}_{mod_name}"
     model_2 = kerasmodel(n_units, n_lstm, n_dense)
     model_2.compile(loss='categorical_crossentropy',
