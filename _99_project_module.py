@@ -142,6 +142,8 @@ def make_sql_string(lst, dtype="str", mode = "wherelist"):
             out = "("+"),(".join(lst) + ")"
     return out
 
+
+
 import re
 def query_filtered_with_temp_tables(q, fdict, rstring = ""):
     """
