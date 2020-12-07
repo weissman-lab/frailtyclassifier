@@ -54,9 +54,9 @@ def slidingWindow(sequence, winSize, step=1):
             np.floor((winSize - 1) / 2))]
 
 
-def scaled_brier(obs, pred, overall_obs):
+def scaled_brier(obs, pred):
     numerator = brier_score_loss(obs, pred)
-    denominator = brier_score_loss(obs, [np.mean(overall_obs)] * len(obs))
+    denominator = brier_score_loss(obs, [np.mean(obs)] * len(obs))
     return (1 - (numerator / denominator))
 
 
