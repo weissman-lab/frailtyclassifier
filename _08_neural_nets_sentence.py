@@ -2,6 +2,7 @@ import copy
 import os
 import re
 import sys
+from time import process_time
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,7 @@ from tensorflow.keras.layers.experimental.preprocessing import \
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
+protime_start = process_time()
 
 def sheepish_mkdir(path):
     try:
@@ -48,6 +50,27 @@ def test_zero_obs(tensor):
         for c in range(tensor[l].shape[1]):
             if sum(tensor[l][:, c]) == 0:
                 raise ValueError('No observations in test set.')
+
+
+def expand_grid(grid):
+   return pd.DataFrame([row for row in product(*grid.values())],
+                       columns=grid.keys())
+
+
+def kerasmodel(n_lstm, n_dense, n_units):
+    nlp_input = Input(shape=(win_size,), name='nlp_input')
+    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+    x = cr_embed_layer(nlp_input)
+    for l in range(n_lstm - 1):
+        x = Bidirectional(LSTM(n_units, return_sequences=True))(x)
+    y = Bidirectional(LSTM(n_units))(x)
+    for i in range(n_dense):
+        y = Dense(n_units, activation='relu')(y)
+    concat = concatenate([y, meta_input])
+    z = Dense(3, activation='sigmoid')(concat)
+    model = Model(inputs=[nlp_input, meta_input], outputs=[z])
+    return (model)
+
 
 
 # get experiment number from command line arguments
@@ -128,7 +151,7 @@ df_dums = pd.concat([y_dums, df2[['note', 'sentence_id', 'token']]], axis=1)
 # aggregate dummies by sentence
 sent_label = df_dums.groupby('sentence_id', as_index=False).agg(
     note=('note', 'first'),
-    sentence=('token', lambda x: ' '.join(x.astype(str))),
+    sentence=('token', lambda x: ' '.join(x.astype(str))), #sentence tokens
     n_tokens=('token', 'count'),
     any_Msk_prob_neg=('Msk_prob_-1', max),
     Msk_prob_pos=('Msk_prob_1', max),
@@ -165,16 +188,17 @@ for n in out_varnames:
     tr_labels.append(r)
     te_labels.append(e)
 
-# caseweights - weight non-neutral tokens by the inverse of their prevalence
+# caseweights - weight non-neutral sentences by the inverse of their prevalence
 tr_cw = []
 for v in out_varnames:
     non_neutral = np.array(np.sum(
-        y_dums[[i for i in y_dums.columns if ("_0" not in i) and (v in i)]],
+        sent_label[[i for i in sent_label.columns if ("any_" not in i) and
+                    ("_neut" not in i) and (v in i)]],
         axis=1)).astype('float32')
-    nnweight = 1 / np.mean(non_neutral[df_dums.note.isin(trnotes)])
-    caseweights = np.ones(df_dums.shape[0])
+    nnweight = 1 / np.mean(non_neutral[sent_label.note.isin(trnotes)])
+    caseweights = np.ones(sent_label.shape[0])
     caseweights[non_neutral.astype(bool)] *= nnweight
-    tr_caseweights = caseweights[df_dums.note.isin(trnotes)]
+    tr_caseweights = caseweights[sent_label.note.isin(trnotes)]
     tr_cw.append(tr_caseweights)
 
 # structured data tensors
@@ -248,10 +272,26 @@ test_nan_inf(test_struc)
 test_zero_obs(tr_labels)
 test_zero_obs(te_labels)
 
+
+#make hyperparameter grid
+# hp_grid = {'n_lstm': [1, 3],
+#            'n_dense': [1, 3],
+#            'n_units': [64, 512],
+#            'sample_weights': [False, True],
+#            'dropout': np.linspace(0.01, 0.5, 2),
+#            'l1_l2': np.linspace(1e-8, 1e-4, 2)}
+hp_grid = {'n_lstm': [1],
+           'n_dense': [2],
+           'n_units': [256],
+           'sample_weights': [True],
+           'dropout': [0.15250199],
+           'l1_l2': [0.0000000137]}
+hp_grid = expand_grid(hp_grid)
+
 # set parameters for all models
 best_batch_s = 32
 epochs = 1000
-tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='loss',
+tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                          patience=20)
 # set lists for output
 deep_loss = []
@@ -259,70 +299,15 @@ deep_val_loss = []
 model_name = []
 train_sbriers = []
 test_sbriers = []
-
-
-def kerasmodel(n_units, n_lstm, n_dense):
-    nlp_input = Input(shape=(win_size,), name='nlp_input')
-    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-    x = cr_embed_layer(nlp_input)
-    for l in range(n_lstm - 1):
-        x = Bidirectional(LSTM(n_units, return_sequences=True))(x)
-    nlp_out = Bidirectional(LSTM(n_units))(x)
-    y = concatenate([nlp_out, meta_input])
-    for i in range(n_dense):
-        y = Dense(n_units, activation='relu')(y)
-    z = Dense(3, activation='sigmoid')(y)
-    model = Model(inputs=[nlp_input, meta_input], outputs=[z])
-    return (model)
-
-
-# new model:
-# def kerasmodel(n_units, n_lstm, n_dense):
-#     nlp_input = Input(shape=(win_size,), name='nlp_input')
-#     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-#     x = cr_embed_layer(nlp_input)
-#     for l in range(n_lstm - 1):
-#         x = Bidirectional(LSTM(n_units, return_sequences=True))(x)
-#     x = Bidirectional(LSTM(n_units))(x)
-#     for i in range(n_dense):
-#         x = Dense(n_units, activation='relu')(x)
-#     y = concatenate([x, meta_input])
-#     z = Dense(3, activation='sigmoid')(y)
-#     model = Model(inputs=[nlp_input, meta_input], outputs=[z])
-#     return (model)
-
-def expand_grid(grid):
-   return pd.DataFrame([row for row in product(*grid.values())],
-                       columns=grid.keys())
-
-mgrid_dict = {'n_units': [64, 256],
-              'n_lstm': [1, 3],
-              'n_dense': [1, 3],
-              ''}
-frail_lab = c('Resp_imp', 'Msk_prob', 'Fall_risk', 'Nutrition'),
-n_bilstm = c(1, 3),
-n_dense = c(1, 3),
-n_units = c(64, 256),
-sample_weights = c('no', 'yes'),
-dropout = seq(0, .5, length.out = 2),
-l1_l2 = c(10 ^ seq(-8, -2, length.out = 2))
-expand_grid(mgrid_dict)
-
-eventually convert to iterating over model parameters
-hp_grid = pd.DataFrame([[64, 1, 1, 1],
-                       [256, 1, 1],
-                       [256, 3, 3, ]])
-hp_grid = hp_grid.rename(columns=dict({0: 'n_units', 1: 'n_lstm', 2: 'n_dense'}))
-
 #iterate over hp_grid
-for r in hp_grid.shape[0]:
+for r in range(hp_grid.shape[0]):
     # iterate over the frailty aspects
     for m in range(len(tr_labels)):
         frail_lab = out_varnames[m]
         # model name
-        mod_name = f"bl{n_lstm}_den{n_dense}_u{n_units}_sw"
+        mod_name = f"bl{hp_grid.iloc[r].n_lstm}_den{hp_grid.iloc[r].n_dense}_u{hp_grid.iloc[r].n_units}_sw"
         fr_mod = f"{frail_lab}_{mod_name}"
-        model_2 = kerasmodel(n_units, n_lstm, n_dense)
+        model_2 = kerasmodel(hp_grid.iloc[r].n_lstm, hp_grid.iloc[r].n_dense, hp_grid.iloc[r].n_units)
         model_2.compile(loss='categorical_crossentropy',
                         optimizer=tf.keras.optimizers.Adam(1e-4),
                         metrics=['acc'])
@@ -333,7 +318,7 @@ for r in hp_grid.shape[0]:
                               [x_test, test_struc], te_labels[m]),
                               epochs=epochs,
                               batch_size=best_batch_s,
-                              sample_weight=tr_cw[m],
+                              sample_weight=tr_cw[m] if hp_grid.iloc[r].sample_weights is True else None,
                               callbacks=[tr_loss_earlystopping])
         # add loss to list
         deep_loss.append(history.history['loss'])
@@ -398,93 +383,3 @@ for r in hp_grid.shape[0]:
     test_sbrier_out = pd.concat(test_sbriers)
     train_sbrier_out = train_sbrier_out.rename(index=index_names)
     test_sbrier_out = test_sbrier_out.rename(index=index_names)
-
-
-
-
-
-
-# iterate over the frailty aspects
-for m in range(len(tr_labels)):
-    n_units = 256
-    n_lstm = 3
-    n_dense = 3
-    frail_lab = out_varnames[m]
-    # model name
-    mod_name = f"bl{n_lstm}_den{n_dense}_u{n_units}_sw"
-    fr_mod = f"{frail_lab}_{mod_name}"
-    model_2 = kerasmodel(n_units, n_lstm, n_dense)
-    model_2.compile(loss='categorical_crossentropy',
-                    optimizer=tf.keras.optimizers.Adam(1e-4),
-                    metrics=['acc'])
-    # fit model
-    history = model_2.fit([x_train, train_struc],
-                          tr_labels[m],
-                          validation_data=([x_test, test_struc], te_labels[m]),
-                          epochs=epochs,
-                          batch_size=best_batch_s,
-                          sample_weight=tr_cw[m],
-                          callbacks=[tr_loss_earlystopping])
-    # add loss to list
-    deep_loss.append(history.history['loss'])
-    deep_val_loss.append(history.history['val_loss'])
-    model_name.append(fr_mod)
-    # save as df
-    tr_m_loss = pd.DataFrame(history.history['loss']).transpose()
-    val_m_loss = pd.DataFrame(history.history['val_loss']).transpose()
-    index_names = dict({1: fr_mod})
-    col_names = dict(
-        zip(range(tr_m_loss.shape[1]), range(1, tr_m_loss.shape[1] + 1)))
-    tr_m_loss = tr_m_loss.rename(index=index_names, columns=col_names)
-    val_m_loss = val_m_loss.rename(index=index_names, columns=col_names)
-    tr_m_loss.to_csv(f"{outdir}{fr_mod}_train_loss.csv")
-    val_m_loss.to_csv(f"{outdir}{fr_mod}_val_loss.csv")
-    # make predictions on training data
-    tr_probs = model_2.predict([x_train, train_struc])
-    # scaled brier for each class
-    tr_sb = []
-    for i in range(3):
-        tr_sb.append(scaled_brier(tr_labels[m][:, i], tr_probs[:, i]))
-    tr_sb = pd.DataFrame(tr_sb).transpose().rename(
-        columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
-    train_sbriers.append(tr_sb)
-    # save sbrier
-    tr_sb.to_csv(f"{outdir}{fr_mod}_tr_sbrier.csv")
-    # make predictions on testing data
-    te_probs = model_2.predict([x_test, test_struc])
-    # save predictions
-    pd.DataFrame(te_probs).to_csv(f"{outdir}{fr_mod}_val_preds.csv")
-    # scaled briers for each class
-    te_sb = []
-    for i in range(3):
-        te_sb.append(scaled_brier(te_labels[m][:, i], te_probs[:, i]))
-    te_sb = pd.DataFrame(te_sb).transpose().rename(
-        columns=dict({0: 'neg', 1: 'neut', 2: 'pos'}))
-    test_sbriers.append(te_sb)
-    # save sbrier
-    te_sb.to_csv(f"{outdir}{fr_mod}_te_sbrier.csv")
-
-# early stopping causes differences in epochs -- pad with NA so columns match
-train_loss = np.ones(
-    (len(deep_loss), np.max([len(e) for e in deep_loss]))) * np.nan
-val_loss = train_loss.copy()
-for i, c in enumerate(deep_loss):
-    train_loss[i, :len(c)] = c
-train_loss = pd.DataFrame(train_loss)
-for i, c in enumerate(deep_val_loss):
-    val_loss[i, :len(c)] = c
-val_loss = pd.DataFrame(val_loss)
-# rename index and columns
-index_names = dict(zip((range(len(model_name))), model_name))
-col_names = dict(
-    zip(range(train_loss.shape[1]), range(1, train_loss.shape[1] + 1)))
-train_loss = train_loss.rename(index=index_names, columns=col_names)
-val_loss = val_loss.rename(index=index_names, columns=col_names)
-# save
-train_loss.to_csv(f"{outdir}{exp}_{mod_name}_train_loss.csv")
-val_loss.to_csv(f"{outdir}{exp}_{mod_name}_val_loss.csv")
-# combine all sbriers together and save
-train_sbrier_out = pd.concat(train_sbriers)
-test_sbrier_out = pd.concat(test_sbriers)
-train_sbrier_out = train_sbrier_out.rename(index=index_names)
-test_sbrier_out = test_sbrier_out.rename(index=index_names)
