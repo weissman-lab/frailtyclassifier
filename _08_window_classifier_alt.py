@@ -282,9 +282,9 @@ for f in range(10):
     f_te.to_csv(f"{trtedatadir}f_{f + 1}_te_df.csv")
     f_tr_cw.to_csv(f"{trtedatadir}f_{f + 1}_tr_cw.csv")
     embeddings_tr.to_csv(
-        f"{embeddingsdir}f_{f + 1}_tr_embed_mean_cent_lag_lead.csv")
+        f"{embeddingsdir}f_{f + 1}_tr_embed_min_max_mean_WIN.csv")
     embeddings_te.to_csv(
-        f"{embeddingsdir}f_{f + 1}_te_embed_mean_cent_lag_lead.csv")
+        f"{embeddingsdir}f_{f + 1}_te_embed_min_max_mean_WIN.csv")
     f_tr_svd300.to_csv(f"{SVDdir}f_{f + 1}_tr_svd300.csv")
     f_tr_svd1000.to_csv(f"{SVDdir}f_{f + 1}_tr_svd1000.csv")
     f_te_svd300.to_csv(f"{SVDdir}f_{f + 1}_te_svd300.csv")
