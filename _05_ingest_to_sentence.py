@@ -5,6 +5,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import scispacy
 import spacy
 from configargparse import ArgParser
 from gensim.models import KeyedVectors
