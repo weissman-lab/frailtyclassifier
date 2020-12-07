@@ -351,7 +351,7 @@ model_name = []
 train_sbriers = []
 test_sbriers = []
 #iterate over hp_grid
-for r in hp_grid.shape[0]:
+for r in range(hp_grid.shape[0]):
     # iterate over the frailty aspects
     for m in range(len(tr_labels)):
         frail_lab = out_varnames[m]
