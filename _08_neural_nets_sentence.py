@@ -21,8 +21,6 @@ from tensorflow.keras.layers.experimental.preprocessing import \
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-protime_start = process_time()
-
 def sheepish_mkdir(path):
     try:
         os.mkdir(path)
@@ -292,17 +290,20 @@ hp_grid = expand_grid(hp_grid)
 best_batch_s = 32
 epochs = 1000
 tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
-                                                         patience=20)
+                                                         patience=20,
+                                                         restore_best_weights=True)
 # set lists for output
 deep_loss = []
 deep_val_loss = []
 model_name = []
 train_sbriers = []
 test_sbriers = []
+all_protimes = []
 #iterate over hp_grid
 for r in range(hp_grid.shape[0]):
     # iterate over the frailty aspects
     for m in range(len(tr_labels)):
+        protime_start = process_time()
         frail_lab = out_varnames[m]
         # model name
         mod_name = f"bl{hp_grid.iloc[r].n_lstm}_den{hp_grid.iloc[r].n_dense}_u{hp_grid.iloc[r].n_units}_sw"
@@ -358,6 +359,11 @@ for r in range(hp_grid.shape[0]):
         test_sbriers.append(te_sb)
         # save sbrier
         te_sb.to_csv(f"{outdir}{fr_mod}_te_sbrier.csv")
+        # save process time
+        protime_end = process_time()
+        protime_duration = protime_end - protime_start
+        protime_duration.to_csv(f"{outdir}{fr_mod}_protime.csv")
+        all_protimes.append(protime_duration)
 
     # early stopping causes differences in epochs -- pad with NA so columns match
     train_loss = np.ones(
@@ -383,3 +389,9 @@ for r in range(hp_grid.shape[0]):
     test_sbrier_out = pd.concat(test_sbriers)
     train_sbrier_out = train_sbrier_out.rename(index=index_names)
     test_sbrier_out = test_sbrier_out.rename(index=index_names)
+    train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
+    test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
+    #output all process times
+    all_protimes_out = pd.concat(all_protimes)
+    all_protimes_out = all_protimes_out.rename(index=index_names)
+    all_protimes_out.to_csv(f"{outdir}{exp}_{mod_name}_protime.csv")
