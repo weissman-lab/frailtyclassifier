@@ -1,22 +1,26 @@
-import os
-from _99_project_module import read_txt, read_json, nrow, ncol
-import re
-import spacy
-import pandas as pd
-from gensim.models import KeyedVectors
 import multiprocessing as mp
-import numpy as np
+import os
+import re
 import warnings
+
+import numpy as np
+import pandas as pd
+import spacy
+from configargparse import ArgParser
+from gensim.models import KeyedVectors
+
+# import annotation ingestion scripts from the prior pipeline that did not
+# include sentences
+from _05_ingest_annotations import process_webanno_output, embeddings_catcher, \
+    remove_headers
+from _99_project_module import read_txt, read_json, ncol
+
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-
-from _05_ingest_annotations import process_webanno_output, embeddings_catcher,\
-    remove_headers
-
-#load scispacy model
+# load scispacy model
 nlp = spacy.load("en_core_sci_md", disable=['tagger', 'ner'])
-#add custom sentence boundary (newline)
+# add custom sentence boundary (newline)
 newline = re.compile("\n")
 mwe_period_space = re.compile(r"\._")
 
@@ -24,14 +28,15 @@ mwe_period_space = re.compile(r"\._")
 def set_custom_boundaries(doc):
     for token in doc[:-1]:
         if newline.search(token.text) is not None:
-            doc[token.i+1].is_sent_start = True
+            doc[token.i + 1].is_sent_start = True
         if mwe_period_space.search(token.text) is not None:
-            doc[token.i+1].is_sent_start = True
+            doc[token.i + 1].is_sent_start = True
     return doc
 
-#add custom boundary to nlp pipeline
-nlp.add_pipe(set_custom_boundaries, before="parser", name='set_custom_boundaries')
-nlp.pipe_names
+
+# add custom boundary to nlp pipeline
+nlp.add_pipe(set_custom_boundaries, before="parser",
+             name='set_custom_boundaries')
 
 # stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
 tags = ['Frailty_nos', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
@@ -41,21 +46,24 @@ mapping_dict = dict(frailty_nos_tags="Frailty_nos",
                     resp_imp_tags="Resp_imp",
                     fall_risk_tags="Fall_risk")
 
-# for testing:
-# output_file_path = '/Users/martijac/Documents/Frailty/frailty_classifier/annotation/frailty_phenotype_AL_00_2020-06-29_0939.zip'
-# stub = 'AL00_m11_Z1816871.txt'
-def tokenize_and_label(output_file_path, annotator_of_record = "CURATION_USER"):
+
+#modified 'tokenize_and_label' and 'featurize' to output sentences
+def tokenize_and_label_sent(output_file_path,
+                            annotator_of_record="CURATION_USER"):
     webanno_unzipped_dir = re.sub("\.zip", "", output_file_path)
     os.system(f"mkdir {webanno_unzipped_dir}/labels/")
     outlist = []
-    stubs = [i for i in os.listdir(webanno_unzipped_dir + "/curation") if '.txt' in i] # do this to avoid crufty DS_store files getting in there
+    stubs = [i for i in os.listdir(webanno_unzipped_dir + "/curation") if
+             '.txt' in i]  # do this to avoid crufty DS_store files getting in there
     for stub in stubs:
         print(stub)
         # get the original note and tokenize it
         note = read_txt(f"{webanno_unzipped_dir}/source/{stub}")
         res = nlp(note)
-        span_df = pd.DataFrame([{"token": i.text, 'length': len(i.text_with_ws), 'sent_start': i.is_sent_start} for i in res])
-        #number each sentence (to maintain sentence boundaries after cleaning up tokens)
+        span_df = pd.DataFrame([{"token": i.text,
+                                 'length': len(i.text_with_ws),
+                                 'sent_start': i.is_sent_start} for i in res])
+        # number each sentence (to maintain sentence boundaries after cleaning up tokens)
         sentence = []
         sent = -1
         for s in span_df['sent_start']:
@@ -71,7 +79,8 @@ def tokenize_and_label(output_file_path, annotator_of_record = "CURATION_USER"):
             span_df[i] = 0
 
         # get the annotation file and process it into something that I can work with
-        anno = read_json(f"{webanno_unzipped_dir}/curation/{stub}/{annotator_of_record}.json")
+        anno = read_json(
+            f"{webanno_unzipped_dir}/curation/{stub}/{annotator_of_record}.json")
         l = []
         for i in tags:
             try:
@@ -87,22 +96,28 @@ def tokenize_and_label(output_file_path, annotator_of_record = "CURATION_USER"):
             for i in range(tag_df.shape[0]):
                 var = mapping_dict[tag_df.variable.iloc[i]]
                 span_df.loc[(span_df.end > tag_df.begin.iloc[i]) &
-                            (span_df.start < tag_df.end.iloc[i]), var] = tag_df.value.iloc[i]
+                            (span_df.start < tag_df.end.iloc[i]), var] = \
+                    tag_df.value.iloc[i]
             # add important variables
             span_df['note'] = re.sub(".txt", "", stub)
             # span_df['month'] = span_df.note.apply(lambda x: int(x.split("_")[2][1:]))
-            span_df['month'] = span_df.note.apply(lambda x: int(re.sub("m", "", x.split("_")[-2])))
+            span_df['month'] = span_df.note.apply(
+                lambda x: int(re.sub("m", "", x.split("_")[-2])))
             span_df['PAT_ID'] = span_df.note.apply(lambda x: x.split("_")[-1])
             outlist.append(span_df)
     return outlist
 
-def featurize(file,  # the data frame -- a product of the tokenize_and_label function
-              embeddings,  # this is either the path to the embeddings (in which case they will be loaded) or the object name of the loaded embeddings
-              ):  # if idx is not None, this is how many random indices to pull
+
+def featurize_sent(file,
+                   # the data frame -- a product of the tokenize_and_label function
+                   embeddings,
+                   # this is either the path to the embeddings (in which case they will be loaded) or the object name of the loaded embeddings
+                   ):  # if idx is not None, this is how many random indices to pull
     # First check and see whether the embeddings object is loaded
-    if isinstance(embeddings, str): # load it if it's not
+    if isinstance(embeddings, str):  # load it if it's not
         embeddings = KeyedVectors.load(embeddings, mmap='r')
-    assert ("Word2Vec" in type(embeddings).__name__) or ("FastText" in type(embeddings).__name__)
+    assert ("Word2Vec" in type(embeddings).__name__) or (
+            "FastText" in type(embeddings).__name__)
     # now load the file and remove its headers (note concatenation indicators)
     # fi = pd.read_pickle(f"{anno_dir + webanno_output}/labels/{file}")
     print("a")
@@ -125,25 +140,28 @@ def featurize(file,  # the data frame -- a product of the tokenize_and_label fun
         Elist = [embeddings_catcher(i, embeddings) for i in fi.token]
     print("b")
     # make a variable that indicates whether the word was found in the vocab
-    fi['invocab'] = [1 if len(set(Elist[i]))>1 else 0 for i in range(len(Elist))]
+    fi['invocab'] = [1 if len(set(Elist[i])) > 1 else 0 for i in
+                     range(len(Elist))]
     # loop through the functions and apply them to the list of embeddings
     outlist = []
     # identity
     Emat = np.vstack(Elist)
-    outlist.append(pd.DataFrame(data = Emat,
-                     index = fi.index.tolist(),
-                     columns = ["identity_"+ str(i) for i in range(ncol(Emat))]))
+    outlist.append(pd.DataFrame(data=Emat,
+                                index=fi.index.tolist(),
+                                columns=["identity_" + str(i) for i in
+                                         range(ncol(Emat))]))
 
     # construct output
-    output = pd.concat([fi]+outlist, axis = 1)
+    output = pd.concat([fi] + outlist, axis=1)
     return output.reset_index(drop=True)
+
 
 def main():
     p = ArgParser()
     p.add("-z", "--zipfile", help="zip file to ingest")
     p.add("-e", "--embeddings", help="path to the embeddings file")
     p.add("-o", "--outdir", help="path to save embedded notes")
-    p.add("-s", "--structured_data_path", help = "path to structured data")
+    p.add("-s", "--structured_data_path", help="path to structured data")
 
     options = p.parse_args()
     zipfile = options.zipfile
@@ -152,18 +170,19 @@ def main():
     structured_data_path = options.structured_data_path
     # load stuff first in case anything breaks here
     strdat = pd.read_csv(structured_data_path)
-    strdat.drop(columns = "Unnamed: 0", inplace = True)
+    strdat.drop(columns="Unnamed: 0", inplace=True)
     # embeddings = KeyedVectors.load(embeddings, mmap='r')
     # unzip the raw output
     process_webanno_output(zipfile)
     # tokenize
-    dflist = tokenize_and_label(zipfile)
+    dflist = tokenize_and_label_sent(zipfile)
     # merge on the structured data
     [i.columns for i in dflist]
-    dflist = [i.merge(strdat, how = "left") for i in dflist]
+    dflist = [i.merge(strdat, how="left") for i in dflist]
     # embed
-    pool = mp.Pool(8) # hard-coding 8 because the embeddings takes a ton of memory
-    embedded_notes = pool.starmap(featurize, [(i, embeddings) for i in dflist])
+    pool = mp.Pool(
+        8)  # hard-coding 8 because the embeddings takes a ton of memory
+    embedded_notes = pool.starmap(featurize_sent, [(i, embeddings) for i in dflist])
     pool.close()
     # save them all
     for i in embedded_notes:
@@ -172,6 +191,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
