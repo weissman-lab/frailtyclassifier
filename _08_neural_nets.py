@@ -95,9 +95,6 @@ def kerasmodel(n_lstm, n_dense, n_units):
     model = Model(inputs=[nlp_input, meta_input], outputs=[z])
     return (model)
 
-def
-
-if __name__ == '__main__':
 
 # get experiment number from command line arguments
 assert len(sys.argv) == 2, 'Exp number must be specified as an argument'
@@ -241,8 +238,7 @@ for n in out_varnames:
     tr_labels.append(r)
     te_labels.append(e)
 
-# caseweights
-# weight non-neutral tokens by the inverse of their prevalence
+# caseweights - weight non-neutral tokens by the inverse of their prevalence
 tr_cw = []
 for v in out_varnames:
     non_neutral = np.array(np.sum(
@@ -271,7 +267,8 @@ train_windows = df2[df2.note.isin(trnotes)]['window']
 test_windows = df2[df2.note.isin(tenotes)]['window']
 # vectorize text (must use venv_ft environment -- not a conda environment,
 # which only allows tensorflow 2.0 on mac)
-vectorizer = TextVectorization(output_sequence_length=win_size,
+vectorizer = TextVectorization(max_tokens=None, #unlimited vocabulary size
+                               output_sequence_length=win_size,
                                standardize=None)  # this is CRITICAL -- default
 # will strip '_' and smash multi-word-expressions together
 vectorizer.adapt(np.array(train_windows))

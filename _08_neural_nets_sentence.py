@@ -70,7 +70,6 @@ def kerasmodel(n_lstm, n_dense, n_units):
     return (model)
 
 
-
 # get experiment number from command line arguments
 assert len(sys.argv) == 2, 'Exp number must be specified as an argument'
 exp = sys.argv[1]
@@ -218,7 +217,8 @@ test_sent = sent_label[sent_label.note.isin(tenotes)]['sentence']
 # which only allows tensorflow 2.0 on mac)
 vectorizer = TextVectorization(max_tokens=None, #unlimited vocabulary size
                                output_sequence_length=18, #truncate or pad to 18
-                               standardize=None)  # this is CRITICAL -- default will strip '_' and smash multi-word-expressions together
+                               standardize=None)  # this is CRITICAL -- default
+# will strip '_' and smash multi-word-expressions together
 vectorizer.adapt(np.array(train_sent))
 # now each window is represented by a vector that maps each word with an integer
 
@@ -235,7 +235,8 @@ word_index = dict(zip(vocab, range(len(vocab))))
 cr_embed = KeyedVectors.load(f"{pretr_embeddingsdir}w2v_oa_all_300d.bin",
                              mmap='r')
 # create an embedding matrix (embeddings mapped to word indices)
-# adding 1 ensures that there is a row of zeros in the embedding matrix for words in the text that are not in the embeddings vocab
+# adding 1 ensures that there is a row of zeros in the embedding matrix for
+# words in the text that are not in the embeddings vocab
 num_words = len(word_index) + 1
 embedding_len = 300
 embedding_matrix = np.zeros((num_words, embedding_len))
