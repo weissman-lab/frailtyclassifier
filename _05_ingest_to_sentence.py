@@ -28,6 +28,7 @@ def set_custom_boundaries(doc):
         if mwe_period_space.search(token.text) is not None:
             doc[token.i+1].is_sent_start = True
     return doc
+
 #add custom boundary to nlp pipeline
 nlp.add_pipe(set_custom_boundaries, before="parser", name='set_custom_boundaries')
 nlp.pipe_names
@@ -136,3 +137,41 @@ def featurize(file,  # the data frame -- a product of the tokenize_and_label fun
     # construct output
     output = pd.concat([fi]+outlist, axis = 1)
     return output.reset_index(drop=True)
+
+def main():
+    p = ArgParser()
+    p.add("-z", "--zipfile", help="zip file to ingest")
+    p.add("-e", "--embeddings", help="path to the embeddings file")
+    p.add("-o", "--outdir", help="path to save embedded notes")
+    p.add("-s", "--structured_data_path", help = "path to structured data")
+
+    options = p.parse_args()
+    zipfile = options.zipfile
+    embeddings = options.embeddings
+    outdir = options.outdir
+    structured_data_path = options.structured_data_path
+    # load stuff first in case anything breaks here
+    strdat = pd.read_csv(structured_data_path)
+    strdat.drop(columns = "Unnamed: 0", inplace = True)
+    # embeddings = KeyedVectors.load(embeddings, mmap='r')
+    # unzip the raw output
+    process_webanno_output(zipfile)
+    # tokenize
+    dflist = tokenize_and_label(zipfile)
+    # merge on the structured data
+    [i.columns for i in dflist]
+    dflist = [i.merge(strdat, how = "left") for i in dflist]
+    # embed
+    pool = mp.Pool(8) # hard-coding 8 because the embeddings takes a ton of memory
+    embedded_notes = pool.starmap(featurize, [(i, embeddings) for i in dflist])
+    pool.close()
+    # save them all
+    for i in embedded_notes:
+        i.to_csv(f"{outdir}enote_{str(i.note.iloc[0])}.csv")
+
+
+if __name__ == "__main__":
+    main()
+
+
+
