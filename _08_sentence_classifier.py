@@ -105,6 +105,9 @@ for s in range(df2.shape[0]):
         sent += 1
     sentence.append(sent)
 df2['sentence_id'] = sentence
+#drop non-unique sentence id
+df2 = df2.drop(columns=['sentence'])
+
 
 #dummies for labels
 out_varnames = df2.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
@@ -137,13 +140,14 @@ for n in out_varnames:
 df2_label = df2_label.loc[:, ~df2_label.columns.str.startswith('any_')].copy()
 
 # make empty df
-clmns = ['sentence_id']
+clmns = ['sentence_id', 'note']
 for v in range(0, df2.columns.str.startswith('identity_').sum()):
     clmns.append(f"min_{v}")
     clmns.append(f"max_{v}")
     clmns.append(f"mean_{v}")
 embeddings = pd.DataFrame(0, index=range(df2.sentence_id.nunique()), columns=clmns)
 embeddings['sentence_id'] = list(df2.sentence_id.drop_duplicates())
+embeddings['note'] = df2.groupby('sentence_id')['note'].agg('first')
 # for each sentence, find the element-wise min/max/mean for embeddings
 for v in range(0, df2.columns.str.startswith('identity_').sum()):
     embeddings[f"min_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(min)
@@ -197,10 +201,9 @@ for f in range(10):
     # e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
     f_tr_cw = {}
     for v in out_varnames:
-        non_neutral = np.array(
-            np.sum(y_dums[[i for i in y_dums.columns if
-                           ("_0" not in i) and (v in i)]], axis=1)).astype \
-            ('float32')
+        non_neutral = np.array(np.sum(
+            str_lab[[i for i in str_lab.columns if (v in i) and
+                     (("_pos" in i) or ("_neg" in i))]], axis=1)).astype('float32')
         nnweight = 1 / np.mean(non_neutral[~str_lab.note.isin(fold)])
         caseweights = np.ones(str_lab.shape[0])
         caseweights[non_neutral.astype(bool)] *= nnweight
@@ -210,7 +213,7 @@ for f in range(10):
     f_tr_cw = pd.DataFrame(f_tr_cw)
     # Convert text into matrix of tf-idf features:
     # id documents
-    tr_docs = f_tr['window'].tolist()
+    tr_docs = f_tr['sentence'].tolist()
     # instantiate countvectorizer (turn off default stopwords)
     cv = CountVectorizer(analyzer='word', stop_words=None)
     # compute tf
@@ -226,7 +229,7 @@ for f in range(10):
     tfidf_transformer = TfidfTransformer()
     f_tr_tfidf = tfidf_transformer.fit_transform(f_tr_tf)
     # apply feature extraction to test set (do NOT fit on test data)
-    te_docs = f_te['window'].tolist()
+    te_docs = f_te['sentence'].tolist()
     f_te_tf = cv.transform(te_docs)
     f_te_tfidf = tfidf_transformer.transform(f_te_tf)
     # dimensionality reduction with truncated SVD
