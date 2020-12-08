@@ -86,6 +86,7 @@ if datadir == dirs[0]:  # mb
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/W2V_300_all/"
 if datadir == dirs[1]:  # grace
     outdir = f"{os.getcwd()}/output/n_nets/{exp}/"
+    notesdir = f"{os.getcwd()}/output/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/W2V_300_all/"
 if datadir == dirs[2]:  # azure
     outdir = f"{datadir}output/n_nets/{exp}/"
@@ -99,7 +100,7 @@ sheepish_mkdir(outdir)
 # load SENTENCES
 # check for .csv in filename to avoid the .DSstore file
 # load the notes from 2018
-notes_2018 = [i for i in os.listdir(datadir + "notes_labeled_embedded_SENTENCES/")
+notes_2018 = [i for i in os.listdir(notesdir + "notes_labeled_embedded_SENTENCES/")
               if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
 # drop the notes that aren't in the concatenated notes data frame
 # some notes got labeled and embedded but were later removed from the pipeline
@@ -117,7 +118,7 @@ notes_excluded = [i for i in notes_2018 if
                   "_".join(i.split("_")[-2:]) not in uidstr]
 assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 # get notes_labeled_embedded that match eligible patients only
-df = pd.concat([pd.read_csv(datadir + "notes_labeled_embedded_SENTENCES/" + i) for i in
+df = pd.concat([pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i) for i in
                 notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
 # reset the index
