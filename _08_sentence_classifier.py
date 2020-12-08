@@ -42,10 +42,11 @@ sheepish_mkdir(SVDdir)
 sheepish_mkdir(embeddingsdir)
 sheepish_mkdir(trtedatadir)
 
-# load the notes from 2018 with SENTENCES
-notes_2018 = [i for i in os.listdir(datadir + "notes_labeled_embedded_SENTENCE/") if
-              int(i.split("_")[-2][1:]) < 13]
-
+# load SENTENCES
+# check for .csv in filename to avoid the .DSstore file
+# load the notes from 2018
+notes_2018 = [i for i in os.listdir(datadir + "notes_labeled_embedded_SENTENCES/")
+              if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
 # drop the notes that aren't in the concatenated notes data frame
 # some notes got labeled and embedded but were later removed from the pipeline
 # on July 14 2020, due to the inclusion of the 12-month ICD lookback
@@ -53,7 +54,7 @@ cndf = pd.read_pickle(f"{datadir}conc_notes_df.pkl")
 cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
 cndf['month'] = cndf.LATEST_TIME.dt.month + (
         cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
-# generate 'note' label (used in webanno and notes_labeled_embedded)
+#generate 'note' label (used in webanno and notes_labeled_embedded)
 uidstr = ("m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".csv").tolist()
 # conc_notes_df contains official list of eligible patients
 notes_2018_in_cndf = [i for i in notes_2018 if
@@ -62,10 +63,9 @@ notes_excluded = [i for i in notes_2018 if
                   "_".join(i.split("_")[-2:]) not in uidstr]
 assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 # get notes_labeled_embedded that match eligible patients only
-df = pd.concat([pd.read_csv(datadir + "notes_labeled_embedded_SENTENCE/" + i) for i in
+df = pd.concat([pd.read_csv(datadir + "notes_labeled_embedded_SENTENCES/" + i) for i in
                 notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
-
 # reset the index
 df2 = df.reset_index()
 
@@ -103,6 +103,8 @@ df2 = pd.concat([y_dums, df2], axis=1)
 # Positive label if any token is positive
 # Negative label if there are no positive tokens and any token is negative
 df2_label = df2.groupby('sentence_id', as_index=False).agg(
+    note=('note', 'first'),
+    sentence=('token', lambda x: ' '.join(x.astype(str))), #sentence tokens
     n_tokens=('token', 'count'),
     any_Msk_prob_neg=('Msk_prob_-1', max),
     Msk_prob_pos=('Msk_prob_1', max),
@@ -138,10 +140,13 @@ for v in range(0, df2.columns.str.startswith('identity_').sum()):
 embeddings2 = embeddings.loc[:,
               ~embeddings.columns.str.startswith('identity')].copy()
 
-# drop embeddings from df2
-df2 = df2.loc[:, ~df2.columns.str.startswith('identity')].copy()
+# make df of structured data and labels
+# drop embeddings
+str_lab = df2.loc[:, ~df2.columns.str.startswith('identity')].copy()
+# get one row of structured data for each sentence
+str_lab = str_lab.groupby('sentence_id').first().reset_index()
 #add labels
-df2 = pd.concat([df2, df2_label], axis=1)
+str_lab = pd.concat([str_lab, df2_label], axis=1)
 
 # split into 10 folds, each containing different notes
 notes = list(df2.note.unique())
@@ -161,8 +166,8 @@ for f in range(10):
     # split fold
     fold = list(fold_list[f])
     # Identify training (k-1) folds and test fold
-    f_tr = df2[~df2.note.isin(fold)]
-    f_te = df2[df2.note.isin(fold)]
+    f_tr = str_lab[~str_lab.note.isin(fold)]
+    f_te = str_lab[str_lab.note.isin(fold)]
     # get embeddings for fold
     embeddings_tr = embeddings2[~embeddings2.note.isin(fold)]
     embeddings_te = embeddings2[embeddings2.note.isin(fold)]
@@ -180,10 +185,10 @@ for f in range(10):
             np.sum(y_dums[[i for i in y_dums.columns if
                            ("_0" not in i) and (v in i)]], axis=1)).astype \
             ('float32')
-        nnweight = 1 / np.mean(non_neutral[~df2.note.isin(fold)])
-        caseweights = np.ones(df2.shape[0])
+        nnweight = 1 / np.mean(non_neutral[~str_lab.note.isin(fold)])
+        caseweights = np.ones(str_lab.shape[0])
         caseweights[non_neutral.astype(bool)] *= nnweight
-        tr_caseweights = caseweights[~df2.note.isin(fold)]
+        tr_caseweights = caseweights[~str_lab.note.isin(fold)]
         f_tr_cw[f'{v}_cw'] = tr_caseweights
     # make cw df
     f_tr_cw = pd.DataFrame(f_tr_cw)
