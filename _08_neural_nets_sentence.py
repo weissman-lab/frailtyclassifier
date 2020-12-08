@@ -57,7 +57,7 @@ def expand_grid(grid):
 
 
 def kerasmodel(n_lstm, n_dense, n_units):
-    nlp_input = Input(shape=(win_size,), name='nlp_input')
+    nlp_input = Input(shape=(sentence_length,), name='nlp_input')
     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
     x = cr_embed_layer(nlp_input)
     for l in range(n_lstm - 1):
@@ -216,14 +216,15 @@ train_struc = np.asarray(sdf[sdf.note.isin(trnotes)][str_varnames]).astype(
 test_struc = np.asarray(sdf[sdf.note.isin(tenotes)][str_varnames]).astype(
     'float32')
 
+# set standard sentence length. Inputs will be truncated or padded if necessary
+sentence_length = 18
 # create vocabulary index
 train_sent = sent_label[sent_label.note.isin(trnotes)]['sentence']
 test_sent = sent_label[sent_label.note.isin(tenotes)]['sentence']
 # vectorize text (must use venv_ft environment -- not a conda environment,
 # which only allows tensorflow 2.0 on mac)
 vectorizer = TextVectorization(max_tokens=None,  # unlimited vocabulary size
-                               output_sequence_length=18,
-                               # truncate or pad to 18
+                               output_sequence_length=sentence_length,
                                standardize=None)  # this is CRITICAL -- default
 # will strip '_' and smash multi-word-expressions together
 vectorizer.adapt(np.array(train_sent))
