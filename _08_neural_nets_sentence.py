@@ -208,7 +208,7 @@ for v in out_varnames:
 
 # structured data tensors
 # get one row of structured data for each sentence
-str_sent = df2.groupby('sentence_id').first().reset_index()
+str_sent = df2.groupby('sentence_id', as_index=False).first()
 # scale the structured data
 scaler = StandardScaler()
 scaler.fit(str_sent[str_varnames].loc[str_sent.note.isin(trnotes)])
@@ -300,7 +300,7 @@ hp_grid = expand_grid(hp_grid)
 
 # set parameters for all models
 best_batch_s = 32
-epochs = 2
+epochs = 1000
 tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                          patience=20,
                                                          restore_best_weights=True)
@@ -311,31 +311,6 @@ model_name = []
 train_sbriers = []
 test_sbriers = []
 all_protimes = []
-
-n_units = 6
-m = 0
-r = 0
-nlp_input = Input(shape=(sentence_length,), name='nlp_input')
-meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-x = cr_embed_layer(nlp_input)
-y = Bidirectional(LSTM(n_units))(x)
-y = Dense(n_units, activation='relu')(y)
-concat = concatenate([y, meta_input])
-z = Dense(3, activation='sigmoid')(concat)
-model = Model(inputs=[nlp_input, meta_input], outputs=[z])
-
-model.compile(loss='categorical_crossentropy',
-                        optimizer=tf.keras.optimizers.Adam(1e-4),
-                        metrics=['acc'])
-# fit model
-history = model.fit([x_train, train_struc],
-                    tr_labels[m],
-                    validation_data=([x_test, test_struc], te_labels[m]),
-                    epochs=epochs,
-                    batch_size=best_batch_s,
-                    sample_weight=tr_cw[m] if hp_grid.iloc[r].sample_weights is True else None,
-                    callbacks=[tr_loss_earlystopping])
-
 # iterate over hp_grid
 for r in range(hp_grid.shape[0]):
     # iterate over the frailty aspects
