@@ -21,6 +21,14 @@ def sheepish_mkdir(path):
         pass
 
 
+# test for missing values before training
+def test_nan_inf(tensor):
+    if np.isnan(tensor).any():
+        raise ValueError('Tensor contains nan.')
+    if np.isinf(tensor).any():
+        raise ValueError('Tensor contains inf.')
+
+
 # get experiment number from command line arguments
 assert len(sys.argv) == 2, 'Exp number must be specified as an argument'
 exp = sys.argv[1]
@@ -33,6 +41,12 @@ dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/",
 for d in dirs:
     if os.path.exists(d):
         datadir = d
+if datadir == dirs[0]:  # mb
+    notesdir = datadir
+if datadir == dirs[1]:  # grace
+    notesdir = f"{os.getcwd()}/output/"
+if datadir == dirs[2]:  # azure
+    notesdir = datadir
 outdir = f"{datadir}lin_trees_SENT/"
 SVDdir = f"{outdir}svd/"
 embeddingsdir = f"{outdir}embeddings/"
@@ -45,7 +59,7 @@ sheepish_mkdir(trtedatadir)
 # load SENTENCES
 # check for .csv in filename to avoid the .DSstore file
 # load the notes from 2018
-notes_2018 = [i for i in os.listdir(datadir + "notes_labeled_embedded_SENTENCES/")
+notes_2018 = [i for i in os.listdir(notesdir + "notes_labeled_embedded_SENTENCES/")
               if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
 # drop the notes that aren't in the concatenated notes data frame
 # some notes got labeled and embedded but were later removed from the pipeline
@@ -63,7 +77,7 @@ notes_excluded = [i for i in notes_2018 if
                   "_".join(i.split("_")[-2:]) not in uidstr]
 assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 # get notes_labeled_embedded that match eligible patients only
-df = pd.concat([pd.read_csv(datadir + "notes_labeled_embedded_SENTENCES/" + i) for i in
+df = pd.concat([pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i) for i in
                 notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
 # reset the index
@@ -142,14 +156,16 @@ embeddings2 = embeddings.loc[:,
 
 # make df of structured data and labels
 # drop embeddings
-str_lab = df2.loc[:, ~df2.columns.str.startswith('identity')].copy()
+str_lab = df2.loc[:, ~df2.columns.str.startswith('identity') &
+                     ~df2.columns.str.startswith('note')].copy()
 # get one row of structured data for each sentence
-str_lab = str_lab.groupby('sentence_id').first().reset_index()
+str_lab = str_lab.groupby('sentence_id', as_index=False).first()
 #add labels
-str_lab = pd.concat([str_lab, df2_label], axis=1)
+str_lab = pd.concat([str_lab, df2_label], axis=1).copy()
+
 
 # split into 10 folds, each containing different notes
-notes = list(df2.note.unique())
+notes = list(str_lab.note.unique())
 # sort notes before randomly splitting in order to standardize the random split based on the seed
 notes.sort()
 random.seed(942020)
