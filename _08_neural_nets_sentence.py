@@ -83,6 +83,7 @@ for d in dirs:
     if os.path.exists(d):
         datadir = d
 if datadir == dirs[0]:  # mb
+    notesdir = datadir
     outdir = f"{datadir}n_nets/{exp}/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/W2V_300_all/"
 if datadir == dirs[1]:  # grace
@@ -90,6 +91,7 @@ if datadir == dirs[1]:  # grace
     notesdir = f"{os.getcwd()}/output/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/W2V_300_all/"
 if datadir == dirs[2]:  # azure
+    notesdir = datadir
     outdir = f"{datadir}output/n_nets/{exp}/"
     pretr_embeddingsdir = "/share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/"
     datadir = f"{datadir}output/"
@@ -205,11 +207,13 @@ for v in out_varnames:
     tr_cw.append(tr_caseweights)
 
 # structured data tensors
-# first, scale the structured data
+# get one row of structured data for each sentence
+str_sent = df2.groupby('sentence_id').first().reset_index()
+# scale the structured data
 scaler = StandardScaler()
-scaler.fit(df2[str_varnames].loc[df2.note.isin(trnotes)])
-sdf = copy.deepcopy(df2)
-sdf[str_varnames] = scaler.transform(df2[str_varnames])
+scaler.fit(str_sent[str_varnames].loc[str_sent.note.isin(trnotes)])
+sdf = copy.deepcopy(str_sent)
+sdf[str_varnames] = scaler.transform(str_sent[str_varnames])
 # get training & test data in numpy arrays
 train_struc = np.asarray(sdf[sdf.note.isin(trnotes)][str_varnames]).astype(
     'float32')
@@ -296,7 +300,7 @@ hp_grid = expand_grid(hp_grid)
 
 # set parameters for all models
 best_batch_s = 32
-epochs = 1000
+epochs = 2
 tr_loss_earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                          patience=20,
                                                          restore_best_weights=True)
@@ -307,6 +311,31 @@ model_name = []
 train_sbriers = []
 test_sbriers = []
 all_protimes = []
+
+n_units = 6
+m = 0
+r = 0
+nlp_input = Input(shape=(sentence_length,), name='nlp_input')
+meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+x = cr_embed_layer(nlp_input)
+y = Bidirectional(LSTM(n_units))(x)
+y = Dense(n_units, activation='relu')(y)
+concat = concatenate([y, meta_input])
+z = Dense(3, activation='sigmoid')(concat)
+model = Model(inputs=[nlp_input, meta_input], outputs=[z])
+
+model.compile(loss='categorical_crossentropy',
+                        optimizer=tf.keras.optimizers.Adam(1e-4),
+                        metrics=['acc'])
+# fit model
+history = model.fit([x_train, train_struc],
+                    tr_labels[m],
+                    validation_data=([x_test, test_struc], te_labels[m]),
+                    epochs=epochs,
+                    batch_size=best_batch_s,
+                    sample_weight=tr_cw[m] if hp_grid.iloc[r].sample_weights is True else None,
+                    callbacks=[tr_loss_earlystopping])
+
 # iterate over hp_grid
 for r in range(hp_grid.shape[0]):
     # iterate over the frailty aspects
