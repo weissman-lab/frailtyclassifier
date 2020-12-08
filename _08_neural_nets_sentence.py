@@ -362,7 +362,9 @@ for r in range(hp_grid.shape[0]):
         te_sb.to_csv(f"{outdir}{fr_mod}_te_sbrier.csv")
         # save process time
         protime_end = process_time()
-        protime_duration = protime_end - protime_start
+        protime = {'start': protime_start, 'end': protime_end,
+                   'duration': (protime_end - protime_start)}
+        protime_duration = pd.DataFrame([protime], columns=protime.keys())
         protime_duration.to_csv(f"{outdir}{fr_mod}_protime.csv")
         all_protimes.append(protime_duration)
 
