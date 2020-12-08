@@ -2,6 +2,7 @@ import copy
 import os
 import re
 import sys
+from itertools import product
 from time import process_time
 
 import numpy as np
@@ -10,7 +11,6 @@ import tensorflow as tf
 from gensim.models import KeyedVectors
 from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
 from keras.models import Model
-from keras.utils import to_categorical
 from sklearn.metrics import brier_score_loss
 from sklearn.preprocessing import StandardScaler
 from tensorflow import keras
@@ -20,6 +20,7 @@ from tensorflow.keras.layers.experimental.preprocessing import \
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
+
 
 def sheepish_mkdir(path):
     try:
@@ -51,8 +52,8 @@ def test_zero_obs(tensor):
 
 
 def expand_grid(grid):
-   return pd.DataFrame([row for row in product(*grid.values())],
-                       columns=grid.keys())
+    return pd.DataFrame([row for row in product(*grid.values())],
+                        columns=grid.keys())
 
 
 def kerasmodel(n_lstm, n_dense, n_units):
@@ -96,11 +97,11 @@ if datadir == dirs[2]:  # azure
 # makedir if missing
 sheepish_mkdir(outdir)
 
-
 # load SENTENCES
 # check for .csv in filename to avoid the .DSstore file
 # load the notes from 2018
-notes_2018 = [i for i in os.listdir(notesdir + "notes_labeled_embedded_SENTENCES/")
+notes_2018 = [i for i in
+              os.listdir(notesdir + "notes_labeled_embedded_SENTENCES/")
               if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
 # drop the notes that aren't in the concatenated notes data frame
 # some notes got labeled and embedded but were later removed from the pipeline
@@ -109,7 +110,7 @@ cndf = pd.read_pickle(f"{datadir}conc_notes_df.pkl")
 cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
 cndf['month'] = cndf.LATEST_TIME.dt.month + (
         cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
-#generate 'note' label (used in webanno and notes_labeled_embedded)
+# generate 'note' label (used in webanno and notes_labeled_embedded)
 uidstr = ("m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".csv").tolist()
 # conc_notes_df contains official list of eligible patients
 notes_2018_in_cndf = [i for i in notes_2018 if
@@ -118,8 +119,9 @@ notes_excluded = [i for i in notes_2018 if
                   "_".join(i.split("_")[-2:]) not in uidstr]
 assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 # get notes_labeled_embedded that match eligible patients only
-df = pd.concat([pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i) for i in
-                notes_2018_in_cndf])
+df = pd.concat(
+    [pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i) for i in
+     notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
 # reset the index
 df2 = df.reset_index()
@@ -149,7 +151,7 @@ df_dums = pd.concat([y_dums, df2[['note', 'sentence_id', 'token']]], axis=1)
 # aggregate dummies by sentence
 sent_label = df_dums.groupby('sentence_id', as_index=False).agg(
     note=('note', 'first'),
-    sentence=('token', lambda x: ' '.join(x.astype(str))), #sentence tokens
+    sentence=('token', lambda x: ' '.join(x.astype(str))),  # sentence tokens
     n_tokens=('token', 'count'),
     any_Msk_prob_neg=('Msk_prob_-1', max),
     Msk_prob_pos=('Msk_prob_1', max),
@@ -160,10 +162,11 @@ sent_label = df_dums.groupby('sentence_id', as_index=False).agg(
     any_Fall_risk_neg=('Fall_risk_-1', max),
     Fall_risk_pos=('Fall_risk_1', max),
 )
-#add negative & neutral label using heirarchical rule
+# add negative & neutral label using heirarchical rule
 for n in out_varnames:
     sent_label[f"{n}_neg"] = np.where(
-        ((sent_label[f"{n}_pos"] != 1) & (sent_label[f"any_{n}_neg"] == 1)), 1, 0)
+        ((sent_label[f"{n}_pos"] != 1) & (sent_label[f"any_{n}_neg"] == 1)), 1,
+        0)
     sent_label[f"{n}_neut"] = np.where(
         ((sent_label[f"{n}_pos"] != 1) & (sent_label[f"{n}_neg"] != 1)), 1, 0)
 
@@ -180,9 +183,11 @@ tr_labels = []
 te_labels = []
 for n in out_varnames:
     r = sent_label[sent_label.note.isin(trnotes)][[f"{n}_neg", f"{n}_neut",
-                                                       f"{n}_pos"]].to_numpy(dtype='float32').copy()
+                                                   f"{n}_pos"]].to_numpy(
+        dtype='float32').copy()
     e = sent_label[sent_label.note.isin(tenotes)][[f"{n}_neg", f"{n}_neut",
-                                                       f"{n}_pos"]].to_numpy(dtype='float32').copy()
+                                                   f"{n}_pos"]].to_numpy(
+        dtype='float32').copy()
     tr_labels.append(r)
     te_labels.append(e)
 
@@ -216,8 +221,9 @@ train_sent = sent_label[sent_label.note.isin(trnotes)]['sentence']
 test_sent = sent_label[sent_label.note.isin(tenotes)]['sentence']
 # vectorize text (must use venv_ft environment -- not a conda environment,
 # which only allows tensorflow 2.0 on mac)
-vectorizer = TextVectorization(max_tokens=None, #unlimited vocabulary size
-                               output_sequence_length=18, #truncate or pad to 18
+vectorizer = TextVectorization(max_tokens=None,  # unlimited vocabulary size
+                               output_sequence_length=18,
+                               # truncate or pad to 18
                                standardize=None)  # this is CRITICAL -- default
 # will strip '_' and smash multi-word-expressions together
 vectorizer.adapt(np.array(train_sent))
@@ -272,8 +278,7 @@ test_nan_inf(test_struc)
 test_zero_obs(tr_labels)
 test_zero_obs(te_labels)
 
-
-#make hyperparameter grid
+# make hyperparameter grid
 # hp_grid = {'n_lstm': [1, 3],
 #            'n_dense': [1, 3],
 #            'n_units': [64, 512],
@@ -301,7 +306,7 @@ model_name = []
 train_sbriers = []
 test_sbriers = []
 all_protimes = []
-#iterate over hp_grid
+# iterate over hp_grid
 for r in range(hp_grid.shape[0]):
     # iterate over the frailty aspects
     for m in range(len(tr_labels)):
@@ -310,7 +315,8 @@ for r in range(hp_grid.shape[0]):
         # model name
         mod_name = f"bl{hp_grid.iloc[r].n_lstm}_den{hp_grid.iloc[r].n_dense}_u{hp_grid.iloc[r].n_units}_sw"
         fr_mod = f"{frail_lab}_{mod_name}"
-        model_2 = kerasmodel(hp_grid.iloc[r].n_lstm, hp_grid.iloc[r].n_dense, hp_grid.iloc[r].n_units)
+        model_2 = kerasmodel(hp_grid.iloc[r].n_lstm, hp_grid.iloc[r].n_dense,
+                             hp_grid.iloc[r].n_units)
         model_2.compile(loss='categorical_crossentropy',
                         optimizer=tf.keras.optimizers.Adam(1e-4),
                         metrics=['acc'])
@@ -318,10 +324,11 @@ for r in range(hp_grid.shape[0]):
         history = model_2.fit([x_train, train_struc],
                               tr_labels[m],
                               validation_data=(
-                              [x_test, test_struc], te_labels[m]),
+                                  [x_test, test_struc], te_labels[m]),
                               epochs=epochs,
                               batch_size=best_batch_s,
-                              sample_weight=tr_cw[m] if hp_grid.iloc[r].sample_weights is True else None,
+                              sample_weight=tr_cw[m] if hp_grid.iloc[
+                                                            r].sample_weights is True else None,
                               callbacks=[tr_loss_earlystopping])
         # add loss to list
         deep_loss.append(history.history['loss'])
@@ -395,7 +402,7 @@ for r in range(hp_grid.shape[0]):
     test_sbrier_out = test_sbrier_out.rename(index=index_names)
     train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
     test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
-    #output all process times
+    # output all process times
     all_protimes_out = pd.concat(all_protimes)
     all_protimes_out = all_protimes_out.rename(index=index_names)
     all_protimes_out.to_csv(f"{outdir}{exp}_{mod_name}_protime.csv")
