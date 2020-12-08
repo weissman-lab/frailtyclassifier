@@ -440,13 +440,13 @@ for r in range(hp_grid.shape[0]):
     train_loss.to_csv(f"{outdir}{exp}_{mod_name}_train_loss.csv")
     val_loss.to_csv(f"{outdir}{exp}_{mod_name}_val_loss.csv")
     # combine all sbriers together and save
-    train_sbrier_out = pd.concat(train_sbriers)
-    test_sbrier_out = pd.concat(test_sbriers)
+    train_sbrier_out = pd.concat(train_sbriers, ignore_index=True)
+    test_sbrier_out = pd.concat(test_sbriers, ignore_index=True)
     train_sbrier_out = train_sbrier_out.rename(index=index_names)
     test_sbrier_out = test_sbrier_out.rename(index=index_names)
     train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
     test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
     #output all process times
-    all_protimes_out = pd.concat(all_protimes)
+    all_protimes_out = pd.concat(all_protimes, ignore_index=True)
     all_protimes_out = all_protimes_out.rename(index=index_names)
     all_protimes_out.to_csv(f"{outdir}{exp}_{mod_name}_protime.csv")
