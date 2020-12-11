@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from gensim.models import KeyedVectors
-from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
+from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate, LeakyReLU, Dropout, Flatten
 from keras.models import Model
 from sklearn.metrics import brier_score_loss
 from sklearn.preprocessing import StandardScaler
@@ -17,6 +17,7 @@ from tensorflow import keras
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.layers.experimental.preprocessing import \
     TextVectorization
+from tensorflow.keras.regularizers import l1_l2
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -55,17 +56,36 @@ def expand_grid(grid):
     return pd.DataFrame([row for row in product(*grid.values())],
                         columns=grid.keys())
 
+# def kerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
+#     nlp_input = Input(shape=(sentence_length,), name='nlp_input')
+#     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+#     x = cr_embed_layer(nlp_input)
+#     for l in range(n_lstm - 1):
+#         x = Bidirectional(LSTM(n_units, return_sequences=True,
+#                                kernel_regularizer=l1_l2(l1_l2_pen)))(x)
+#     y = Bidirectional(LSTM(n_units))(x)
+#     for i in range(n_dense):
+#         y = Dense(n_units, activation='relu',
+#                   kernel_regularizer=l1_l2(l1_l2_pen))(y if i == 0 else drp)
+#         drp = Dropout(dropout)(y)
+#     concat = concatenate([drp, meta_input])
+#     z = Dense(3, activation='sigmoid')(concat)
+#     model = Model(inputs=[nlp_input, meta_input], outputs=[z])
+#     return (model)
 
-def kerasmodel(n_lstm, n_dense, n_units):
+def acdkerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
     nlp_input = Input(shape=(sentence_length,), name='nlp_input')
     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
     x = cr_embed_layer(nlp_input)
-    for l in range(n_lstm - 1):
-        x = Bidirectional(LSTM(n_units, return_sequences=True))(x)
-    y = Bidirectional(LSTM(n_units))(x)
+    for l in range(n_lstm):
+        bid = Bidirectional(LSTM(n_units, return_sequences=True,
+                               kernel_regularizer=l1_l2(l1_l2_pen)))(x)
     for i in range(n_dense):
-        y = Dense(n_units, activation='relu')(y)
-    concat = concatenate([y, meta_input])
+        dense = Dense(n_units, kernel_regularizer=l1_l2(l1_l2_pen))(bid if i == 0 else drp)
+        lru = LeakyReLU()(dense)
+        drp = Dropout(dropout)(lru)
+    flat = Flatten()(drp)
+    concat = concatenate([flat, meta_input])
     z = Dense(3, activation='sigmoid')(concat)
     model = Model(inputs=[nlp_input, meta_input], outputs=[z])
     return (model)
@@ -179,6 +199,9 @@ trnotes = np.random.choice(notes_2018_in_cndf,
 tenotes = [i for i in notes_2018_in_cndf if i not in trnotes]
 trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
 tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
+
+#write out trnotes for window experiment
+pd.DataFrame(trnotes).to_csv(f"{outdir}{exp}_train_notes.csv")
 
 # make categorical labels in correct tensor shape
 tr_labels = []
@@ -295,7 +318,7 @@ hp_grid = {'n_lstm': [1],
            'n_units': [256],
            'sample_weights': [True],
            'dropout': [0.15250199],
-           'l1_l2': [0.0000000137]}
+           'l1_l2_pen': [0.0000000137]}
 hp_grid = expand_grid(hp_grid)
 
 # set parameters for all models
@@ -320,8 +343,9 @@ for r in range(hp_grid.shape[0]):
         # model name
         mod_name = f"bl{hp_grid.iloc[r].n_lstm}_den{hp_grid.iloc[r].n_dense}_u{hp_grid.iloc[r].n_units}_sw"
         fr_mod = f"{frail_lab}_{mod_name}"
-        model_2 = kerasmodel(hp_grid.iloc[r].n_lstm, hp_grid.iloc[r].n_dense,
-                             hp_grid.iloc[r].n_units)
+        model_2 = acdkerasmodel(hp_grid.iloc[r].n_lstm, hp_grid.iloc[r].n_dense,
+                                hp_grid.iloc[r].n_units, hp_grid.iloc[r].dropout,
+                                hp_grid.iloc[r].l1_l2_pen)
         model_2.compile(loss='categorical_crossentropy',
                         optimizer=tf.keras.optimizers.Adam(1e-4),
                         metrics=['acc'])
@@ -332,8 +356,7 @@ for r in range(hp_grid.shape[0]):
                                   [x_test, test_struc], te_labels[m]),
                               epochs=epochs,
                               batch_size=best_batch_s,
-                              sample_weight=tr_cw[m] if hp_grid.iloc[
-                                                            r].sample_weights is True else None,
+                              sample_weight=tr_cw[m] if hp_grid.iloc[r].sample_weights is True else None,
                               callbacks=[tr_loss_earlystopping])
         # add loss to list
         deep_loss.append(history.history['loss'])
