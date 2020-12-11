@@ -2,25 +2,27 @@ import copy
 import os
 import re
 import sys
+from itertools import product
 from time import process_time
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from gensim.models import KeyedVectors
-from itertools import product
-from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate
+from keras.layers import Dense, Input, LSTM, Bidirectional, concatenate, \
+    LeakyReLU, Dropout, Flatten
 from keras.models import Model
-from keras.utils import to_categorical
 from sklearn.metrics import brier_score_loss
 from sklearn.preprocessing import StandardScaler
 from tensorflow import keras
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.layers.experimental.preprocessing import \
     TextVectorization
+from tensorflow.keras.regularizers import l1_l2
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
+
 
 def sheepish_mkdir(path):
     try:
@@ -77,8 +79,8 @@ def test_zero_obs(tensor):
 
 
 def expand_grid(grid):
-   return pd.DataFrame([row for row in product(*grid.values())],
-                       columns=grid.keys())
+    return pd.DataFrame([row for row in product(*grid.values())],
+                        columns=grid.keys())
 
 
 # def kerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
@@ -104,9 +106,10 @@ def acdkerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
     x = cr_embed_layer(nlp_input)
     for l in range(n_lstm):
         bid = Bidirectional(LSTM(n_units, return_sequences=True,
-                               kernel_regularizer=l1_l2(l1_l2_pen)))(x)
+                                 kernel_regularizer=l1_l2(l1_l2_pen)))(x)
     for i in range(n_dense):
-        dense = Dense(n_units, kernel_regularizer=l1_l2(l1_l2_pen))(bid if i == 0 else drp)
+        dense = Dense(n_units, kernel_regularizer=l1_l2(l1_l2_pen))(
+            bid if i == 0 else drp)
         lru = LeakyReLU()(dense)
         drp = Dropout(dropout)(lru)
     flat = Flatten()(drp)
@@ -156,7 +159,7 @@ cndf = pd.read_pickle(f"{datadir}conc_notes_df.pkl")
 cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
 cndf['month'] = cndf.LATEST_TIME.dt.month + (
         cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
-#generate 'note' label (used in webanno and notes_labeled_embedded)
+# generate 'note' label (used in webanno and notes_labeled_embedded)
 uidstr = ("m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".csv").tolist()
 # conc_notes_df contains official list of eligible patients
 notes_2018_in_cndf = [i for i in notes_2018 if
@@ -230,8 +233,8 @@ for i in list(df_dums.note.unique()):
         window_label = note_i
     else:
         window_label = window_label.append(note_i, ignore_index=True)
-#apply pos/neg/neutral label using heirarchical rule
-#0 = neg, 1 = pos, 2 = neut (
+# apply pos/neg/neutral label using heirarchical rule
+# 0 = neg, 1 = pos, 2 = neut (
 for n in out_varnames:
     window_label[f"{n}_pos"] = np.where(
         (window_label[f"any_{n}_1"] == 1), 1, 0)
@@ -251,19 +254,21 @@ for n in out_varnames:
 # trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
 # tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
 
-#get training/test split from _08_neural_nets_sentence.py
-trnotes = list(pd.read_csv(f"{outdir_SENT}{exp_SENT}_train_notes.csv").iloc[:,1])
+# get training/test split from _08_neural_nets_sentence.py
+trnotes = list(
+    pd.read_csv(f"{outdir_SENT}{exp_SENT}_train_notes.csv").iloc[:, 1])
 tenotes = list(df2[~df2.note.isin(trnotes)]['note'].unique())
-
 
 # make categorical labels in correct tensor shape
 tr_labels = []
 te_labels = []
 for n in out_varnames:
     r = window_label[window_label.note.isin(trnotes)][[f"{n}_neg", f"{n}_neut",
-                                                       f"{n}_pos"]].to_numpy(dtype='float32').copy()
+                                                       f"{n}_pos"]].to_numpy(
+        dtype='float32').copy()
     e = window_label[window_label.note.isin(tenotes)][[f"{n}_neg", f"{n}_neut",
-                                                       f"{n}_pos"]].to_numpy(dtype='float32').copy()
+                                                       f"{n}_pos"]].to_numpy(
+        dtype='float32').copy()
     tr_labels.append(r)
     te_labels.append(e)
 
@@ -296,7 +301,7 @@ train_windows = df2[df2.note.isin(trnotes)]['window']
 test_windows = df2[df2.note.isin(tenotes)]['window']
 # vectorize text (must use venv_ft environment -- not a conda environment,
 # which only allows tensorflow 2.0 on mac)
-vectorizer = TextVectorization(max_tokens=None, #unlimited vocabulary size
+vectorizer = TextVectorization(max_tokens=None,  # unlimited vocabulary size
                                output_sequence_length=win_size,
                                standardize=None)  # this is CRITICAL -- default
 # will strip '_' and smash multi-word-expressions together
@@ -352,14 +357,13 @@ test_nan_inf(test_struc)
 test_zero_obs(tr_labels)
 test_zero_obs(te_labels)
 
-
-#make hyperparameter grid
+# make hyperparameter grid
 # hp_grid = {'n_lstm': [1, 3],
 #            'n_dense': [1, 3],
 #            'n_units': [64, 512],
 #            'sample_weights': [False, True],
 #            'dropout': np.linspace(0.01, 0.5, 2),
-#            'l1_l2': np.linspace(1e-8, 1e-4, 2)}
+#            'l1_l2_pen': np.linspace(1e-8, 1e-4, 2)}
 hp_grid = {'n_lstm': [1],
            'n_dense': [2],
            'n_units': [256],
@@ -381,7 +385,7 @@ model_name = []
 train_sbriers = []
 test_sbriers = []
 all_protimes = []
-#iterate over hp_grid
+# iterate over hp_grid
 for r in range(hp_grid.shape[0]):
     # iterate over the frailty aspects
     for m in range(len(tr_labels)):
@@ -402,10 +406,11 @@ for r in range(hp_grid.shape[0]):
         history = model_2.fit([x_train, train_struc],
                               tr_labels[m],
                               validation_data=(
-                              [x_test, test_struc], te_labels[m]),
+                                  [x_test, test_struc], te_labels[m]),
                               epochs=epochs,
                               batch_size=best_batch_s,
-                              sample_weight=tr_cw[m] if hp_grid.iloc[r].sample_weights is True else None,
+                              sample_weight=tr_cw[m] if hp_grid.iloc[
+                                                            r].sample_weights is True else None,
                               callbacks=[tr_loss_earlystopping])
         # add loss to list
         deep_loss.append(history.history['loss'])
@@ -479,7 +484,7 @@ for r in range(hp_grid.shape[0]):
     test_sbrier_out = test_sbrier_out.rename(index=index_names)
     train_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_train_sbrier.csv")
     test_sbrier_out.to_csv(f"{outdir}{exp}_{mod_name}_test_sbrier.csv")
-    #output all process times
+    # output all process times
     all_protimes_out = pd.concat(all_protimes, ignore_index=True)
     all_protimes_out = all_protimes_out.rename(index=index_names)
     all_protimes_out.to_csv(f"{outdir}{exp}_{mod_name}_protime.csv")
