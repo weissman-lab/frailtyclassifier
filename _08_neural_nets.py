@@ -82,7 +82,7 @@ def expand_grid(grid):
 
 
 # def kerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
-#     nlp_input = Input(shape=(sentence_length,), name='nlp_input')
+#     nlp_input = Input(shape=(win_size,), name='nlp_input')
 #     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
 #     x = cr_embed_layer(nlp_input)
 #     for l in range(n_lstm - 1):
@@ -99,7 +99,7 @@ def expand_grid(grid):
 #     return (model)
 
 def acdkerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
-    nlp_input = Input(shape=(sentence_length,), name='nlp_input')
+    nlp_input = Input(shape=(win_size,), name='nlp_input')
     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
     x = cr_embed_layer(nlp_input)
     for l in range(n_lstm):
