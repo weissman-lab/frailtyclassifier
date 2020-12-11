@@ -100,6 +100,7 @@ def kerasmodel(n_lstm, n_dense, n_units):
 assert len(sys.argv) == 2, 'Exp number must be specified as an argument'
 exp = sys.argv[1]
 exp = f"exp{exp}_nnet_str_WIN"
+exp_SENT = f"exp{exp}_nnet_str_SENT"
 
 # get the correct directories
 dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/",
@@ -109,12 +110,15 @@ for d in dirs:
         datadir = d
 if datadir == dirs[0]:  # mb
     outdir = f"{datadir}n_nets/{exp}/"
+    outdir_SENT = f"{datadir}n_nets/{exp_SENT}/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/W2V_300_all/"
 if datadir == dirs[1]:  # grace
     outdir = f"{os.getcwd()}/output/n_nets/{exp}/"
+    outdir_SENT = f"{os.getcwd()}/output/n_nets/{exp_SENT}/"
     pretr_embeddingsdir = f"{os.getcwd()}/embeddings/W2V_300_all/"
 if datadir == dirs[2]:  # azure
     outdir = f"{datadir}output/n_nets/{exp}/"
+    outdir_SENT = f"{datadir}output/n_nets/{exp_SENT}/"
     pretr_embeddingsdir = "/share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/"
     datadir = f"{datadir}output/"
 
@@ -220,12 +224,17 @@ for n in out_varnames:
          (window_label[f"{n}_neg"] != 1)), 1, 0)
 
 # split into training and validation
-np.random.seed(seed)
-trnotes = np.random.choice(notes_2018_in_cndf,
-                           len(notes_2018_in_cndf) * 2 // 3, replace=False)
-tenotes = [i for i in notes_2018_in_cndf if i not in trnotes]
-trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
-tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
+# np.random.seed(seed)
+# trnotes = np.random.choice(notes_2018_in_cndf,
+#                            len(notes_2018_in_cndf) * 2 // 3, replace=False)
+# tenotes = [i for i in notes_2018_in_cndf if i not in trnotes]
+# trnotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in trnotes]
+# tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
+
+#get training/test split from _08_neural_nets_sentence.py
+trnotes = list(pd.read_csv(f"{outdir}{exp_SENT}_train_notes.csv").iloc[:,1])
+tenotes = list(df2[~df2.note.isin(trnotes)]['note'].unique())
+
 
 # make categorical labels in correct tensor shape
 tr_labels = []
