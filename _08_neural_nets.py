@@ -365,7 +365,7 @@ hp_grid = {'n_lstm': [1],
            'n_units': [256],
            'sample_weights': [True],
            'dropout': [0.15250199],
-           'l1_l2': [0.0000000137]}
+           'l1_l2_pen': [0.0000000137]}
 hp_grid = expand_grid(hp_grid)
 
 # set parameters for all models
