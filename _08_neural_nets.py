@@ -118,9 +118,9 @@ def acdkerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
 
 # get experiment number from command line arguments
 assert len(sys.argv) == 2, 'Exp number must be specified as an argument'
-exp = sys.argv[1]
-exp = f"exp{exp}_nnet_str_WIN"
-exp_SENT = f"exp{exp}_nnet_str_SENT"
+exp1 = sys.argv[1]
+exp = f"exp{exp1}_nnet_str_WIN"
+exp_SENT = f"exp{exp1}_nnet_str_SENT"
 
 # get the correct directories
 dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/",
