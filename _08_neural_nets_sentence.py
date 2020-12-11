@@ -343,8 +343,10 @@ for r in range(hp_grid.shape[0]):
         # model name
         mod_name = f"bl{hp_grid.iloc[r].n_lstm}_den{hp_grid.iloc[r].n_dense}_u{hp_grid.iloc[r].n_units}_sw"
         fr_mod = f"{frail_lab}_{mod_name}"
-        model_2 = acdkerasmodel(hp_grid.iloc[r].n_lstm, hp_grid.iloc[r].n_dense,
-                                hp_grid.iloc[r].n_units, hp_grid.iloc[r].dropout,
+        model_2 = acdkerasmodel(hp_grid.iloc[r].n_lstm,
+                                hp_grid.iloc[r].n_dense,
+                                hp_grid.iloc[r].n_units,
+                                hp_grid.iloc[r].dropout,
                                 hp_grid.iloc[r].l1_l2_pen)
         model_2.compile(loss='categorical_crossentropy',
                         optimizer=tf.keras.optimizers.Adam(1e-4),
