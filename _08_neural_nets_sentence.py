@@ -56,22 +56,22 @@ def expand_grid(grid):
     return pd.DataFrame([row for row in product(*grid.values())],
                         columns=grid.keys())
 
-# def kerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
-#     nlp_input = Input(shape=(sentence_length,), name='nlp_input')
-#     meta_input = Input(shape=(len(str_varnames),), name='meta_input')
-#     x = cr_embed_layer(nlp_input)
-#     for l in range(n_lstm - 1):
-#         x = Bidirectional(LSTM(n_units, return_sequences=True,
-#                                kernel_regularizer=l1_l2(l1_l2_pen)))(x)
-#     y = Bidirectional(LSTM(n_units))(x)
-#     for i in range(n_dense):
-#         y = Dense(n_units, activation='relu',
-#                   kernel_regularizer=l1_l2(l1_l2_pen))(y if i == 0 else drp)
-#         drp = Dropout(dropout)(y)
-#     concat = concatenate([drp, meta_input])
-#     z = Dense(3, activation='sigmoid')(concat)
-#     model = Model(inputs=[nlp_input, meta_input], outputs=[z])
-#     return (model)
+def kerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
+    nlp_input = Input(shape=(sentence_length,), name='nlp_input')
+    meta_input = Input(shape=(len(str_varnames),), name='meta_input')
+    x = cr_embed_layer(nlp_input)
+    for l in range(n_lstm - 1):
+        x = Bidirectional(LSTM(n_units, return_sequences=True,
+                               kernel_regularizer=l1_l2(l1_l2_pen)))(x)
+    y = Bidirectional(LSTM(n_units))(x)
+    for i in range(n_dense):
+        y = Dense(n_units, activation='relu',
+                  kernel_regularizer=l1_l2(l1_l2_pen))(y if i == 0 else drp)
+        drp = Dropout(dropout)(y)
+    concat = concatenate([drp, meta_input])
+    z = Dense(3, activation='sigmoid')(concat)
+    model = Model(inputs=[nlp_input, meta_input], outputs=[z])
+    return (model)
 
 def acdkerasmodel(n_lstm, n_dense, n_units, dropout, l1_l2_pen):
     nlp_input = Input(shape=(sentence_length,), name='nlp_input')
@@ -343,7 +343,7 @@ for r in range(hp_grid.shape[0]):
         # model name
         mod_name = f"bl{hp_grid.iloc[r].n_lstm}_den{hp_grid.iloc[r].n_dense}_u{hp_grid.iloc[r].n_units}_sw"
         fr_mod = f"{frail_lab}_{mod_name}"
-        model_2 = acdkerasmodel(hp_grid.iloc[r].n_lstm,
+        model_2 = kerasmodel(hp_grid.iloc[r].n_lstm,
                                 hp_grid.iloc[r].n_dense,
                                 hp_grid.iloc[r].n_units,
                                 hp_grid.iloc[r].dropout,
