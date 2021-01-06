@@ -1,4 +1,5 @@
 library(data.table)
+library(measures)
 library(glmnet)
 library(dplyr)
 library(tidyr)
@@ -26,7 +27,9 @@ if (inc_struc == FALSE) {
 } else {exp <- paste0(exp, 'str')}
 
 #set directories based on location
-dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees/', '/media/drv2/andrewcd2/frailty/output/lin_trees/', '/share/gwlab/frailty/lin_trees/')
+dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_SENT/',
+         '/media/drv2/andrewcd2/frailty/output/lin_trees_SENT/',
+         '/share/gwlab/frailty/lin_trees_SENT/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     datadir = dirs[d]
@@ -44,15 +47,34 @@ predsdir <- paste0(outdir,'preds/')
 dir.create(predsdir)
 
 
-#brier score function
-brier_score <- function(obs, pred) {
-  mean((obs - pred)^2)
+# #brier score function
+# brier_score <- function(obs, pred) {
+#   mean((obs - pred)^2)
+# }
+# 
+# #scaled brier score function
+# scaled_brier_score <- function(obs, pred) {
+#   1 - (brier_score(obs, pred) / brier_score(obs, mean(obs)))
+# }
+
+#scaled Brier score
+scaled_brier_score <- function(pred, obs, event_rate_matrix) {
+  1 - (multiclass.Brier(pred, obs) / multiclass.Brier(event_rate_matrix, obs))
 }
 
-#scaled brier score function
-scaled_brier_score <- function(obs, pred) {
-  1 - (brier_score(obs, pred) / brier_score(obs, mean(obs)))
-}
+
+n = 20
+truth = as.factor(sample(c(1,2,3), n, replace = TRUE))
+probabilities = matrix(runif(60), 20, 3)
+probabilities = probabilities/rowSums(probabilities)
+colnames(probabilities) = c(1,2,3)
+er_vect = tabulate(truth)/length(truth)
+er = matrix(er_vect, nrow=length(truth), ncol=length(er_vect), byrow = TRUE)
+colnames(er) = seq(length(er_vect))
+multiclass.Brier(probabilities, truth)
+multiclass.Brier(er, truth)
+scaled_brier_score(probabilities, truth, er)
+
 
 #-ylog(yhat) - (1-y)log(1-yhat)
 cross_entropy_2 <- function(obs, pred){
@@ -66,19 +88,20 @@ cross_entropy_2 <- function(obs, pred){
 #set seed
 seed = 92120
 
-
 #load data in parallel
 folds <- seq(1, 10)
 for (d in 1:length(folds)) {
-  assign(paste0('f', folds[d], '_tr'), fread(paste0(trtedatadir, 'f_', folds[d], '_tr_df.csv')))
-  assign(paste0('f', folds[d], '_te'), fread(paste0(trtedatadir, 'f_', folds[d], '_te_df.csv')))
+  assign(paste0('f', folds[d], '_tr'),
+         fread(paste0(trtedatadir, 'f_', folds[d], '_tr_df.csv')))
+  assign(paste0('f', folds[d], '_te'),
+         fread(paste0(trtedatadir, 'f_', folds[d], '_te_df.csv')))
 }
-svd <- c('embed', '300', '1000', '3000')
+svd <- c('embed', '300', '1000')
 for (s in 1:length(svd)) {
   if (svd[s] == 'embed') {
     train <- foreach (d = 1:length(folds)) %dopar% {
       #load embeddings for each fold (drop index)
-      embeddings_tr <- fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embed_mean_cent_lag_lead.csv'), drop = 1)
+      embeddings_tr <- fread(paste0(embeddingsdir, 'f_', folds[d], '_tr_embed_min_max_mean_SENT.csv'), drop = 1)
       #test that embeddings notes match training/test notes before dropping the 'notes' column
       if (identical(distinct(get(paste0('f', folds[d], '_tr')), note)$note, distinct(embeddings_tr, note)$note) == FALSE) stop("embeddings do not match training data")
       #embeddings with or without structured data
@@ -93,7 +116,7 @@ for (s in 1:length(svd)) {
     }
     test <- foreach (d = 1:length(folds)) %dopar% {
       #load embeddings for each fold (drop index)
-      embeddings_te <- fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embed_mean_cent_lag_lead.csv'), drop = 1)
+      embeddings_te <- fread(paste0(embeddingsdir, 'f_', folds[d], '_te_embed_min_max_mean_SENT.csv'), drop = 1)
       #test that embeddings notes match training/test notes before dropping the 'notes' column
       if (identical(distinct(get(paste0('f', folds[d], '_te')), note)$note, distinct(embeddings_te, note)$note) == FALSE) stop("embeddings do not match test data")
       #embeddings with or without structured data
