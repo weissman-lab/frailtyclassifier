@@ -176,7 +176,7 @@ str_lab = str_lab.groupby('sentence_id', as_index=False).first()
 #check that sentence_ids match
 assert sum(str_lab.sentence_id == df2_label.sentence_id) == len(
     str_lab), 'sentence_ids do not match'
-# add labels
+# add labels & drop duplicate column
 str_lab = pd.concat([str_lab, df2_label.drop(columns=['sentence_id'])], axis=1).copy()
 
 # split into 10 folds, each containing different notes
