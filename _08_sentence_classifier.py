@@ -1,8 +1,17 @@
+'''
+Takes the output of _05_ingest_to_sentence.py and does the following:
+1.) Concatenate notes that are eligible for training/validation
+2.) Label each sentence using the "heirarchical rule"
+3.) Get the element-wise min/max/mean for the embeddings for each sentence
+4.) Split the data into 10 folds for cross validation
+5.) For each fold, output labels, caseweights, structured data, embeddings and
+300- & 1000-d SVD of tf-idf
+'''
+
 import os
 import random
 import re
 import sys
-from timeit import default_timer as timer
 
 import numpy as np
 import pandas as pd
@@ -19,14 +28,6 @@ def sheepish_mkdir(path):
         os.mkdir(path)
     except FileExistsError:
         pass
-
-
-# test for missing values before training
-def test_nan_inf(tensor):
-    if np.isnan(tensor).any():
-        raise ValueError('Tensor contains nan.')
-    if np.isinf(tensor).any():
-        raise ValueError('Tensor contains inf.')
 
 
 # get experiment number from command line arguments
@@ -59,7 +60,8 @@ sheepish_mkdir(trtedatadir)
 # load SENTENCES
 # check for .csv in filename to avoid the .DSstore file
 # load the notes from 2018
-notes_2018 = [i for i in os.listdir(notesdir + "notes_labeled_embedded_SENTENCES/")
+notes_2018 = [i for i in
+              os.listdir(notesdir + "notes_labeled_embedded_SENTENCES/")
               if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
 # drop the notes that aren't in the concatenated notes data frame
 # some notes got labeled and embedded but were later removed from the pipeline
@@ -68,7 +70,7 @@ cndf = pd.read_pickle(f"{datadir}conc_notes_df.pkl")
 cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
 cndf['month'] = cndf.LATEST_TIME.dt.month + (
         cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
-#generate 'note' label (used in webanno and notes_labeled_embedded)
+# generate 'note' label (used in webanno and notes_labeled_embedded)
 uidstr = ("m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".csv").tolist()
 # conc_notes_df contains official list of eligible patients
 notes_2018_in_cndf = [i for i in notes_2018 if
@@ -77,8 +79,9 @@ notes_excluded = [i for i in notes_2018 if
                   "_".join(i.split("_")[-2:]) not in uidstr]
 assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 # get notes_labeled_embedded that match eligible patients only
-df = pd.concat([pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i) for i in
-                notes_2018_in_cndf])
+df = pd.concat(
+    [pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i) for i in
+     notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
 # reset the index
 df2 = df.reset_index()
@@ -97,7 +100,7 @@ y_dums = pd.concat(
     [pd.get_dummies(df2[[i]].astype(str)) for i in out_varnames], axis=1)
 df_dums = pd.concat([y_dums, df2['note']], axis=1)
 
-# set a unique sentence id
+# set a unique sentence id that does not reset to 0 with each note
 sentence = []
 sent = -1
 for s in range(df2.shape[0]):
@@ -105,23 +108,22 @@ for s in range(df2.shape[0]):
         sent += 1
     sentence.append(sent)
 df2['sentence_id'] = sentence
-#drop non-unique sentence id
+# drop non-unique sentence id (repeats for each note)
 df2 = df2.drop(columns=['sentence'])
 
-
-#dummies for labels
+# dummies for labels
 out_varnames = df2.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
 y_dums = pd.concat(
     [pd.get_dummies(df2[[i]].astype(str)) for i in out_varnames], axis=1)
 cols = list(['note', 'sentence', 'token']) + list(y_dums.columns)
 df2 = pd.concat([y_dums, df2], axis=1)
 
-#label each sentence using heirachical rule:
+# label each sentence using heirachical rule:
 # Positive label if any token is positive
 # Negative label if there are no positive tokens and any token is negative
 df2_label = df2.groupby('sentence_id', as_index=False).agg(
     note=('note', 'first'),
-    sentence=('token', lambda x: ' '.join(x.astype(str))), #sentence tokens
+    sentence=('token', lambda x: ' '.join(x.astype(str))),  # sentence tokens
     n_tokens=('token', 'count'),
     any_Msk_prob_neg=('Msk_prob_-1', max),
     Msk_prob_pos=('Msk_prob_1', max),
@@ -132,11 +134,14 @@ df2_label = df2.groupby('sentence_id', as_index=False).agg(
     any_Fall_risk_neg=('Fall_risk_-1', max),
     Fall_risk_pos=('Fall_risk_1', max),
 )
-#add negative & neutral label using heirarchical rule
+# add negative & neutral label using heirarchical rule
 for n in out_varnames:
-    df2_label[f"{n}_neg"] = np.where(((df2_label[f"{n}_pos"] != 1) & (df2_label[f"any_{n}_neg"] == 1)), 1, 0)
-    df2_label[f"{n}_neut"] = np.where(((df2_label[f"{n}_pos"] != 1) & (df2_label[f"{n}_neg"] != 1)), 1, 0)
-#drop extra columns
+    df2_label[f"{n}_neg"] = np.where(
+        ((df2_label[f"{n}_pos"] != 1) & (df2_label[f"any_{n}_neg"] == 1)), 1,
+        0)
+    df2_label[f"{n}_neut"] = np.where(
+        ((df2_label[f"{n}_pos"] != 1) & (df2_label[f"{n}_neg"] != 1)), 1, 0)
+# drop extra columns
 df2_label = df2_label.loc[:, ~df2_label.columns.str.startswith('any_')].copy()
 
 # make empty df
@@ -145,14 +150,18 @@ for v in range(0, df2.columns.str.startswith('identity_').sum()):
     clmns.append(f"min_{v}")
     clmns.append(f"max_{v}")
     clmns.append(f"mean_{v}")
-embeddings = pd.DataFrame(0, index=range(df2.sentence_id.nunique()), columns=clmns)
+embeddings = pd.DataFrame(0, index=range(df2.sentence_id.nunique()),
+                          columns=clmns)
 embeddings['sentence_id'] = list(df2.sentence_id.drop_duplicates())
 embeddings['note'] = df2.groupby('sentence_id')['note'].agg('first')
 # for each sentence, find the element-wise min/max/mean for embeddings
 for v in range(0, df2.columns.str.startswith('identity_').sum()):
-    embeddings[f"min_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(min)
-    embeddings[f"max_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(max)
-    embeddings[f"mean_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg('mean')
+    embeddings[f"min_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(
+        min)
+    embeddings[f"max_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(
+        max)
+    embeddings[f"mean_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(
+        'mean')
 
 # drop embeddings for center word
 embeddings2 = embeddings.loc[:,
@@ -164,9 +173,8 @@ str_lab = df2.loc[:, ~df2.columns.str.startswith('identity') &
                      ~df2.columns.str.startswith('note')].copy()
 # get one row of structured data for each sentence
 str_lab = str_lab.groupby('sentence_id', as_index=False).first()
-#add labels
+# add labels
 str_lab = pd.concat([str_lab, df2_label], axis=1).copy()
-
 
 # split into 10 folds, each containing different notes
 notes = list(str_lab.note.unique())
@@ -176,9 +184,6 @@ random.seed(942020)
 np.random.shuffle(notes)
 # make a list of notes in each of the 10 test folds
 fold_list = np.array_split(notes, 10)
-
-# start timing tf-idf modeling strategy
-start = timer()
 
 ##### CROSS-VALIDATION #####
 # All steps past this point must be performed separately for each c-v fold
@@ -203,7 +208,8 @@ for f in range(10):
     for v in out_varnames:
         non_neutral = np.array(np.sum(
             str_lab[[i for i in str_lab.columns if (v in i) and
-                     (("_pos" in i) or ("_neg" in i))]], axis=1)).astype('float32')
+                     (("_pos" in i) or ("_neg" in i))]], axis=1)).astype(
+            'float32')
         nnweight = 1 / np.mean(non_neutral[~str_lab.note.isin(fold)])
         caseweights = np.ones(str_lab.shape[0])
         caseweights[non_neutral.astype(bool)] *= nnweight
@@ -253,10 +259,3 @@ for f in range(10):
     f_tr_svd1000.to_csv(f"{SVDdir}f_{f + 1}_tr_svd1000.csv")
     f_te_svd300.to_csv(f"{SVDdir}f_{f + 1}_te_svd300.csv")
     f_te_svd1000.to_csv(f"{SVDdir}f_{f + 1}_te_svd1000.csv")
-
-end = timer()
-duration = end - start
-f = open(f"{trtedatadir}duration_SENT.txt", "w")
-f.write(str(duration))
-f.close()
-
