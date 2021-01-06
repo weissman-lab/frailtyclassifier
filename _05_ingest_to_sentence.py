@@ -192,3 +192,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#python _05_ingest_to_sentence.py -z /home/jakem/frailty_classifier/annotation/frailty_phenotype_AL_01_ADDENDUM_2020-08-13_1218.zip -e /home/jakem/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /home/jakem/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /home/jakem/frailty_classifier/output/impdat_dums.csv
+#python _05_ingest_to_sentence.py -z /Users/martijac/Documents/Frailty/frailty_classifier/annotation/frailty_phenotype_AL_01_ADDENDUM_2020-08-13_1218.zip -e /Users/martijac/Documents/Frailty/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /Users/martijac/Documents/Frailty/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /Users/martijac/Documents/Frailty/frailty_classifier/output/impdat_dums.csv
