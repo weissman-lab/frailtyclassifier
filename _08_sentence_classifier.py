@@ -168,13 +168,16 @@ embeddings2 = embeddings.loc[:,
               ~embeddings.columns.str.startswith('identity')].copy()
 
 # make df of structured data and labels
-# drop embeddings
+# drop embeddings, notes (duplicate column)
 str_lab = df2.loc[:, ~df2.columns.str.startswith('identity') &
                      ~df2.columns.str.startswith('note')].copy()
 # get one row of structured data for each sentence
 str_lab = str_lab.groupby('sentence_id', as_index=False).first()
+#check that sentence_ids match
+assert sum(str_lab.sentence_id == df2_label.sentence_id) == len(
+    str_lab), 'sentence_ids do not match'
 # add labels
-str_lab = pd.concat([str_lab, df2_label], axis=1).copy()
+str_lab = pd.concat([str_lab, df2_label.drop(columns=['sentence_id'])], axis=1).copy()
 
 # split into 10 folds, each containing different notes
 notes = list(str_lab.note.unique())
