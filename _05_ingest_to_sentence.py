@@ -1,3 +1,11 @@
+'''
+Modifies the following two functions from _05_ingest_annotations.py in order to
+label sentences using scispaCy before the text is processed (e.g. lowercase,
+remove newlines, etc.):
+tokenize_and_label -> tokenize_and_label_sent
+featurize -> featurize_sent
+'''
+
 import multiprocessing as mp
 import os
 import re
