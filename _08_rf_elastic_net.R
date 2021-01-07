@@ -47,43 +47,10 @@ predsdir <- paste0(outdir,'preds/')
 dir.create(predsdir)
 
 
-# #brier score function
-# brier_score <- function(obs, pred) {
-#   mean((obs - pred)^2)
-# }
-# 
-# #scaled brier score function
-# scaled_brier_score <- function(obs, pred) {
-#   1 - (brier_score(obs, pred) / brier_score(obs, mean(obs)))
-# }
-
 #scaled Brier score
 scaled_brier_score <- function(pred, obs, event_rate_matrix) {
   1 - (multiclass.Brier(pred, obs) / multiclass.Brier(event_rate_matrix, obs))
 }
-
-
-n = 20
-truth = as.factor(sample(c(1,2,3), n, replace = TRUE))
-probabilities = matrix(runif(60), 20, 3)
-probabilities = probabilities/rowSums(probabilities)
-colnames(probabilities) = c(1,2,3)
-er_vect = tabulate(truth)/length(truth)
-er = matrix(er_vect, nrow=length(truth), ncol=length(er_vect), byrow = TRUE)
-colnames(er) = seq(length(er_vect))
-multiclass.Brier(probabilities, truth)
-multiclass.Brier(er, truth)
-scaled_brier_score(probabilities, truth, er)
-
-
-#-ylog(yhat) - (1-y)log(1-yhat)
-cross_entropy_2 <- function(obs, pred){
-  plus <- -1 * (obs * log(pred))
-  minus <- -1 * ((1-obs) * (log (1-pred)))
-  mat <- cbind(plus, minus)
-  mean(rowSums(mat))
-}
-
 
 #set seed
 seed = 92120
@@ -178,9 +145,6 @@ for (s in 1:length(svd)) {
 }
 gc()
 
-#start timer
-start_time <- Sys.time()
-
 # hyperparameter grid for experiments
 # #set sequence of lambda values to test
 # lambda_seq <- c(10^seq(2, -5, length.out = 25))
@@ -229,7 +193,7 @@ if ((nrow(mg1) == 0) == FALSE) {
     y_test <- data.matrix(get(paste0('f', mg$fold[r], '_te'))[, ..y_cols])
     #measure CPU time for glmnet
     benchmark <- benchmark("glmnet" = {
-    #train model for each class
+    #train model
     frail_logit <- glmnet(x_train, 
                           y_train,
                           family = 'multinomial',
@@ -238,7 +202,7 @@ if ((nrow(mg1) == 0) == FALSE) {
     }, replications = 1
     )
     #save benchmarking
-    fwrite(benchmark, paste0(outdir, 'exp', exp, '_duration_hyper_', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
+    fwrite(benchmark, paste0(outdir, 'exp', exp, '_duration_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
     #make predictions on test fold for each alpha
     alpha_preds <- predict(frail_logit, x_test, type = 'response')
     #save predictions
@@ -251,9 +215,14 @@ if ((nrow(mg1) == 0) == FALSE) {
       lambda = rep(NA, dim(alpha_preds)[3]), #lambdas are in the 3rd dimension of this array
       alpha = NA,
       df = NA,
-      cross_entropy_2 = NA,
-      bscore = NA,
-      sbrier = NA)
+      bscore_multi = NA,
+      bscore_neut = NA,
+      bscore_pos = NA,
+      bscore_neg = NA,
+      sbrier_multi = NA,
+      sbrier_neut = NA,
+      sbrier_pos = NA,
+      sbrier_neg = NA)
     for (l in 1:dim(alpha_preds)[3]) {
       #label each row
       hyper_grid$frail_lab[l] <- mg$frail_lab[r]
@@ -266,6 +235,15 @@ if ((nrow(mg1) == 0) == FALSE) {
       hyper_grid$df[l] <- frail_logit$df[l]
       #preds for this lambda
       preds <- alpha_preds[, , l]
+      #single class Brier scores
+      hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 0, 1)
+      hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 0, 1)
+      hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 0, 1)
+      #single class scaled Brier scores
+      BrierScaled(probabilities, truth, negative, positive)
+      hyper_grid$sbrier_neut[l] = BrierScaled(preds[, 1], y_test[, 1], 0, 1)
+      hyper_grid$sbrier_pos[l] = BrierScaled(preds[, 2], y_test[, 2], 0, 1)
+      hyper_grid$sbrier_neg[l] = BrierScaled(preds[, 3], y_test[, 3], 0, 1)
       #set column names for multiclass.Brier
       colnames(preds) <- c(1, 2, 3)
       #get a single categorical outcome variable for multiclass.Brier
@@ -276,7 +254,8 @@ if ((nrow(mg1) == 0) == FALSE) {
                                      ifelse(.[[3]] == 1, 3, NA))))
       obs <- factr$factr
       #multiclass brier score
-      hyper_grid$bscore[l] <- multiclass.Brier(preds, obs)
+      hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
+      hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
       #make event rate matrix for multiclass scaled brier
       er <- matrix(0, nrow=length(obs), ncol=3)
       er[, 1] <- sum(obs == 1)/length(obs)
@@ -284,33 +263,31 @@ if ((nrow(mg1) == 0) == FALSE) {
       er[, 3] <- sum(obs == 3)/length(obs)
       colnames(er) = c(1, 2, 3)
       #multiclass scaled brier score
-      hyper_grid$sbrier[l] <- scaled_brier_score(preds, obs, er)
-      multiclass.Brier(preds, obs)
-      multiclass.Brier(er, obs)
-      #calculate cross-entropy
-      preds_ce <- preds
-      #set floor and ceiling for predictions (predictions of 1 or 0 create entropy of -inf)
-      preds_ce[preds_ce==0] <- 1e-3
-      preds_ce[preds_ce==1] <- 0.999
-      #calculate
-      hyper_grid$cross_entropy_2[l] <- cross_entropy_2(get(paste0('y_test_', mg$class[r])), preds_ce)
+      hyper_grid$sbrier_multi[l] <- scaled_brier_score(preds, obs, er)
     }
     
     #save hyper_grid for each glmnet run
-    fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_', mg$class[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+    fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
     #remove objects & garbage collection
     rm(frail_logit, alpha_preds, hyper_grid, y_train_neut, y_train_pos, y_train_neg, y_test_neut, y_test_pos, y_test_neg)
     gc()
   }
 }
-
-#calculate total run time
-end_time <- Sys.time()
-duration <- difftime(end_time, start_time, units = 'sec')
-run_time <- paste0('The start time is: ', start_time, '. The end time is: ', end_time, '. Time difference of: ', duration, ' seconds.')
-#save
-write(run_time, paste0(outdir, 'exp', exp, '_duration_elastic_net.txt'))
 gc()
+
+#Summarize performance for all completed models
+enet_output <- grep('.csv', list.files(outdir), value = TRUE)
+enet_output <- lapply(paste0(outdir, enet_output), fread)
+enet_output <- rbindlist(enet_output)
+#Save
+fwrite(enet_output, paste0(outdir, 'exp', exp, '_hyper_all.csv'))
+
+#Summarize benchmarking for all completed models
+enet_bench <- grep('_duration_hyper_', list.files(outdir), value = TRUE)
+enet_bench <- lapply(paste0(outdir, enet_bench), fread)
+enet_bench <- rbindlist(enet_bench)
+#Save
+fwrite(enet_bench, paste0(outdir, 'exp', exp, '_duration_all.csv'))
 
 
 
