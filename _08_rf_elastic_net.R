@@ -174,7 +174,7 @@ mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
 
 #check for models that have already been completed & remove them from the grid
 mg1 <- mg1 %>%
-  mutate(filename = paste0('exp', exp, '_hyper_f', fold, '_', frail_lab, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
+  mutate(filename = paste0('exp', exp, '_hypergrid_f', fold, '_', frail_lab, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
   filter(!filename %in% list.files(outdir)) %>%
   select(-'filename')
 
@@ -240,7 +240,6 @@ if ((nrow(mg1) == 0) == FALSE) {
       hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 0, 1)
       hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 0, 1)
       #single class scaled Brier scores
-      BrierScaled(probabilities, truth, negative, positive)
       hyper_grid$sbrier_neut[l] = BrierScaled(preds[, 1], y_test[, 1], 0, 1)
       hyper_grid$sbrier_pos[l] = BrierScaled(preds[, 2], y_test[, 2], 0, 1)
       hyper_grid$sbrier_neg[l] = BrierScaled(preds[, 3], y_test[, 3], 0, 1)
@@ -267,7 +266,7 @@ if ((nrow(mg1) == 0) == FALSE) {
     }
     
     #save hyper_grid for each glmnet run
-    fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+    fwrite(hyper_grid, paste0(outdir, 'exp', exp, '_hypergrid_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
     #remove objects & garbage collection
     rm(frail_logit, alpha_preds, hyper_grid, y_train_neut, y_train_pos, y_train_neg, y_test_neut, y_test_pos, y_test_neg)
     gc()
@@ -276,7 +275,7 @@ if ((nrow(mg1) == 0) == FALSE) {
 gc()
 
 #Summarize performance for all completed models
-enet_output <- grep('.csv', list.files(outdir), value = TRUE)
+enet_output <- grep('_hypergrid_f', list.files(outdir), value = TRUE)
 enet_output <- lapply(paste0(outdir, enet_output), fread)
 enet_output <- rbindlist(enet_output)
 #Save
