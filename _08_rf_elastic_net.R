@@ -145,145 +145,149 @@ for (s in 1:length(svd)) {
 }
 gc()
 
-# hyperparameter grid for experiments
-# #set sequence of lambda values to test
-# lambda_seq <- c(10^seq(2, -5, length.out = 25))
-# 
-# #model grid 1
-# mg1 <- expand_grid(
-#   fold = seq(1,10),
-#   svd = c('embed', '300', '1000'),
-#   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-#   alpha = c(0.9, 0.5, 0.1),
-# )
-
-# small test grid
-#set sequence of lambda values to test
-lambda_seq <- signif(c(10^seq(-2, -3, length.out = 3)), 4)
-#model grid 1
-mg1 <- expand_grid(
-  fold = seq(1,10),
-  svd = c('embed', '300'),
-  frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-  alpha = c(0.9, 0.5),
-)
-#label alpha (for naming .csv files)
-mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
-                                  ifelse(alpha == 0.5, 5,
-                                         ifelse(alpha == 0.1, 1, NA))))
-
-#check for models that have already been completed & remove them from the grid
-mg1 <- mg1 %>%
-  mutate(filename = paste0('exp', exp, '_hypergrid_f', fold, '_', frail_lab, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
-  filter(!filename %in% list.files(enet_modeldir)) %>%
-  select(-'filename')
-
-#run glmnet if incomplete
-if ((nrow(mg1) == 0) == FALSE) {
-  #run for first model grid
-  mg <- mg1
-  foreach (r = 1:nrow(mg)) %dopar% {
-    #get matching training and test labels
-    x_train <- get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train'))
-    x_test <- get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_test'))
-    y_cols <- c(paste0(mg$frail_lab[r], '_neut'),
-                paste0(mg$frail_lab[r], '_pos'),
-                paste0(mg$frail_lab[r], '_neg'))
-    y_train <- data.matrix(get(paste0('f', mg$fold[r], '_tr'))[, ..y_cols])
-    y_test <- data.matrix(get(paste0('f', mg$fold[r], '_te'))[, ..y_cols])
-    #measure CPU time for glmnet
-    benchmark <- benchmark("glmnet" = {
-    #train model
-    frail_logit <- glmnet(x_train, 
-                          y_train,
-                          family = 'multinomial',
-                          alpha = mg$alpha[r],
-                          lambda = lambda_seq)
-    }, replications = 1
-    )
-    #save benchmarking
-    fwrite(benchmark, paste0(enet_durationdir, 'exp', exp, '_duration_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
-    #make predictions on test fold for each alpha
-    alpha_preds <- predict(frail_logit, x_test, type = 'response')
-    #set lambas as dimnames for 3rd dimension
-    dimnames(alpha_preds)[[3]] <- lambda_seq
-    #save predictions
-    preds_s <- list()
-    for (d in 1:dim(alpha_preds)[3]) {
-      preds_save <- as.data.table(alpha_preds[, , d])
-      preds_save$lambda <- dimnames(alpha_preds)[[3]][d]
-      preds_save$sentence_id <- get(paste0('f', mg$fold[r], '_te'))$sentence_id
-      preds_save$note <- get(paste0('f', mg$fold[r], '_te'))$note
-      preds_s[[d]] <- preds_save
+#run glmnet grid separately for each svd/embedding type to reduce memory use
+svd <- c('embed', '300', '1000')
+for (s in 1:length(svd)){
+  # hyperparameter grid for experiments
+  # #set sequence of lambda values to test
+  # lambda_seq <- c(10^seq(2, -5, length.out = 25))
+  # 
+  # #model grid 1
+  # mg1 <- expand_grid(
+  #   fold = seq(1,10),
+  #   svd = svd[s],
+  #   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+  #   alpha = c(0.9, 0.5, 0.1),
+  # )
+  
+  # small test grid
+  #set sequence of lambda values to test
+  lambda_seq <- signif(c(10^seq(-2, -3, length.out = 3)), 4)
+  #model grid 1
+  mg1 <- expand_grid(
+    fold = seq(1,10),
+    svd = svd[s],
+    frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+    alpha = c(0.9, 0.5),
+  )
+  #label alpha (for naming .csv files)
+  mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
+                                    ifelse(alpha == 0.5, 5,
+                                           ifelse(alpha == 0.1, 1, NA))))
+  
+  #check for models that have already been completed & remove them from the grid
+  mg1 <- mg1 %>%
+    mutate(filename = paste0('exp', exp, '_hypergrid_f', fold, '_', frail_lab, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
+    filter(!filename %in% list.files(enet_modeldir)) %>%
+    select(-'filename')
+  
+  #run glmnet if incomplete
+  if ((nrow(mg1) == 0) == FALSE) {
+    #run for first model grid
+    mg <- mg1
+    foreach (r = 1:nrow(mg)) %dopar% {
+      #get matching training and test labels
+      x_train <- get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_train'))
+      x_test <- get(paste0('f', mg$fold[r], '_s_', mg$svd[r], '_x_test'))
+      y_cols <- c(paste0(mg$frail_lab[r], '_neut'),
+                  paste0(mg$frail_lab[r], '_pos'),
+                  paste0(mg$frail_lab[r], '_neg'))
+      y_train <- data.matrix(get(paste0('f', mg$fold[r], '_tr'))[, ..y_cols])
+      y_test <- data.matrix(get(paste0('f', mg$fold[r], '_te'))[, ..y_cols])
+      #measure CPU time for glmnet
+      benchmark <- benchmark("glmnet" = {
+      #train model
+      frail_logit <- glmnet(x_train, 
+                            y_train,
+                            family = 'multinomial',
+                            alpha = mg$alpha[r],
+                            lambda = lambda_seq)
+      }, replications = 1
+      )
+      #save benchmarking
+      fwrite(benchmark, paste0(enet_durationdir, 'exp', exp, '_duration_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
+      #make predictions on test fold for each alpha
+      alpha_preds <- predict(frail_logit, x_test, type = 'response')
+      #set lambas as dimnames for 3rd dimension
+      dimnames(alpha_preds)[[3]] <- lambda_seq
+      #save predictions
+      preds_s <- list()
+      for (d in 1:dim(alpha_preds)[3]) {
+        preds_save <- as.data.table(alpha_preds[, , d])
+        preds_save$lambda <- dimnames(alpha_preds)[[3]][d]
+        preds_save$sentence_id <- get(paste0('f', mg$fold[r], '_te'))$sentence_id
+        preds_save$note <- get(paste0('f', mg$fold[r], '_te'))$note
+        preds_s[[d]] <- preds_save
+      }
+      preds_save <- rbindlist(preds_s)
+      fwrite(preds_save, paste0(enet_predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+      #build hyperparameter grid
+      hyper_grid <- expand.grid(
+        frail_lab = NA,
+        fold = NA,
+        SVD = NA,
+        lambda = rep(NA, dim(alpha_preds)[3]), #lambdas are in the 3rd dimension of this array
+        alpha = NA,
+        df = NA,
+        bscore_multi = NA,
+        bscore_neut = NA,
+        bscore_pos = NA,
+        bscore_neg = NA,
+        sbrier_multi = NA,
+        sbrier_neut = NA,
+        sbrier_pos = NA,
+        sbrier_neg = NA)
+      for (l in 1:dim(alpha_preds)[3]) {
+        #label each row
+        hyper_grid$frail_lab[l] <- mg$frail_lab[r]
+        hyper_grid$fold[l] <- mg$fold[r]
+        hyper_grid$SVD[l] <- mg$svd[r]
+        hyper_grid$alpha[l] <- mg$alpha[r]
+        #lambda
+        hyper_grid$lambda[l] <- frail_logit$lambda[l]
+        #number of nonzero coefficients (Df)
+        hyper_grid$df[l] <- frail_logit$df[l]
+        #preds for this lambda
+        preds <- alpha_preds[, , l]
+        #single class Brier scores
+        hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 0, 1)
+        hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 0, 1)
+        hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 0, 1)
+        #single class scaled Brier scores
+        hyper_grid$sbrier_neut[l] = BrierScaled(preds[, 1], y_test[, 1], 0, 1)
+        hyper_grid$sbrier_pos[l] = BrierScaled(preds[, 2], y_test[, 2], 0, 1)
+        hyper_grid$sbrier_neg[l] = BrierScaled(preds[, 3], y_test[, 3], 0, 1)
+        #set column names for multiclass.Brier
+        colnames(preds) <- c(1, 2, 3)
+        #get a single categorical outcome variable for multiclass.Brier
+        factr <- y_test %>%
+          as_tibble() %>%
+          mutate(factr = ifelse(.[[1]] == 1, 1,
+                                ifelse(.[[2]] == 1, 2,
+                                       ifelse(.[[3]] == 1, 3, NA))))
+        obs <- factr$factr
+        #multiclass brier score
+        hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
+        hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
+        #make event rate matrix for multiclass scaled brier
+        er <- matrix(0, nrow=length(obs), ncol=3)
+        er[, 1] <- sum(obs == 1)/length(obs)
+        er[, 2] <- sum(obs == 2)/length(obs)
+        er[, 3] <- sum(obs == 3)/length(obs)
+        colnames(er) = c(1, 2, 3)
+        #multiclass scaled brier score
+        hyper_grid$sbrier_multi[l] <- scaled_brier_score(preds, obs, er)
+      }
+      
+      #save hyper_grid for each glmnet run
+      fwrite(hyper_grid, paste0(enet_modeldir, 'exp', exp, '_hypergrid_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+      #remove objects & garbage collection
+      rm(x_train, x_test, y_train, y_test, frail_logit, benchmark, alpha_preds, preds_save, preds_s, preds, obs, er, hyper_grid)
+      gc()
     }
-    preds_save <- rbindlist(preds_s)
-    fwrite(preds_save, paste0(enet_predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
-    #build hyperparameter grid
-    hyper_grid <- expand.grid(
-      frail_lab = NA,
-      fold = NA,
-      SVD = NA,
-      lambda = rep(NA, dim(alpha_preds)[3]), #lambdas are in the 3rd dimension of this array
-      alpha = NA,
-      df = NA,
-      bscore_multi = NA,
-      bscore_neut = NA,
-      bscore_pos = NA,
-      bscore_neg = NA,
-      sbrier_multi = NA,
-      sbrier_neut = NA,
-      sbrier_pos = NA,
-      sbrier_neg = NA)
-    for (l in 1:dim(alpha_preds)[3]) {
-      #label each row
-      hyper_grid$frail_lab[l] <- mg$frail_lab[r]
-      hyper_grid$fold[l] <- mg$fold[r]
-      hyper_grid$SVD[l] <- mg$svd[r]
-      hyper_grid$alpha[l] <- mg$alpha[r]
-      #lambda
-      hyper_grid$lambda[l] <- frail_logit$lambda[l]
-      #number of nonzero coefficients (Df)
-      hyper_grid$df[l] <- frail_logit$df[l]
-      #preds for this lambda
-      preds <- alpha_preds[, , l]
-      #single class Brier scores
-      hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 0, 1)
-      hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 0, 1)
-      hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 0, 1)
-      #single class scaled Brier scores
-      hyper_grid$sbrier_neut[l] = BrierScaled(preds[, 1], y_test[, 1], 0, 1)
-      hyper_grid$sbrier_pos[l] = BrierScaled(preds[, 2], y_test[, 2], 0, 1)
-      hyper_grid$sbrier_neg[l] = BrierScaled(preds[, 3], y_test[, 3], 0, 1)
-      #set column names for multiclass.Brier
-      colnames(preds) <- c(1, 2, 3)
-      #get a single categorical outcome variable for multiclass.Brier
-      factr <- y_test %>%
-        as_tibble() %>%
-        mutate(factr = ifelse(.[[1]] == 1, 1,
-                              ifelse(.[[2]] == 1, 2,
-                                     ifelse(.[[3]] == 1, 3, NA))))
-      obs <- factr$factr
-      #multiclass brier score
-      hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
-      hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
-      #make event rate matrix for multiclass scaled brier
-      er <- matrix(0, nrow=length(obs), ncol=3)
-      er[, 1] <- sum(obs == 1)/length(obs)
-      er[, 2] <- sum(obs == 2)/length(obs)
-      er[, 3] <- sum(obs == 3)/length(obs)
-      colnames(er) = c(1, 2, 3)
-      #multiclass scaled brier score
-      hyper_grid$sbrier_multi[l] <- scaled_brier_score(preds, obs, er)
-    }
-    
-    #save hyper_grid for each glmnet run
-    fwrite(hyper_grid, paste0(enet_modeldir, 'exp', exp, '_hypergrid_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
-    #remove objects & garbage collection
-    rm(frail_logit, alpha_preds, hyper_grid, y_train_neut, y_train_pos, y_train_neg, y_test_neut, y_test_pos, y_test_neg)
-    gc()
   }
+  gc()
 }
-gc()
 
 #Summarize performance for all completed models
 enet_output <- grep('_hypergrid_f', list.files(enet_modeldir), value = TRUE)
@@ -303,119 +307,147 @@ fwrite(enet_bench, paste0(outdir, 'exp', exp, '_enet_cpu_time.csv'))
 
 #RANDOM FOREST
 
-#directory for performance for each enet model:
+#directory for performance for each rf model:
 rf_modeldir <- paste0(outdir,'rf_models/')
 dir.create(rf_modeldir)
-#directory for duration for each enet model:
+#directory for duration for each rf model:
 rf_durationdir <- paste0(outdir,'rf_durations/')
 dir.create(rf_durationdir)
 #directory for predictions:
 rf_predsdir <- paste0(outdir,'rf_preds/')
 dir.create(rf_predsdir)
 
-#set models to run
-folds <- seq(1, 10)
-svd <- c('embed', '300', '1000')
-frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
+#experiment grid
+# mg <- expand_grid(
+#   fold = seq(1,10),
+#   svd = c('embed', '300', '1000'),
+#   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+#   ntree       = 400,
+#   mtry        = signif(seq(7, 45, length.out = 3), 2),
+#   sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
+# )
 
+#small test grid
+mg3 <- expand_grid(
+  fold = seq(1,10),
+  svd = c('embed', '300'),
+  frail_lab = c('Fall_risk', 'Nutrition'),
+  ntree       = 400,
+  mtry        = signif(seq(7, 45, length.out = 2), 2),
+  sample_frac = signif(seq(0.6, 1, length.out = 2), 1)
+)
+
+#label sample fraction (for naming .csv files)
+mg3 <- mutate(mg3, sample_frac_l = ifelse(sample_frac == 0.6, 6,
+                                        ifelse(sample_frac == 0.8, 8,
+                                               ifelse(sample_frac == 1.0, 10, NA))))
+#check for models that have already been completed & remove them from the grid
+mg3 <- mg3 %>%
+  mutate(filename = paste0('exp', exp, '_hypergrid_f', fold, '_', frail_lab, '_svd_', svd, '_mtry', mtry, '_sfrac', sample_frac_l, '.csv')) %>%
+  filter(!filename %in% list.files(rf_modeldir)) %>%
+  select(-'filename')
+
+#load caseweights (weight non-neutral tokens by the inverse of their prevalence)
+#e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
+folds <- seq(1, 10)
 for (d in 1:length(folds)) {
-  #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
-  #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
   assign(paste0('f', folds[d], '_tr_cw'), fread(paste0(trtedatadir, 'f_', folds[d], '_tr_cw.csv')))
-  
-  for (f in 1:length(frail_lab)) {
-    
-    ###ENSURE CORRECT LABELS (HEIRARCHICAL RULE)
-    
-    #get matching training and test data
-    y_train <- get(paste0('f', folds[d], '_tr'))[[paste0(frail_lab[f])]]
-    y_test_neut <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_0')]]
-    y_test_pos <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_1')]]
-    y_test_neg <- get(paste0('f', folds[d], '_te'))[[paste0(frail_lab[f], '_-1')]]
-    y_test <- cbind(y_test_neut, y_test_pos, y_test_neg)
+}
+#run glmnet if incomplete
+if ((nrow(mg3) == 0) == FALSE) {
+  for (r in 1:nrow(mg3)){
+    #get matching training and test labels
+    x_train <- get(paste0('f', mg3$fold[r], '_s_', mg3$svd[r], '_x_train'))
+    x_test <- get(paste0('f', mg3$fold[r], '_s_', mg3$svd[r], '_x_test'))
+    y_cols <- c(paste0(mg3$frail_lab[r], '_neut'),
+                paste0(mg3$frail_lab[r], '_pos'),
+                paste0(mg3$frail_lab[r], '_neg'))
+    y_train <- get(paste0('f', mg3$fold[r], '_tr'))[, ..y_cols] %>%
+      as_tibble() %>%
+      mutate(factr = ifelse(.[[1]] == 1, 1,
+                            ifelse(.[[2]] == 1, 2,
+                                   ifelse(.[[3]] == 1, 3, NA))))
+    y_train_factor <- y_train$factr
+    y_test <- get(paste0('f', mg3$fold[r], '_te'))[, ..y_cols]
     #get matching caseweights
-    cw <- get(paste0('f', folds[d], '_tr_cw'))[[paste0(frail_lab[f], '_cw')]]
-    
-    for(s in 1:length(svd)) {
-      #get training & test data
-      x_train <- get(paste0('f', folds[d], '_s_', svd[s], '_x_train'))
-      x_test <- get(paste0('f', folds[d], '_s_', svd[s], '_x_test'))
-      # hyper grid
-      hyper_grid <- expand.grid(
-        ntree       = 400,
-        mtry        = signif(seq(7, 45, length.out = 4), 2),
-        sample_frac = signif(seq(0.6, 1, length.out = 3), 1))
-      #label sample fraction (for naming .csv files)
-      hyper_grid <- mutate(hyper_grid, sample_frac_l = ifelse(sample_frac == 0.6, 6,
-                                                              ifelse(sample_frac == 0.8, 8,
-                                                                     ifelse(sample_frac == 1.0, 10, NA))))
-      
-      for(i in 1:nrow(hyper_grid)) {
-        #measure CPU time for rf
-        benchmark <- benchmark("rf" = {
-          frail_rf <- ranger(y = factor(y_train, levels = c(0, 1, -1)), #relevel factors to match class.weights
-                             x = x_train,
-                             num.threads = detectCores(),
-                             probability = TRUE,
-                             num.trees = hyper_grid$ntree[i],
-                             mtry = hyper_grid$mtry[i],
-                             sample.fraction = hyper_grid$sample_frac[i],
-                             case.weights = cw,
-                             oob.error = FALSE,
-                             seed = seed)
-        }, replications = 1
-        )
-        #save benchmarking
-        fwrite(benchmark, paste0(rf_durationdir, 'exp', exp, '_duration_hyper_', frail_lab[f], '_fold_', folds[d], '_mtry_', hyper_grid$mtry[i], '_sfr_', hyper_grid$sample_frac_l[i], '.csv'))
-        #make predictions on test fold
-        preds <- predict(frail_rf, data=x_test)$predictions
-        #save predictions
-        fwrite(as.data.table(preds), paste0(rf_predsdir, 'exp', exp, '_preds_', frail_lab[f], '_fold_', folds[d], '_mtry_', hyper_grid$mtry[i], '_sfr_', hyper_grid$sample_frac_l[i], '.csv'))
-        
-        ###FIX BRIER SCORES
-        
-        #cv brier score for each class
-        hyper_grid$bscore_neut[i] <- brier_score(y_test_neut, preds[,'0'])
-        hyper_grid$bscore_pos[i] <- brier_score(y_test_pos, preds[,'1'])
-        hyper_grid$bscore_neg[i] <- brier_score(y_test_neg, preds[,'-1'])
-        #cv brier score for all classes
-        hyper_grid$bscore_all[i] <- brier_score(
-          c(y_test_neut, y_test_pos, y_test_neg), 
-          c(preds[,'0'], preds[,'1'], preds[,'-1']))
-        #cv scaled brier score for each class
-        hyper_grid$sbrier_neut[i] <- scaled_brier_score(y_test_neut, preds[,'0'])
-        hyper_grid$sbrier_pos[i] <- scaled_brier_score(y_test_pos, preds[,'1'])
-        hyper_grid$sbrier_neg[i] <- scaled_brier_score(y_test_neg, preds[,'-1'])
-        #mean scaled Brier score for all classes
-        hyper_grid$sbrier_mean[i] <- mean(c(
-          scaled_brier_score(y_test_neut, preds[,'0']),
-          scaled_brier_score(y_test_pos, preds[,'1']),
-          scaled_brier_score(y_test_neg, preds[,'-1'])))
-      }
-      #add SVD label
-      hyper_grid2 <- hyper_grid
-      hyper_grid2$SVD <- svd[s]
-      #start building the hyper_grid for the current loop
-      if (exists(paste0('hyper_grid_d', folds[d], '_f', f)) == FALSE) {
-        assign(paste0('hyper_grid_d', folds[d], '_f', f), hyper_grid2)
-      } else {
-        #add new results from each svd loop
-        assign(paste0('hyper_grid_d', folds[d], '_f', f), rbind(get(paste0('hyper_grid_d', folds[d], '_f', f)), hyper_grid2))
-      }
-    }
-    #add frail aspect label
-    hyper_grid4 <- get(paste0('hyper_grid_d', folds[d], '_f', f))
-    hyper_grid4$frail_lab <- frail_lab[f]
-    #continue building grid with each loop
-    if (exists(paste0('hyper_', frail_lab[f], '_fold_', folds[d])) == FALSE) {
-      assign(paste0('hyper_', frail_lab[f], '_fold_', folds[d]), hyper_grid4)
-    } else{
-      #add new results from each aspect loop
-      assign(paste0('hyper_', frail_lab[f], '_fold_', folds[d]), rbind(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), hyper_grid4))
-    }
-    #save each fold for each aspect
-    fwrite(get(paste0('hyper_', frail_lab[f], '_fold_', folds[d])), paste0(rf_modeldir, 'exp', exp, '_hyper_', frail_lab[f], '_fold_', folds[d], '.csv'))
+    cw <- get(paste0('f', mg3$fold[r], '_tr_cw'))[[paste0(mg3$frail_lab[r], '_cw')]]
+    #measure CPU time for rf
+    benchmark <- benchmark("rf" = {
+      frail_rf <- ranger(y = y_train_factor,
+                         x = x_train,
+                         num.threads = detectCores(),
+                         probability = TRUE,
+                         num.trees = mg3$ntree[r],
+                         mtry = mg3$mtry[r],
+                         sample.fraction = mg3$sample_frac[r],
+                         case.weights = cw,
+                         oob.error = FALSE,
+                         seed = seed)
+    }, replications = 1
+    )
+    #save benchmarking
+    fwrite(benchmark, paste0(rf_durationdir, 'exp', exp, '_duration_hyper_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '.csv'))
+    #make predictions on test fold
+    preds <- predict(frail_rf, data=x_test)$predictions
+    colnames(preds) <- y_cols
+    preds_save <- as.data.table(preds)
+    preds_save$sentence_id <- get(paste0('f', mg3$fold[r], '_te'))$sentence_id
+    preds_save$note <- get(paste0('f', mg3$fold[r], '_te'))$note
+    #save predictions
+    fwrite(as.data.table(preds_save), paste0(rf_predsdir, 'exp', exp, '_preds_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '.csv'))
+
+    #label each row
+    hyper_grid <- data.frame(frail_lab = mg3$frail_lab[r])
+    hyper_grid$fold <- mg3$fold[r]
+    hyper_grid$SVD <- mg3$svd[r]
+    hyper_grid$mtry <- mg3$mtry[r]
+    hyper_grid$sample_frac <- mg3$sample_frac[r]
+    hyper_grid$num_indep_vars <- frail_rf$`num.independent.variables`
+
+    #single class Brier scores
+    hyper_grid$bscore_neut <- Brier(preds[, 1], y_test[, 1], 0, 1)
+    hyper_grid$bscore_pos = Brier(preds[, 2], y_test[, 2], 0, 1)
+    hyper_grid$bscore_neg = Brier(preds[, 3], y_test[, 3], 0, 1)
+    #single class scaled Brier scores
+    hyper_grid$sbrier_neut = BrierScaled(preds[, 1], y_test[, 1], 0, 1)
+    hyper_grid$sbrier_pos = BrierScaled(preds[, 2], y_test[, 2], 0, 1)
+    hyper_grid$sbrier_neg = BrierScaled(preds[, 3], y_test[, 3], 0, 1)
+    #set column names for multiclass.Brier
+    colnames(preds) <- c(1, 2, 3)
+    #get a single categorical outcome variable for multiclass.Brier
+    factr <- y_test %>%
+      as_tibble() %>%
+      mutate(factr = ifelse(.[[1]] == 1, 1,
+                            ifelse(.[[2]] == 1, 2,
+                                   ifelse(.[[3]] == 1, 3, NA))))
+    obs <- factr$factr
+    #multiclass brier score
+    hyper_grid$bscore_multi <- multiclass.Brier(preds, obs)
+    hyper_grid$bscore_multi <- multiclass.Brier(preds, obs)
+    #make event rate matrix for multiclass scaled brier
+    er <- matrix(0, nrow=length(obs), ncol=3)
+    er[, 1] <- sum(obs == 1)/length(obs)
+    er[, 2] <- sum(obs == 2)/length(obs)
+    er[, 3] <- sum(obs == 3)/length(obs)
+    colnames(er) = c(1, 2, 3)
+    #multiclass scaled brier score
+    hyper_grid$sbrier_multi <- scaled_brier_score(preds, obs, er)
+    #save hyper_grid for each rf run
+    fwrite(hyper_grid, paste0(rf_modeldir, 'exp', exp, '_hypergrid_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '.csv'))
+    gc()
   }
 }
 
-#AGGREGATE ALL AND SAVE
+#Summarize performance for all completed models
+rf_output <- grep('_hypergrid_f', list.files(rf_modeldir), value = TRUE)
+rf_output <- lapply(paste0(rf_modeldir, rf_output), fread)
+rf_output <- rbindlist(rf_output)
+#Save
+fwrite(rf_output, paste0(outdir, 'exp', exp, '_rf_performance.csv'))
+
+#Summarize benchmarking for all completed models
+rf_bench <- grep('_duration_hyper_', list.files(rf_durationdir), value = TRUE)
+rf_bench <- lapply(paste0(rf_durationdir, rf_bench), fread)
+rf_bench <- rbindlist(rf_bench)
+#Save
+fwrite(rf_bench, paste0(outdir, 'exp', exp, '_rf_cpu_time.csv'))
