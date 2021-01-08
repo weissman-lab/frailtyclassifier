@@ -29,12 +29,6 @@ def sheepish_mkdir(path):
     except FileExistsError:
         pass
 
-
-# get experiment number from command line arguments
-assert len(sys.argv) == 2, 'Exp number must be specified as an argument'
-exp = sys.argv[1]
-exp = f"exp{exp}_lin_trees_SENT"
-
 # get the correct directories
 dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/",
         "/media/drv2/andrewcd2/frailty/output/",
