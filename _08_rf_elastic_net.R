@@ -5,6 +5,7 @@ library(dplyr)
 library(tidyr)
 library(foreach)
 library(doParallel)
+library(abind)
 library(ranger)
 library(rbenchmark)
 registerDoParallel(detectCores())
@@ -158,7 +159,7 @@ gc()
 
 # small test grid
 #set sequence of lambda values to test
-lambda_seq <- c(10^seq(-2, -3, length.out = 3))
+lambda_seq <- signif(c(10^seq(-2, -3, length.out = 3)), 4)
 #model grid 1
 mg1 <- expand_grid(
   fold = seq(1,10),
@@ -204,8 +205,19 @@ if ((nrow(mg1) == 0) == FALSE) {
     fwrite(benchmark, paste0(enet_durationdir, 'exp', exp, '_duration_hyper_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
     #make predictions on test fold for each alpha
     alpha_preds <- predict(frail_logit, x_test, type = 'response')
+    #set lambas as dimnames for 3rd dimension
+    dimnames(alpha_preds)[[3]] <- lambda_seq
     #save predictions
-    fwrite(as.data.table(alpha_preds), paste0(enet_predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+    preds_s <- list()
+    for (d in 1:dim(alpha_preds)[3]) {
+      preds_save <- as.data.table(alpha_preds[, , d])
+      preds_save$lambda <- dimnames(alpha_preds)[[3]][d]
+      preds_save$sentence_id <- get(paste0('f', mg$fold[r], '_te'))$sentence_id
+      preds_save$note <- get(paste0('f', mg$fold[r], '_te'))$note
+      preds_s[[d]] <- preds_save
+    }
+    preds_save <- rbindlist(preds_s)
+    fwrite(preds_save, paste0(enet_predsdir, 'exp', exp, '_preds_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
     #build hyperparameter grid
     hyper_grid <- expand.grid(
       frail_lab = NA,
@@ -278,14 +290,14 @@ enet_output <- grep('_hypergrid_f', list.files(enet_modeldir), value = TRUE)
 enet_output <- lapply(paste0(enet_modeldir, enet_output), fread)
 enet_output <- rbindlist(enet_output)
 #Save
-fwrite(enet_output, paste0(outdir, 'exp', exp, '_enet_hypergrid_all.csv'))
+fwrite(enet_output, paste0(outdir, 'exp', exp, '_enet_performance.csv'))
 
 #Summarize benchmarking for all completed models
 enet_bench <- grep('_duration_hyper_', list.files(enet_durationdir), value = TRUE)
 enet_bench <- lapply(paste0(enet_durationdir, enet_bench), fread)
 enet_bench <- rbindlist(enet_bench)
 #Save
-fwrite(enet_bench, paste0(outdir, 'exp', exp, '_enet_duration_all.csv'))
+fwrite(enet_bench, paste0(outdir, 'exp', exp, '_enet_cpu_time.csv'))
 
 
 
@@ -305,7 +317,6 @@ dir.create(rf_predsdir)
 folds <- seq(1, 10)
 svd <- c('embed', '300', '1000')
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
-
 
 for (d in 1:length(folds)) {
   #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
@@ -380,13 +391,6 @@ for (d in 1:length(folds)) {
           scaled_brier_score(y_test_neut, preds[,'0']),
           scaled_brier_score(y_test_pos, preds[,'1']),
           scaled_brier_score(y_test_neg, preds[,'-1'])))
-        #calculate cross-entropy
-        preds_ce <- preds
-        #set floor and ceiling for predictions (predictions of 1 or 0 create entropy of -inf)
-        preds_ce[preds_ce==0] <- 1e-3
-        preds_ce[preds_ce==1] <- 0.999
-        #calculate
-        hyper_grid$cross_entropy_2[i] <- cross_entropy_2(y_test, preds_ce)
       }
       #add SVD label
       hyper_grid2 <- hyper_grid
