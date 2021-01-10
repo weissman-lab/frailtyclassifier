@@ -97,14 +97,13 @@ for s in range(df2.shape[0]):
         sent += 1
     sentence.append(sent)
 df2['sentence_id'] = sentence
-# drop non-unique sentence id (repeats for each note)
-df2 = df2.drop(columns=['sentence'])
+# rename the note-specific sentence label
+df2.rename(columns={'sentence':'note_sentence'}, inplace=True)
 
 # dummies for labels
 out_varnames = df2.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
 y_dums = pd.concat(
     [pd.get_dummies(df2[[i]].astype(str)) for i in out_varnames], axis=1)
-cols = list(['note', 'sentence', 'token']) + list(y_dums.columns)
 df2 = pd.concat([y_dums, df2], axis=1)
 
 # label each sentence using heirachical rule:
@@ -135,7 +134,6 @@ df2_label = df2_label.loc[:, ~df2_label.columns.str.startswith('any_')].copy()
 
 # restrict to 10 notes that each contain all classes of all frailty aspects
 note_labels = df2_label.groupby('note', as_index=False).agg(
-    note=('note', 'first'),
     Msk_prob_pos=('Msk_prob_pos', max),
     Msk_prob_neg=('Msk_prob_neg', max),
     Msk_prob_neut=('Msk_prob_neut', max),
