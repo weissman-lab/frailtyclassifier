@@ -28,7 +28,7 @@ pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
 # load scispacy model
-nlp = spacy.load("en_core_sci_md", disable=['tagger', 'ner'])
+sci_nlp = spacy.load("en_core_sci_md", disable=['tagger', 'ner'])
 # add custom sentence boundary (newline)
 newline = re.compile("\n")
 mwe_period_space = re.compile(r"\._")
@@ -44,7 +44,7 @@ def set_custom_boundaries(doc):
 
 
 # add custom boundary to nlp pipeline
-nlp.add_pipe(set_custom_boundaries, before="parser",
+sci_nlp.add_pipe(set_custom_boundaries, before="parser",
              name='set_custom_boundaries')
 
 # stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
@@ -68,7 +68,7 @@ def tokenize_and_label_sent(output_file_path,
         print(stub)
         # get the original note and tokenize it
         note = read_txt(f"{webanno_unzipped_dir}/source/{stub}")
-        res = nlp(note)
+        res = sci_nlp(note)
         span_df = pd.DataFrame([{"token": i.text,
                                  'length': len(i.text_with_ws),
                                  'sent_start': i.is_sent_start} for i in res])
