@@ -138,7 +138,8 @@ for n in out_varnames:
 # drop extra columns
 df2_label = df2_label.loc[:, ~df2_label.columns.str.startswith('any_')].copy()
 
-# make empty df
+# summarize embeddings (element-wise min/max/mean) for each sentence
+# first, make empty df
 clmns = ['sentence_id', 'note']
 for v in range(0, df2.columns.str.startswith('identity_').sum()):
     clmns.append(f"min_{v}")
@@ -147,15 +148,15 @@ for v in range(0, df2.columns.str.startswith('identity_').sum()):
 embeddings = pd.DataFrame(0, index=range(df2.sentence_id.nunique()),
                           columns=clmns)
 embeddings['sentence_id'] = list(df2.sentence_id.drop_duplicates())
-embeddings['note'] = df2.groupby('sentence_id')['note'].agg('first')
+embeddings['note'] = df2.groupby('sentence_id', as_index=False)['note'].agg('first')['note']
 # for each sentence, find the element-wise min/max/mean for embeddings
 for v in range(0, df2.columns.str.startswith('identity_').sum()):
-    embeddings[f"min_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(
-        min)
-    embeddings[f"max_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(
-        max)
-    embeddings[f"mean_{v}"] = df2.groupby('sentence_id')[f"identity_{v}"].agg(
-        'mean')
+    embeddings[f"min_{v}"] = df2.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
+        min)[f"identity_{v}"]
+    embeddings[f"max_{v}"] = df2.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
+        max)[f"identity_{v}"]
+    embeddings[f"mean_{v}"] = df2.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
+        'mean')[f"identity_{v}"]
 
 # drop embeddings for center word
 embeddings2 = embeddings.loc[:,
@@ -173,86 +174,90 @@ assert sum(str_lab.sentence_id == df2_label.sentence_id) == len(
 # add labels & drop duplicate column
 str_lab = pd.concat([str_lab, df2_label.drop(columns=['sentence_id'])], axis=1).copy()
 
+##### REPEATED K-FOLD CROSS-VALIDATION #####
+seed_start = 942020
 # split into 10 folds, each containing different notes
 notes = list(str_lab.note.unique())
 # sort notes before randomly splitting in order to standardize the random split based on the seed
 notes.sort()
-random.seed(942020)
-np.random.shuffle(notes)
-# make a list of notes in each of the 10 test folds
-fold_list = np.array_split(notes, 10)
+# Set up repeats
+for r in range(3):
+    #shuffle differently for each repeat
+    random.seed(seed_start + r)
+    np.random.shuffle(notes)
+    # make a list of notes in each of the 10 test folds
+    fold_list = np.array_split(notes, 10)
 
-##### CROSS-VALIDATION #####
-# All steps past this point must be performed separately for each c-v fold
-for f in range(10):
-    # split fold
-    fold = list(fold_list[f])
-    # Identify training (k-1) folds and test fold
-    f_tr = str_lab[~str_lab.note.isin(fold)]
-    f_te = str_lab[str_lab.note.isin(fold)]
-    # get embeddings for fold
-    embeddings_tr = embeddings2[~embeddings2.note.isin(fold)]
-    embeddings_te = embeddings2[embeddings2.note.isin(fold)]
-    # test for matching length
-    assert len(f_tr.note) == len(
-        embeddings_tr.note), 'notes do not match embeddings'
-    assert len(f_te.note) == len(
-        embeddings_te.note), 'notes do not match embeddings'
-    # get a vector of caseweights for each frailty aspect
-    # weight non-neutral tokens by the inverse of their prevalence
-    # e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
-    f_tr_cw = {}
-    for v in out_varnames:
-        non_neutral = np.array(np.sum(
-            str_lab[[i for i in str_lab.columns if (v in i) and
-                     (("_pos" in i) or ("_neg" in i))]], axis=1)).astype(
-            'float32')
-        nnweight = 1 / np.mean(non_neutral[~str_lab.note.isin(fold)])
-        caseweights = np.ones(str_lab.shape[0])
-        caseweights[non_neutral.astype(bool)] *= nnweight
-        tr_caseweights = caseweights[~str_lab.note.isin(fold)]
-        f_tr_cw[f'{v}_cw'] = tr_caseweights
-    # make cw df
-    f_tr_cw = pd.DataFrame(f_tr_cw)
-    # Convert text into matrix of tf-idf features:
-    # id documents
-    tr_docs = f_tr['sentence'].tolist()
-    # instantiate countvectorizer (turn off default stopwords)
-    cv = CountVectorizer(analyzer='word', stop_words=None)
-    # compute tf
-    f_tr_tf = cv.fit_transform(tr_docs)
-    # id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
-    cuttext = '_was_here_but_got_cut'
-    stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
-    # repeat countvec with full list of stopwords
-    cv = CountVectorizer(analyzer='word', stop_words=stopw)
-    # fit to data, then transform to count matrix
-    f_tr_tf = cv.fit_transform(tr_docs)
-    # fit to count matrix, then transform to tf-idf representation
-    tfidf_transformer = TfidfTransformer()
-    f_tr_tfidf = tfidf_transformer.fit_transform(f_tr_tf)
-    # apply feature extraction to test set (do NOT fit on test data)
-    te_docs = f_te['sentence'].tolist()
-    f_te_tf = cv.transform(te_docs)
-    f_te_tfidf = tfidf_transformer.transform(f_te_tf)
-    # dimensionality reduction with truncated SVD
-    svd_300 = TruncatedSVD(n_components=300, n_iter=5, random_state=9082020)
-    svd_1000 = TruncatedSVD(n_components=1000, n_iter=5, random_state=9082020)
-    # fit to training data & transform
-    f_tr_svd300 = pd.DataFrame(svd_300.fit_transform(f_tr_tfidf))
-    f_tr_svd1000 = pd.DataFrame(svd_1000.fit_transform(f_tr_tfidf))
-    # transform test data (do NOT fit on test data)
-    f_te_svd300 = pd.DataFrame(svd_300.transform(f_te_tfidf))
-    f_te_svd1000 = pd.DataFrame(svd_1000.transform(f_te_tfidf))
-    ## Output for r
-    f_tr.to_csv(f"{trtedatadir}f_{f + 1}_tr_df.csv")
-    f_te.to_csv(f"{trtedatadir}f_{f + 1}_te_df.csv")
-    f_tr_cw.to_csv(f"{trtedatadir}f_{f + 1}_tr_cw.csv")
-    embeddings_tr.to_csv(
-        f"{embeddingsdir}f_{f + 1}_tr_embed_min_max_mean_SENT.csv")
-    embeddings_te.to_csv(
-        f"{embeddingsdir}f_{f + 1}_te_embed_min_max_mean_SENT.csv")
-    f_tr_svd300.to_csv(f"{SVDdir}f_{f + 1}_tr_svd300.csv")
-    f_tr_svd1000.to_csv(f"{SVDdir}f_{f + 1}_tr_svd1000.csv")
-    f_te_svd300.to_csv(f"{SVDdir}f_{f + 1}_te_svd300.csv")
-    f_te_svd1000.to_csv(f"{SVDdir}f_{f + 1}_te_svd1000.csv")
+    # Set up folds
+    for f in range(10):
+        # split fold
+        fold = list(fold_list[f])
+        # Identify training (k-1) folds and test fold
+        f_tr = str_lab[~str_lab.note.isin(fold)]
+        f_te = str_lab[str_lab.note.isin(fold)]
+        # get embeddings for fold
+        embeddings_tr = embeddings2[~embeddings2.note.isin(fold)]
+        embeddings_te = embeddings2[embeddings2.note.isin(fold)]
+        # test for matching length
+        assert len(f_tr.note) == len(
+            embeddings_tr.note), 'notes do not match embeddings'
+        assert len(f_te.note) == len(
+            embeddings_te.note), 'notes do not match embeddings'
+        # get a vector of caseweights for each frailty aspect
+        # weight non-neutral tokens by the inverse of their prevalence
+        # e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
+        f_tr_cw = {}
+        for v in out_varnames:
+            non_neutral = np.array(np.sum(
+                str_lab[[i for i in str_lab.columns if (v in i) and
+                         (("_pos" in i) or ("_neg" in i))]], axis=1)).astype(
+                'float32')
+            nnweight = 1 / np.mean(non_neutral[~str_lab.note.isin(fold)])
+            caseweights = np.ones(str_lab.shape[0])
+            caseweights[non_neutral.astype(bool)] *= nnweight
+            tr_caseweights = caseweights[~str_lab.note.isin(fold)]
+            f_tr_cw[f'{v}_cw'] = tr_caseweights
+        # make cw df
+        f_tr_cw = pd.DataFrame(f_tr_cw)
+        # Convert text into matrix of tf-idf features:
+        # id documents
+        tr_docs = f_tr['sentence'].tolist()
+        # instantiate countvectorizer (turn off default stopwords)
+        cv = CountVectorizer(analyzer='word', stop_words=None)
+        # compute tf
+        f_tr_tf = cv.fit_transform(tr_docs)
+        # id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
+        cuttext = '_was_here_but_got_cut'
+        stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
+        # repeat countvec with full list of stopwords
+        cv = CountVectorizer(analyzer='word', stop_words=stopw)
+        # fit to data, then transform to count matrix
+        f_tr_tf = cv.fit_transform(tr_docs)
+        # fit to count matrix, then transform to tf-idf representation
+        tfidf_transformer = TfidfTransformer()
+        f_tr_tfidf = tfidf_transformer.fit_transform(f_tr_tf)
+        # apply feature extraction to test set (do NOT fit on test data)
+        te_docs = f_te['sentence'].tolist()
+        f_te_tf = cv.transform(te_docs)
+        f_te_tfidf = tfidf_transformer.transform(f_te_tf)
+        # dimensionality reduction with truncated SVD
+        svd_300 = TruncatedSVD(n_components=300, n_iter=5, random_state=9082020)
+        svd_1000 = TruncatedSVD(n_components=1000, n_iter=5, random_state=9082020)
+        # fit to training data & transform
+        f_tr_svd300 = pd.DataFrame(svd_300.fit_transform(f_tr_tfidf))
+        f_tr_svd1000 = pd.DataFrame(svd_1000.fit_transform(f_tr_tfidf))
+        # transform test data (do NOT fit on test data)
+        f_te_svd300 = pd.DataFrame(svd_300.transform(f_te_tfidf))
+        f_te_svd1000 = pd.DataFrame(svd_1000.transform(f_te_tfidf))
+        ## Output for r
+        f_tr.to_csv(f"{trtedatadir}r{r + 1}_f{f + 1}_tr_df.csv")
+        f_te.to_csv(f"{trtedatadir}r{r + 1}_f{f + 1}_te_df.csv")
+        f_tr_cw.to_csv(f"{trtedatadir}r{r + 1}_f{f + 1}_tr_cw.csv")
+        embeddings_tr.to_csv(
+            f"{embeddingsdir}r{r + 1}_f{f + 1}_tr_embed_min_max_mean_SENT.csv")
+        embeddings_te.to_csv(
+            f"{embeddingsdir}r{r + 1}_f{f + 1}_te_embed_min_max_mean_SENT.csv")
+        f_tr_svd300.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_tr_svd300.csv")
+        f_tr_svd1000.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_tr_svd1000.csv")
+        f_te_svd300.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_te_svd300.csv")
+        f_te_svd1000.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_te_svd1000.csv")
