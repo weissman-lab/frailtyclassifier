@@ -109,7 +109,7 @@ df2 = pd.concat([y_dums, df2], axis=1)
 # label each sentence using heirachical rule:
 # Positive label if any token is positive
 # Negative label if there are no positive tokens and any token is negative
-df2_label = df2.groupby('sentence_id', as_index=False).agg(
+df2_label = df2.groupby('sentence_id', as_index=True).agg(
     note=('note', 'first'),
     sentence=('token', lambda x: ' '.join(x.astype(str))),  # sentence tokens
     n_tokens=('token', 'count'),
@@ -122,6 +122,9 @@ df2_label = df2.groupby('sentence_id', as_index=False).agg(
     any_Fall_risk_neg=('Fall_risk_-1', max),
     Fall_risk_pos=('Fall_risk_1', max),
 )
+#on azure, I need to set the group as the index, then reset it (elsewhere, I
+#can set 'as_index=False' and pandas will retain the group)
+df2_label = df2_label.reset_index()
 # add negative & neutral label using heirarchical rule
 for n in out_varnames:
     df2_label[f"{n}_neg"] = np.where(
@@ -133,7 +136,7 @@ for n in out_varnames:
 df2_label = df2_label.loc[:, ~df2_label.columns.str.startswith('any_')].copy()
 
 # restrict to 10 notes that each contain all classes of all frailty aspects
-note_labels = df2_label.groupby('note', as_index=False).agg(
+note_labels = df2_label.groupby('note', as_index=True).agg(
     Msk_prob_pos=('Msk_prob_pos', max),
     Msk_prob_neg=('Msk_prob_neg', max),
     Msk_prob_neut=('Msk_prob_neut', max),
@@ -147,6 +150,8 @@ note_labels = df2_label.groupby('note', as_index=False).agg(
     Fall_risk_neg=('Fall_risk_neg', max),
     Fall_risk_neut=('Fall_risk_neut', max),
 )
+#need to set then reset index, same as above
+note_labels = note_labels.reset_index()
 note_labels['colsum'] = note_labels.iloc[:, 1:len(note_labels.columns)].sum(axis=1)
 #restrict test notes to the firts 10 that have at least 1 of each tag
 test_notes = list(note_labels[note_labels.colsum > 11].note[0:10])
@@ -188,7 +193,7 @@ embeddings2 = embeddings.loc[:,
 str_lab = df2.loc[:, ~df2.columns.str.startswith('identity') &
                      ~df2.columns.str.startswith('note')].copy()
 # get one row of structured data for each sentence
-str_lab = str_lab.groupby('sentence_id', as_index=False).first()
+str_lab = str_lab.groupby('sentence_id', as_index=True).first().reset_index()
 #check that sentence_ids match
 assert sum(str_lab.sentence_id == df2_label.sentence_id) == len(
     str_lab), 'sentence_ids do not match'
