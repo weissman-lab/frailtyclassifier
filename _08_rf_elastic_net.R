@@ -6,7 +6,6 @@ library(dplyr)
 library(tidyr)
 library(foreach)
 library(doParallel)
-library(abind)
 library(ranger)
 library(rbenchmark)
 registerDoParallel(detectCores())
@@ -22,7 +21,7 @@ if (length(exp)==0) {
 #set directories based on location
 dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_TEST/',
          '/media/drv2/andrewcd2/frailty/output/lin_trees_TEST/',
-         '/share/gwlab/frailty/lin_trees_TEST/')
+         '/share/gwlab/frailty/output/lin_trees_TEST/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     datadir = dirs[d]
