@@ -98,7 +98,7 @@ for s in range(df2.shape[0]):
     sentence.append(sent)
 df2['sentence_id'] = sentence
 # rename the note-specific sentence label
-df2.rename(columns={'sentence':'note_sentence'}, inplace=True)
+df2.rename(columns={'sentence': 'sentence_in_note'}, inplace=True)
 
 # dummies for labels
 out_varnames = df2.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
