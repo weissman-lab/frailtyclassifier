@@ -61,13 +61,13 @@ inc_struc = TRUE
 repeats <- seq(1, 3)
 for (p in 1:length(repeats)) {
   
-  #load data in parallel
+  #load data in parallel (drop index)
   folds <- seq(1, 10)
   for (d in 1:length(folds)) {
     assign(paste0('r', repeats[p], '_f', folds[d], '_tr'),
-           fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv')))
+           fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv'), drop = 1))
     assign(paste0('r', repeats[p], '_f', folds[d], '_te'),
-           fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_te_df.csv')))
+           fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_te_df.csv'), drop = 1))
   }
   svd <- c('embed', '300', '1000')
   for (s in 1:length(svd)) {
@@ -79,11 +79,11 @@ for (p in 1:length(repeats)) {
         if (identical(distinct(get(paste0('r', repeats[p], '_f', folds[d], '_tr')), note)$note, distinct(embeddings_tr, note)$note) == FALSE) stop("embeddings do not match training data")
         #embeddings with or without structured data
         if (inc_struc == FALSE) {
-          #drop 'note' column
-          embeddings_tr <- data.matrix(embeddings_tr[, -1])
+          #drop 'note' and 'sentence_id' column
+          embeddings_tr <- data.matrix(embeddings_tr[, -c('sentence_id', 'note')])
         } else {
-          #drop 'note' column & concatenate embeddings with structured data
-          embeddings_tr <- data.matrix(cbind(embeddings_tr[, -1], get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[,27:82]))
+          #drop 'note' and 'sentence_id' column & concatenate embeddings with structured data
+          embeddings_tr <- data.matrix(cbind(embeddings_tr[, -c('sentence_id', 'note')], get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[,27:82]))
         }
         return(embeddings_tr)
       }
@@ -94,11 +94,11 @@ for (p in 1:length(repeats)) {
         if (identical(distinct(get(paste0('r', repeats[p], '_f', folds[d], '_te')), note)$note, distinct(embeddings_te, note)$note) == FALSE) stop("embeddings do not match test data")
         #embeddings with or without structured data
         if (inc_struc == FALSE) {
-          #drop 'note' column
-          embeddings_te <- data.matrix(embeddings_te[, -1])
+          #drop 'note' and 'sentence_id' column
+          embeddings_te <- data.matrix(embeddings_te[, -c('sentence_id', 'note')])
         } else {
-          #drop 'note' column & concatenate embeddings with structured data
-          embeddings_te <- data.matrix(cbind(embeddings_te[, -1], get(paste0('r', repeats[p], '_f', folds[d], '_te'))[,27:82]))
+          #drop 'note' and 'sentence_id' column & concatenate embeddings with structured data
+          embeddings_te <- data.matrix(cbind(embeddings_te[, -c('sentence_id', 'note')], get(paste0('r', repeats[p], '_f', folds[d], '_te'))[,27:82]))
         }
         return(embeddings_te)
       }
