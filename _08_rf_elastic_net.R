@@ -77,7 +77,7 @@ repeats <- 1
 for (p in 1:length(repeats)) {
   
   #load data in parallel
-  folds <- seq(1, 10)
+  folds <- 1
   for (d in 1:length(folds)) {
     assign(paste0('r', repeats[p], '_f', folds[d], '_tr'),
            fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv')))
