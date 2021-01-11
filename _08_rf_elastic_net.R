@@ -172,7 +172,7 @@ for (p in 1:length(repeats)) {
   #model grid 1
   mg1 <- expand_grid(
     fold = 1,
-    svd = svd[s],
+    svd = c('embed', '300', '1000'),
     frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
     alpha = c(0.9, 0.5, 0.1),
   )
@@ -183,7 +183,7 @@ for (p in 1:length(repeats)) {
   # #model grid 1
   # mg1 <- expand_grid(
   #   fold = seq(1,10),
-  #   svd = svd[s],
+  #   svd = c('embed', '300', '1000'),
   #   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
   #   alpha = c(0.9, 0.5),
   # )
