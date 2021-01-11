@@ -19,9 +19,9 @@ if (length(exp)==0) {
 }
 
 #set directories based on location
-dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_TEST/',
-         '/media/drv2/andrewcd2/frailty/output/lin_trees_TEST/',
-         '/share/gwlab/frailty/output/lin_trees_TEST/')
+dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_SENT/',
+         '/media/drv2/andrewcd2/frailty/output/lin_trees_SENT/',
+         '/share/gwlab/frailty/output/lin_trees_SENT/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     datadir = dirs[d]
@@ -56,6 +56,7 @@ seed = 92120
 #Include structured data?
 inc_struc = TRUE
 
+#listing features (to prevent accidentally including a label)
 x_vars <- c("length", "n_encs", "n_ed_visits", "n_admissions", 
             "days_hospitalized", "mean_sys_bp", "mean_dia_bp", "sd_sys_bp", 
             "sd_dia_bp", "bmi_mean", "bmi_slope", "max_o2", "spo2_worst", "TSH", 
@@ -72,7 +73,7 @@ x_vars <- c("length", "n_encs", "n_ed_visits", "n_admissions",
             'MV_EMPY_STAT', 'MV_RACE', 'MV_LANGUAGE')
   
 #repeated k-fold cross validation
-repeats <- seq(1, 3)
+repeats <- 1
 for (p in 1:length(repeats)) {
   
   #load data in parallel
@@ -168,28 +169,29 @@ for (p in 1:length(repeats)) {
   #run glmnet grid separately for each svd/embedding type to reduce memory use
   svd <- c('embed', '300', '1000')
   for (s in 1:length(svd)){
-    # hyperparameter grid for experiments
+    
+    #hyperparameter grid for experiments
+    #set sequence of lambda values to test
+    lambda_seq <- c(10^seq(2, -5, length.out = 25))
+    #model grid 1
+    mg1 <- expand_grid(
+      fold = 1,
+      svd = svd[s],
+      frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+      alpha = c(0.9, 0.5, 0.1),
+    )
+    
+    # # small test grid
     # #set sequence of lambda values to test
-    # lambda_seq <- c(10^seq(2, -5, length.out = 25))
-    # 
+    # lambda_seq <- signif(c(10^seq(-2, -3, length.out = 3)), 4)
     # #model grid 1
     # mg1 <- expand_grid(
     #   fold = seq(1,10),
     #   svd = svd[s],
     #   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-    #   alpha = c(0.9, 0.5, 0.1),
+    #   alpha = c(0.9, 0.5),
     # )
     
-    # small test grid
-    #set sequence of lambda values to test
-    lambda_seq <- signif(c(10^seq(-2, -3, length.out = 3)), 4)
-    #model grid 1
-    mg1 <- expand_grid(
-      fold = seq(1,10),
-      svd = svd[s],
-      frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-      alpha = c(0.9, 0.5),
-    )
     #label alpha (for naming .csv files)
     mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
                                       ifelse(alpha == 0.5, 5,
@@ -340,24 +342,24 @@ for (p in 1:length(repeats)) {
   dir.create(rf_predsdir)
   
   #experiment grid
-  # mg <- expand_grid(
-  #   fold = seq(1,10),
-  #   svd = c('embed', '300', '1000'),
-  #   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-  #   ntree       = 400,
-  #   mtry        = signif(seq(7, 45, length.out = 3), 2),
-  #   sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
-  # )
+  mg3 <- expand_grid(
+    fold = 1,
+    svd = c('embed', '300', '1000'),
+    frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+    ntree       = 400,
+    mtry        = signif(seq(7, 45, length.out = 3), 2),
+    sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
+  )
   
   #small test grid
-  mg3 <- expand_grid(
-    fold = seq(1,10),
-    svd = c('embed', '300'),
-    frail_lab = c('Fall_risk', 'Nutrition'),
-    ntree       = 400,
-    mtry        = signif(seq(7, 45, length.out = 2), 2),
-    sample_frac = signif(seq(0.6, 1, length.out = 2), 1)
-  )
+  # mg3 <- expand_grid(
+  #   fold = seq(1,10),
+  #   svd = c('embed', '300'),
+  #   frail_lab = c('Fall_risk', 'Nutrition'),
+  #   ntree       = 400,
+  #   mtry        = signif(seq(7, 45, length.out = 2), 2),
+  #   sample_frac = signif(seq(0.6, 1, length.out = 2), 1)
+  # )
   
   #label sample fraction (for naming .csv files)
   mg3 <- mutate(mg3, sample_frac_l = ifelse(sample_frac == 0.6, 6,
