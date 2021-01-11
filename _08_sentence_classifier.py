@@ -78,7 +78,7 @@ df = pd.concat(
      notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
 # reset the index
-df2 = df.reset_index()
+df2 = df.reset_index(drop=True)
 
 # set seed
 seed = 111120
@@ -129,7 +129,7 @@ df2_label = df2.groupby('sentence_id', as_index=True).agg(
 )
 # need to set the group as the index, then reset it (unclear why this is not
 # equivalent to 'as_index=False')
-df2_label = df2_label.reset_index()
+df2_label = df2_label.reset_index(drop=False)
 # add negative & neutral label using heirarchical rule
 for n in out_varnames:
     df2_label[f"{n}_neg"] = np.where(
@@ -169,7 +169,7 @@ embeddings2 = embeddings.loc[:,
 str_lab = df2.loc[:, ~df2.columns.str.startswith('identity') &
                      ~df2.columns.str.startswith('note')].copy()
 # get one row of structured data for each sentence
-str_lab = str_lab.groupby('sentence_id', as_index=True).first().reset_index()
+str_lab = str_lab.groupby('sentence_id', as_index=True).first().reset_index(drop=False)
 #check that sentence_ids match
 assert sum(str_lab.sentence_id == df2_label.sentence_id) == len(
     str_lab), 'sentence_ids do not match'

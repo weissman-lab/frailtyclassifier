@@ -56,18 +56,32 @@ seed = 92120
 #Include structured data?
 inc_struc = TRUE
 
-
+x_vars <- c("length", "n_encs", "n_ed_visits", "n_admissions", 
+            "days_hospitalized", "mean_sys_bp", "mean_dia_bp", "sd_sys_bp", 
+            "sd_dia_bp", "bmi_mean", "bmi_slope", "max_o2", "spo2_worst", "TSH", 
+            "sd_TSH", "n_TSH", 'n_unique_meds', 'elixhauser', 'n_comorb', 'AGE',
+            'SEXFemale', 'SEXMale', 'MARITAL_STATUSMarried', 'MARITAL_STATUSOther',
+            'MARITAL_STATUSSingle', 'MARITAL_STATUSWidowed', 'EMPY_STATFull.Time',
+            'EMPY_STATNot.Employed', 'EMPY_STATOther', 'EMPY_STATPart.Time', 
+            'EMPY_STATRetired', 'RACEOther', 'RACEWhite', 'LANGUAGEOther', 
+            'LANGUAGESpanish', 'MV_n_encs', 'MV_n_ed_visits', 'MV_n_admissions', 
+            'MV_days_hospitalized', 'MV_mean_sys_bp', 'MV_mean_dia_bp', 
+            'MV_sd_sys_bp', 'MV_sd_dia_bp', 'MV_bmi_mean', 'MV_bmi_slope', 
+            'MV_max_o2', 'MV_spo2_worst', 'MV_TSH', 'MV_sd_TSH', 'MV_n_TSH', 
+            'MV_n_unique_meds', 'MV_AGE', 'MV_SEX', 'MV_MARITAL_STATUS', 
+            'MV_EMPY_STAT', 'MV_RACE', 'MV_LANGUAGE')
+  
 #repeated k-fold cross validation
 repeats <- seq(1, 3)
 for (p in 1:length(repeats)) {
   
-  #load data in parallel (drop index)
+  #load data in parallel
   folds <- seq(1, 10)
   for (d in 1:length(folds)) {
     assign(paste0('r', repeats[p], '_f', folds[d], '_tr'),
-           fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv'), drop = 1))
+           fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv')))
     assign(paste0('r', repeats[p], '_f', folds[d], '_te'),
-           fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_te_df.csv'), drop = 1))
+           fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_te_df.csv')))
   }
   svd <- c('embed', '300', '1000')
   for (s in 1:length(svd)) {
@@ -83,7 +97,7 @@ for (p in 1:length(repeats)) {
           embeddings_tr <- data.matrix(embeddings_tr[, -c('sentence_id', 'note')])
         } else {
           #drop 'note' and 'sentence_id' column & concatenate embeddings with structured data
-          embeddings_tr <- data.matrix(cbind(embeddings_tr[, -c('sentence_id', 'note')], get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[,27:82]))
+          embeddings_tr <- data.matrix(cbind(embeddings_tr[, -c('sentence_id', 'note')], get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[, ..x_vars]))
         }
         return(embeddings_tr)
       }
@@ -98,7 +112,7 @@ for (p in 1:length(repeats)) {
           embeddings_te <- data.matrix(embeddings_te[, -c('sentence_id', 'note')])
         } else {
           #drop 'note' and 'sentence_id' column & concatenate embeddings with structured data
-          embeddings_te <- data.matrix(cbind(embeddings_te[, -c('sentence_id', 'note')], get(paste0('r', repeats[p], '_f', folds[d], '_te'))[,27:82]))
+          embeddings_te <- data.matrix(cbind(embeddings_te[, -c('sentence_id', 'note')], get(paste0('r', repeats[p], '_f', folds[d], '_te'))[, ..x_vars]))
         }
         return(embeddings_te)
       }
@@ -110,7 +124,7 @@ for (p in 1:length(repeats)) {
             x_train <- data.matrix(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1))
           } else {
             #concatenate svd with structured data
-            x_train <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[,27:82]))
+            x_train <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[, ..x_vars]))
           }
           #test that svd row length matches training/test row length
           if ((nrow(x_train) == nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr')))) == FALSE) stop("svd do not match training data")
@@ -125,7 +139,7 @@ for (p in 1:length(repeats)) {
             x_test <- data.matrix(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
           } else {
             #concatenate svd with structured data
-            x_test <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_te'))[,27:82]))
+            x_test <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_te'))[, ..x_vars]))
           }
           #test that svd row length matches training/test row length
           if ((nrow(x_test) == nrow(get(paste0('r', repeats[p], '_f', folds[d], '_te')))) == FALSE) stop("svd do not match training data")

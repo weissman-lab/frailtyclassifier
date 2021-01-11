@@ -72,8 +72,8 @@ df = pd.concat(
     [pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i) for i in
      notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
-# reset the index
-df2 = df.reset_index()
+# reset the index (and drop the old index)
+df2 = df.reset_index(drop=True)
 
 # set seed
 seed = 111120
@@ -124,7 +124,7 @@ df2_label = df2.groupby('sentence_id', as_index=True).agg(
 )
 #on azure, I need to set the group as the index, then reset it (elsewhere, I
 #can set 'as_index=False' and pandas will retain the group)
-df2_label = df2_label.reset_index()
+df2_label = df2_label.reset_index(drop=False)
 # add negative & neutral label using heirarchical rule
 for n in out_varnames:
     df2_label[f"{n}_neg"] = np.where(
@@ -151,7 +151,7 @@ note_labels = df2_label.groupby('note', as_index=True).agg(
     Fall_risk_neut=('Fall_risk_neut', max),
 )
 #need to set then reset index, same as above
-note_labels = note_labels.reset_index()
+note_labels = note_labels.reset_index(drop=False)
 note_labels['colsum'] = note_labels.iloc[:, 1:len(note_labels.columns)].sum(axis=1)
 #restrict test notes to the firts 10 that have at least 1 of each tag
 test_notes = list(note_labels[note_labels.colsum > 11].note[0:10])
@@ -193,7 +193,7 @@ embeddings2 = embeddings.loc[:,
 str_lab = df2.loc[:, ~df2.columns.str.startswith('identity') &
                      ~df2.columns.str.startswith('note')].copy()
 # get one row of structured data for each sentence
-str_lab = str_lab.groupby('sentence_id', as_index=True).first().reset_index()
+str_lab = str_lab.groupby('sentence_id', as_index=True).first().reset_index(drop=False)
 #check that sentence_ids match
 assert sum(str_lab.sentence_id == df2_label.sentence_id) == len(
     str_lab), 'sentence_ids do not match'
