@@ -165,168 +165,163 @@ for (p in 1:length(repeats)) {
     rm(list = paste0('r', repeats[p], '_s_', svd[s], '_x_test'))
   }
   gc()
+    
+  #hyperparameter grid for experiments
+  #set sequence of lambda values to test
+  lambda_seq <- c(10^seq(2, -5, length.out = 25))
+  #model grid 1
+  mg1 <- expand_grid(
+    fold = 1,
+    svd = svd[s],
+    frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+    alpha = c(0.9, 0.5, 0.1),
+  )
   
-  #run glmnet grid separately for each svd/embedding type to reduce memory use
-  svd <- c('embed', '300', '1000')
-  for (s in 1:length(svd)){
-    
-    #hyperparameter grid for experiments
-    #set sequence of lambda values to test
-    lambda_seq <- c(10^seq(2, -5, length.out = 25))
-    #model grid 1
-    mg1 <- expand_grid(
-      fold = 1,
-      svd = svd[s],
-      frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-      alpha = c(0.9, 0.5, 0.1),
-    )
-    
-    # # small test grid
-    # #set sequence of lambda values to test
-    # lambda_seq <- signif(c(10^seq(-2, -3, length.out = 3)), 4)
-    # #model grid 1
-    # mg1 <- expand_grid(
-    #   fold = seq(1,10),
-    #   svd = svd[s],
-    #   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-    #   alpha = c(0.9, 0.5),
-    # )
-    
-    #label alpha (for naming .csv files)
-    mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
-                                      ifelse(alpha == 0.5, 5,
-                                             ifelse(alpha == 0.1, 1, NA))))
-    
-    #check for models that have already been completed & remove them from the grid
-    mg1 <- mg1 %>%
-      mutate(filename = paste0('exp', exp, '_hypergrid_r', repeats[p], '_f', fold, '_', frail_lab, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
-      filter(!filename %in% list.files(enet_modeldir)) %>%
-      select(-'filename')
-    
-    #run glmnet if incomplete
-    if ((nrow(mg1) == 0) == FALSE) {
-      #run for first model grid
-      mg <- mg1
-      foreach (r = 1:nrow(mg), .errorhandling = "remove") %dopar% {
-        #get matching training and test labels
-        x_train <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_s_', mg$svd[r], '_x_train'))
-        x_test <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_s_', mg$svd[r], '_x_test'))
-        y_cols <- c(paste0(mg$frail_lab[r], '_neut'),
-                    paste0(mg$frail_lab[r], '_pos'),
-                    paste0(mg$frail_lab[r], '_neg'))
-        y_train <- data.matrix(get(paste0('r', repeats[p], '_f', mg$fold[r], '_tr'))[, ..y_cols])
-        y_test <- data.matrix(get(paste0('r', repeats[p], '_f', mg$fold[r], '_te'))[, ..y_cols])
-        #measure CPU time for glmnet
-        benchmark <- benchmark("glmnet" = {
-        #train model
-        frail_logit <- glmnet(x_train, 
-                              y_train,
-                              family = 'multinomial',
-                              alpha = mg$alpha[r],
-                              lambda = lambda_seq)
-        }, replications = 1
-        )
-        #save benchmarking
-        fwrite(benchmark, paste0(enet_durationdir, 'exp', exp, '_duration_hyper_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
-        #make predictions on test fold for each alpha
-        alpha_preds <- predict(frail_logit, x_test, type = 'response')
-        #set lambas as dimnames for 3rd dimension
-        dimnames(alpha_preds)[[3]] <- lambda_seq
-        #save predictions
-        preds_s <- list()
-        for (d in 1:dim(alpha_preds)[3]) {
-          preds_save <- as.data.table(alpha_preds[, , d])
-          preds_save$lambda <- dimnames(alpha_preds)[[3]][d]
-          preds_save$sentence_id <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_te'))$sentence_id
-          preds_save$note <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_te'))$note
-          preds_s[[d]] <- preds_save
-        }
-        preds_save <- rbindlist(preds_s)
-        fwrite(preds_save, paste0(enet_predsdir, 'exp', exp, '_preds_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
-        #build hyperparameter grid
-        hyper_grid <- expand.grid(
-          frail_lab = NA,
-          cv_repeat = NA,
-          fold = NA,
-          SVD = NA,
-          lambda = rep(NA, dim(alpha_preds)[3]), #lambdas are in the 3rd dimension of this array
-          alpha = NA,
-          df = NA,
-          bscore_multi = NA,
-          bscore_neut = NA,
-          bscore_pos = NA,
-          bscore_neg = NA,
-          sbrier_multi = NA,
-          sbrier_neut = NA,
-          sbrier_pos = NA,
-          sbrier_neg = NA,
-          PR_AUC_neut = NA,
-          PR_AUC_pos = NA,
-          PR_AUC_neg = NA,
-          ROC_AUC_neut = NA,
-          ROC_AUC_pos = NA,
-          ROC_AUC_neg = NA
-        )
-        for (l in 1:dim(alpha_preds)[3]) {
-          #label each row
-          hyper_grid$frail_lab[l] <- mg$frail_lab[r]
-          hyper_grid$cv_repeat[l] <- repeats[p]
-          hyper_grid$fold[l] <- mg$fold[r]
-          hyper_grid$SVD[l] <- mg$svd[r]
-          hyper_grid$alpha[l] <- mg$alpha[r]
-          #lambda
-          hyper_grid$lambda[l] <- frail_logit$lambda[l]
-          #number of nonzero coefficients (Df)
-          hyper_grid$df[l] <- frail_logit$df[l]
-          #preds for this lambda
-          preds <- alpha_preds[, , l]
-          #single class Brier scores
-          hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 0, 1)
-          hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 0, 1)
-          hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 0, 1)
-          #single class scaled Brier scores
-          hyper_grid$sbrier_neut[l] = BrierScaled(preds[, 1], y_test[, 1], 0, 1)
-          hyper_grid$sbrier_pos[l] = BrierScaled(preds[, 2], y_test[, 2], 0, 1)
-          hyper_grid$sbrier_neg[l] = BrierScaled(preds[, 3], y_test[, 3], 0, 1)
-          #set column names for multiclass.Brier
-          colnames(preds) <- c(1, 2, 3)
-          #get a single categorical outcome variable for multiclass.Brier
-          factr <- y_test %>%
-            as_tibble() %>%
-            mutate(factr = ifelse(.[[1]] == 1, 1,
-                                  ifelse(.[[2]] == 1, 2,
-                                         ifelse(.[[3]] == 1, 3, NA))))
-          obs <- factr$factr
-          #multiclass brier score
-          hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
-          hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
-          #make event rate matrix for multiclass scaled brier
-          er <- matrix(0, nrow=length(obs), ncol=3)
-          er[, 1] <- sum(obs == 1)/length(obs)
-          er[, 2] <- sum(obs == 2)/length(obs)
-          er[, 3] <- sum(obs == 3)/length(obs)
-          colnames(er) = c(1, 2, 3)
-          #multiclass scaled brier score
-          hyper_grid$sbrier_multi[l] <- scaled_brier_score(preds, obs, er)
-          #Precision-recall area under the curve
-          hyper_grid$PR_AUC_neut[l] = pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc.integral
-          hyper_grid$PR_AUC_pos[l] = pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc.integral
-          hyper_grid$PR_AUC_neg[l] = pr.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc.integral
-          #Receiver operating characteristic area under the curve
-          hyper_grid$ROC_AUC_neut[l] = roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc
-          hyper_grid$ROC_AUC_pos[l] = roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc
-          hyper_grid$ROC_AUC_neg[l] = roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc
-        }
-        
-        #save hyper_grid for each glmnet run
-        fwrite(hyper_grid, paste0(enet_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
-        #remove objects & garbage collection
-        rm(x_train, x_test, y_train, y_test, frail_logit, benchmark, alpha_preds, preds_save, preds_s, preds, obs, er, hyper_grid)
-        gc()
+  # # small test grid
+  # #set sequence of lambda values to test
+  # lambda_seq <- signif(c(10^seq(-2, -3, length.out = 3)), 4)
+  # #model grid 1
+  # mg1 <- expand_grid(
+  #   fold = seq(1,10),
+  #   svd = svd[s],
+  #   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+  #   alpha = c(0.9, 0.5),
+  # )
+  
+  #label alpha (for naming .csv files)
+  mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
+                                    ifelse(alpha == 0.5, 5,
+                                           ifelse(alpha == 0.1, 1, NA))))
+  
+  #check for models that have already been completed & remove them from the grid
+  mg1 <- mg1 %>%
+    mutate(filename = paste0('exp', exp, '_hypergrid_r', repeats[p], '_f', fold, '_', frail_lab, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
+    filter(!filename %in% list.files(enet_modeldir)) %>%
+    select(-'filename')
+  
+  #run glmnet if incomplete
+  if ((nrow(mg1) == 0) == FALSE) {
+    #run for first model grid
+    mg <- mg1
+    foreach (r = 1:nrow(mg), .errorhandling = "remove") %dopar% {
+      #get matching training and test labels
+      x_train <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_s_', mg$svd[r], '_x_train'))
+      x_test <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_s_', mg$svd[r], '_x_test'))
+      y_cols <- c(paste0(mg$frail_lab[r], '_neut'),
+                  paste0(mg$frail_lab[r], '_pos'),
+                  paste0(mg$frail_lab[r], '_neg'))
+      y_train <- data.matrix(get(paste0('r', repeats[p], '_f', mg$fold[r], '_tr'))[, ..y_cols])
+      y_test <- data.matrix(get(paste0('r', repeats[p], '_f', mg$fold[r], '_te'))[, ..y_cols])
+      #measure CPU time for glmnet
+      benchmark <- benchmark("glmnet" = {
+      #train model
+      frail_logit <- glmnet(x_train, 
+                            y_train,
+                            family = 'multinomial',
+                            alpha = mg$alpha[r],
+                            lambda = lambda_seq)
+      }, replications = 1
+      )
+      #save benchmarking
+      fwrite(benchmark, paste0(enet_durationdir, 'exp', exp, '_duration_hyper_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
+      #make predictions on test fold for each alpha
+      alpha_preds <- predict(frail_logit, x_test, type = 'response')
+      #set lambas as dimnames for 3rd dimension
+      dimnames(alpha_preds)[[3]] <- lambda_seq
+      #save predictions
+      preds_s <- list()
+      for (d in 1:dim(alpha_preds)[3]) {
+        preds_save <- as.data.table(alpha_preds[, , d])
+        preds_save$lambda <- dimnames(alpha_preds)[[3]][d]
+        preds_save$sentence_id <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_te'))$sentence_id
+        preds_save$note <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_te'))$note
+        preds_s[[d]] <- preds_save
       }
+      preds_save <- rbindlist(preds_s)
+      fwrite(preds_save, paste0(enet_predsdir, 'exp', exp, '_preds_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+      #build hyperparameter grid
+      hyper_grid <- expand.grid(
+        frail_lab = NA,
+        cv_repeat = NA,
+        fold = NA,
+        SVD = NA,
+        lambda = rep(NA, dim(alpha_preds)[3]), #lambdas are in the 3rd dimension of this array
+        alpha = NA,
+        df = NA,
+        bscore_multi = NA,
+        bscore_neut = NA,
+        bscore_pos = NA,
+        bscore_neg = NA,
+        sbrier_multi = NA,
+        sbrier_neut = NA,
+        sbrier_pos = NA,
+        sbrier_neg = NA,
+        PR_AUC_neut = NA,
+        PR_AUC_pos = NA,
+        PR_AUC_neg = NA,
+        ROC_AUC_neut = NA,
+        ROC_AUC_pos = NA,
+        ROC_AUC_neg = NA
+      )
+      for (l in 1:dim(alpha_preds)[3]) {
+        #label each row
+        hyper_grid$frail_lab[l] <- mg$frail_lab[r]
+        hyper_grid$cv_repeat[l] <- repeats[p]
+        hyper_grid$fold[l] <- mg$fold[r]
+        hyper_grid$SVD[l] <- mg$svd[r]
+        hyper_grid$alpha[l] <- mg$alpha[r]
+        #lambda
+        hyper_grid$lambda[l] <- frail_logit$lambda[l]
+        #number of nonzero coefficients (Df)
+        hyper_grid$df[l] <- frail_logit$df[l]
+        #preds for this lambda
+        preds <- alpha_preds[, , l]
+        #single class Brier scores
+        hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 0, 1)
+        hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 0, 1)
+        hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 0, 1)
+        #single class scaled Brier scores
+        hyper_grid$sbrier_neut[l] = BrierScaled(preds[, 1], y_test[, 1], 0, 1)
+        hyper_grid$sbrier_pos[l] = BrierScaled(preds[, 2], y_test[, 2], 0, 1)
+        hyper_grid$sbrier_neg[l] = BrierScaled(preds[, 3], y_test[, 3], 0, 1)
+        #set column names for multiclass.Brier
+        colnames(preds) <- c(1, 2, 3)
+        #get a single categorical outcome variable for multiclass.Brier
+        factr <- y_test %>%
+          as_tibble() %>%
+          mutate(factr = ifelse(.[[1]] == 1, 1,
+                                ifelse(.[[2]] == 1, 2,
+                                       ifelse(.[[3]] == 1, 3, NA))))
+        obs <- factr$factr
+        #multiclass brier score
+        hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
+        hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
+        #make event rate matrix for multiclass scaled brier
+        er <- matrix(0, nrow=length(obs), ncol=3)
+        er[, 1] <- sum(obs == 1)/length(obs)
+        er[, 2] <- sum(obs == 2)/length(obs)
+        er[, 3] <- sum(obs == 3)/length(obs)
+        colnames(er) = c(1, 2, 3)
+        #multiclass scaled brier score
+        hyper_grid$sbrier_multi[l] <- scaled_brier_score(preds, obs, er)
+        #Precision-recall area under the curve
+        hyper_grid$PR_AUC_neut[l] = pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc.integral
+        hyper_grid$PR_AUC_pos[l] = pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc.integral
+        hyper_grid$PR_AUC_neg[l] = pr.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc.integral
+        #Receiver operating characteristic area under the curve
+        hyper_grid$ROC_AUC_neut[l] = roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc
+        hyper_grid$ROC_AUC_pos[l] = roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc
+        hyper_grid$ROC_AUC_neg[l] = roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc
+      }
+      
+      #save hyper_grid for each glmnet run
+      fwrite(hyper_grid, paste0(enet_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+      #remove objects & garbage collection
+      rm(x_train, x_test, y_train, y_test, frail_logit, benchmark, alpha_preds, preds_save, preds_s, preds, obs, er, hyper_grid)
+      gc()
     }
-    gc()
   }
+  gc()
   
   #RANDOM FOREST
   
