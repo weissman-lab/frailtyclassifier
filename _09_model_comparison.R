@@ -1,3 +1,10 @@
+
+
+#
+# Outdated script to process output from _08_rf_elastic_net.R -- now the output 
+# is much more concise and can be easily imported into a notebook
+#
+
 library(data.table)
 library(dplyr)
 library(tidyr)
@@ -120,31 +127,6 @@ rf_mean_loss <- mean_se(rf_loss_wide)
 #save output
 write.csv(rf_mean_loss, paste0(rf_dir, rf_exp, '_mean_loss'))
 
-#find best model for each aspect
-#embeddings
-rf_embed_best <- rf_mean_loss %>%
-  filter(SVD == 'embed') %>%
-  group_by(frail_lab) %>%
-  arrange(desc(mean_sbrier_all)) %>%
-  slice(1) %>%
-  select('model', 'frail_lab', 'SVD', 'mtry', 'sample_frac', grep('sbrier', colnames(rf_mean_loss), value = TRUE))
-#tfidf
-rf_tfidf_best <- rf_mean_loss %>%
-  filter(!SVD == 'embed') %>%
-  group_by(frail_lab) %>%
-  arrange(desc(mean_sbrier_all)) %>%
-  slice(1) %>%
-  select('model', 'frail_lab', 'SVD', 'mtry', 'sample_frac', grep('sbrier', colnames(rf_mean_loss), value = TRUE))
-#plot loss by text featurization strategy
-rf_mean_loss_plot <- rf_mean_loss
-rf_mean_loss_plot$SVD <- factor(rf_mean_loss_plot$SVD, levels = c('300', '1000', '3000', 'embed'))
-ggplot(rf_mean_loss_plot, aes(x = SVD, y = mean_sbrier_all, ymin = (mean_sbrier_all - se_sbrier_all), ymax = (mean_sbrier_all + se_sbrier_all)))+
-  geom_pointrange(stat='identity', position = 'jitter', aes(color = SVD))+
-  scale_color_discrete(name = 'SVD') +
-  labs(title = 'Scaled Brier score by SVD', y = 'Scaled Brier score') +
-  theme(legend.position = 'bottom')
-
-
 
 ######## Summarize elastic net output #########
 #list all output to read
@@ -184,31 +166,8 @@ enet_loss_wide <- pivot_wider(enet_loss_all,
                                names_from = fold, names_prefix = 'fold', 
                               values_from = c(grep("bscore_|sbrier_|cross_entropy_", colnames(enet_loss_all), value=TRUE)))
 enet_mean_loss <- mean_se(enet_loss_wide)
-#find best model for each aspect
-#embeddings
-enet_embed_best <- enet_mean_loss %>%
-  filter(SVD == 'embed') %>%
-  group_by(frail_lab) %>%
-  arrange(desc(mean_sbrier_all)) %>%
-  slice(1) %>%
-  select('model', 'frail_lab', 'SVD', 'alpha', 'lambda', grep('sbrier', colnames(enet_mean_loss), value = TRUE))
-#tfidf
-enet_tfidf_best <- enet_mean_loss %>%
-  filter(!SVD == 'embed') %>%
-  group_by(frail_lab) %>%
-  arrange(desc(mean_sbrier_all)) %>%
-  slice(1) %>%
-  select('model', 'frail_lab', 'SVD', 'alpha', 'lambda', grep('sbrier', colnames(enet_mean_loss), value = TRUE))
-#plot loss by text featurization strategy
-enet_mean_loss_plot <- enet_mean_loss
-enet_mean_loss_plot$SVD <- factor(enet_mean_loss_plot$SVD, levels = c('300', '1000', '3000', 'embed'))
-ggplot(enet_mean_loss_plot, aes(x = SVD, y = mean_sbrier_all, ymin = (mean_sbrier_all - se_sbrier_all), ymax = (mean_sbrier_all + se_sbrier_all)))+
-  geom_pointrange(stat='identity', position = 'jitter', aes(color = SVD))+
-  scale_color_discrete(name = 'SVD') +
-  labs(title = 'Scaled Brier score by SVD', y = 'Scaled Brier score') +
-  theme(legend.position = 'bottom') +
-  ylim(-.01, 0.45)
-
+#save output
+write.csv(enet_mean_loss, paste0(enet_dir, enet_exp, '_mean_loss'))
 
 
 
@@ -293,11 +252,8 @@ rf_embed_loss <- pivot_wider(rf_embed_loss,
                              names_from = fold, names_prefix = 'fold', 
                              values_from = c(scaled_brier_neut, scaled_brier_pos, scaled_brier_neg, scaled_brier_all, cross_entropy_2, cv_brier_neut, cv_brier_pos, cv_brier_neg, cv_brier_all))
 rf_embed_loss <- rf_mean_se(rf_embed_loss)
-#find best model for each aspect
-rf_oldembed_best <- rf_embed_loss %>%
-  group_by(frail_lab) %>%
-  arrange(desc(mean_sbrier_all)) %>%
-  slice(1)
+#save output
+write.csv(rf_embed_loss, paste0(rf_embed, rf_embed_exp, '_mean_loss'))
 
 
 #Elastic net with Old Embeddings
@@ -337,76 +293,8 @@ enet_embed_loss <- pivot_wider(enet_embed_loss,
                                names_from = fold, names_prefix = 'fold', 
                                values_from = c(sbrier_neut, sbrier_pos, sbrier_neg, sbrier_all, cross_entropy_2, bscore_neut, bscore_pos, bscore_neg, bscore_all))
 enet_embed_loss <- glmnet_mean_se(enet_embed_loss)
-#find best model for each aspect
-enet_oldembed_best <- enet_embed_loss %>%
-  group_by(frail_lab) %>%
-  arrange(desc(mean_sbrier_all)) %>%
-  slice(1)
-
-
-
-######## Output ########
-#label old embeddings
-rf_oldembed_best$SVD <- 'Old embeddings'
-rf_oldembed_best$model <- 'rf'
-enet_oldembed_best$SVD <- 'Old embeddings'
-enet_oldembed_best$model <- 'enet'
-#output table of performance for all classes
-tabs <- c('rf_embed_best', 'rf_tfidf_best', 'enet_embed_best', 'enet_tfidf_best', 'rf_oldembed_best', 'enet_oldembed_best')
-bestcols <- c('model', 'text_features', 'frail_lab', 'mean_sbrier_all', 'se_sbrier_all')
-#allocate list of tables
-tab_list <- vector("list", length(tabs))
-#get columns
-bestc <- function(tab){
-  tab2 <- mutate(tab, text_features = ifelse(SVD %in% c('300', '1000', '3000'), 'TF-IDF', 
-                                             ifelse(SVD == 'embed', 'Embeddings', SVD)))
-  x <- tab2[,bestcols]
-}
-#make list of tables
-for (t in 1:length(tabs)){
-  tab_list[[t]] <- bestc(get(tabs[t]))
-}
-
-best <- rbindlist(tab_list)
-best <- pivot_wider(best, id_cols = c('model', 'text_features', 'frail_lab'), names_from = frail_lab, values_from = c('mean_sbrier_all', 'se_sbrier_all'))
-best <- mutate(best,
-               all_mean = signif(rowMeans(best[, grep('mean_sbrier_all', colnames(best), value = TRUE)]), 2),
-               all_se = signif(apply(best[, grep('mean_sbrier_all', colnames(best), value = TRUE)], 1, se), 1))
-best2 <- best %>%
-  mutate(`Fall risk` = paste0(mean_sbrier_all_Fall_risk, ' (', se_sbrier_all_Fall_risk, ')'),
-         Musculoskeletal = paste0(mean_sbrier_all_Msk_prob, ' (', se_sbrier_all_Msk_prob, ')'),
-         Nutrition = paste0(mean_sbrier_all_Nutrition, ' (', se_sbrier_all_Nutrition, ')'),
-         Respiratory = paste0(mean_sbrier_all_Resp_imp, ' (', se_sbrier_all_Resp_imp, ')'),
-         `All aspects` = paste0(all_mean, ' (', all_se, ')'))%>%
-  select(-grep('all_', colnames(best), value = TRUE))
-#write out
-write.xlsx(best2, paste0(outdir, 'best_sbrier.xlsx'))
-
-
-#output table of performance for each class for the best model
-tabs <- c('rf_embed_best', 'rf_tfidf_best', 'enet_embed_best', 'enet_tfidf_best')
-#allocate list of tables
-tab_list <- vector("list", length(tabs))
-#get columns
-cols <- c('model', 'frail_lab', 'text_features', grep('sbrier', colnames(rf_embed_best), value = TRUE))
-bestc <- function(tab){
-  tab2 <- mutate(tab, text_features = ifelse(SVD %in% c('300', '1000', '3000'), 'TF-IDF', 
-                                             ifelse(SVD == 'embed', 'Embeddings', SVD)))
-  x <- tab2[,cols]
-}
-#make list of tables
-for (t in 1:length(tabs)){
-  tab_list[[t]] <- bestc(get(tabs[t]))
-}
-best_class <- rbindlist(tab_list)
-best_class <- best_class %>%
-  group_by(frail_lab) %>% 
-  arrange(desc(mean_sbrier_all)) %>%
-  slice(1) %>%
-  select('model', 'frail_lab', 'text_features', 'mean_sbrier_neut', 'se_sbrier_neut', 'mean_sbrier_all', 'se_sbrier_all', 'mean_sbrier_pos','se_sbrier_pos', 'mean_sbrier_neg', 'se_sbrier_neg')
-#write out
-write.xlsx(best_class, paste0(rf_embed, 'all_classes.xlsx'))
-
+#save output
+write.csv(enet_embed_loss, paste0(enet_embed, enet_embed_exp, '_mean_loss'))
 
 
 
