@@ -8,9 +8,9 @@ setwd(paste0(cwd, "/output"))
 outdir = getwd()
 
 labdf3 <- read.csv('labs_r_start.csv', stringsAsFactors = FALSE)
-
+print('loaded file from R')
 #clean labs
-labdf3 <- 
+labdf4 <- 
   labdf3 %>%
   # convert albumin mg/dl to g/dl & drop values > 10
   mutate(VAL_NUM = ifelse(COMMON_NAME == 'ALBUMIN' & REFERENCE_UNIT == 'mg/dL', VAL_NUM/1000, VAL_NUM)) %>%
@@ -78,5 +78,7 @@ labdf3 <-
   #drop REFERENCE_UNIT because no longer needed
   select(-REFERENCE_UNIT)
 
+print(table(labdf4))
+
 #send back to python script
-write.csv(labdf3, paste0(outdir, "/labs_r_finish.csv"))
+write.csv(labdf4, paste0(outdir, "/labs_r_finish.csv"))

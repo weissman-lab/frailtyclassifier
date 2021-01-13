@@ -73,7 +73,7 @@ def draw_hps(seed):
 
 
 def tensormaker(D, notelist, cols, ws):
-    # take a data frame and a list of notes and a list of columns and a window size and return an array for feeting to tensorflow
+    # take a data frame and a list of notes and a list of columns and a window size and return an array for feeding to tensorflow
     note_arrays = [np.array(D.loc[D.note == i, cols]) for i in notelist]
     notelist = []
     for j in range(len(note_arrays)):
