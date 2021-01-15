@@ -1,5 +1,4 @@
 library(data.table)
-library(measures)
 library(PRROC)
 library(glmnet)
 library(dplyr)
@@ -19,9 +18,9 @@ if (length(exp)==0) {
 }
 
 #set directories based on location
-dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_SENT/',
-         '/media/drv2/andrewcd2/frailty/output/lin_trees_SENT/',
-         '/share/gwlab/frailty/output/lin_trees_SENT/')
+dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_TEST/',
+         '/media/drv2/andrewcd2/frailty/output/lin_trees_TEST/',
+         '/share/gwlab/frailty/output/lin_trees_TEST/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     datadir = dirs[d]
@@ -30,7 +29,6 @@ for (d in 1:length(dirs)) {
 SVDdir <- paste0(datadir, 'svd/') 
 embeddingsdir <- paste0(datadir, 'embeddings/')
 trtedatadir <- paste0(datadir, 'trtedata/')
-
 #new output directory for each experiment:
 outdir <- paste0(datadir, 'exp', exp, '/')
 #directory for performance for each enet model:
@@ -39,6 +37,7 @@ enet_modeldir <- paste0(outdir,'enet_models/')
 enet_durationdir <- paste0(outdir,'enet_durations/')
 #directory for predictions:
 enet_predsdir <- paste0(outdir,'enet_preds/')
+
 #make directories
 dir.create(outdir)
 dir.create(enet_modeldir)
@@ -46,10 +45,33 @@ dir.create(enet_durationdir)
 dir.create(enet_predsdir)
 
 
-#scaled Brier score
-scaled_brier_score <- function(pred, obs, event_rate_matrix) {
-  1 - (multiclass.Brier(pred, obs) / multiclass.Brier(event_rate_matrix, obs))
+# Brier score
+Brier <- function(predictions, observations, positive_class) {
+  obs = as.numeric(observations == positive_class)
+  mean((predictions - obs)^2)
 }
+
+# scaled Brier score
+scaled_Brier <- function(predictions, observations, positive_class) {
+  1 - (Brier(predictions, observations, positive_class) / 
+         Brier(mean(observations), observations, positive_class))
+}
+
+# multiclass Brier score
+multi_Brier <- function(predictions, observations) {
+  mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
+}
+
+# multiclass scaled Brier score
+multi_scaled_Brier <- function(predictions, observations) {
+  event_rate_matrix <- matrix(colMeans(y_test), 
+                              ncol = length(colMeans(y_test)), 
+                              nrow = nrow(observations),
+                              byrow = TRUE)
+  1 - (multi_Brier(predictions, observations) / 
+         multi_Brier(event_rate_matrix, observations))
+}
+
 
 #set seed
 seed = 92120
@@ -168,7 +190,7 @@ for (p in 1:length(repeats)) {
     
   #hyperparameter grid for experiments
   #set sequence of lambda values to test
-  lambda_seq <- c(10^seq(2, -5, length.out = 25))
+  lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
   #model grid 1
   mg1 <- expand_grid(
     fold = 1,
@@ -277,33 +299,17 @@ for (p in 1:length(repeats)) {
         #preds for this lambda
         preds <- alpha_preds[, , l]
         #single class Brier scores
-        hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 0, 1)
-        hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 0, 1)
-        hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 0, 1)
+        hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 1)
+        hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 1)
+        hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 1)
         #single class scaled Brier scores
-        hyper_grid$sbrier_neut[l] = BrierScaled(preds[, 1], y_test[, 1], 0, 1)
-        hyper_grid$sbrier_pos[l] = BrierScaled(preds[, 2], y_test[, 2], 0, 1)
-        hyper_grid$sbrier_neg[l] = BrierScaled(preds[, 3], y_test[, 3], 0, 1)
-        #set column names for multiclass.Brier
-        colnames(preds) <- c(1, 2, 3)
-        #get a single categorical outcome variable for multiclass.Brier
-        factr <- y_test %>%
-          as_tibble() %>%
-          mutate(factr = ifelse(.[[1]] == 1, 1,
-                                ifelse(.[[2]] == 1, 2,
-                                       ifelse(.[[3]] == 1, 3, NA))))
-        obs <- factr$factr
+        hyper_grid$sbrier_neut[l] = scaled_Brier(preds[, 1], y_test[, 1], 1)
+        hyper_grid$sbrier_pos[l] = scaled_Brier(preds[, 2], y_test[, 2], 1)
+        hyper_grid$sbrier_neg[l] = scaled_Brier(preds[, 3], y_test[, 3], 1)
         #multiclass brier score
-        hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
-        hyper_grid$bscore_multi[l] <- multiclass.Brier(preds, obs)
-        #make event rate matrix for multiclass scaled brier
-        er <- matrix(0, nrow=length(obs), ncol=3)
-        er[, 1] <- sum(obs == 1)/length(obs)
-        er[, 2] <- sum(obs == 2)/length(obs)
-        er[, 3] <- sum(obs == 3)/length(obs)
-        colnames(er) = c(1, 2, 3)
+        hyper_grid$bscore_multi[l] <- multi_Brier(preds, y_test)
         #multiclass scaled brier score
-        hyper_grid$sbrier_multi[l] <- scaled_brier_score(preds, obs, er)
+        hyper_grid$sbrier_multi[l] <- multi_scaled_Brier(preds, y_test)
         #Precision-recall area under the curve
         hyper_grid$PR_AUC_neut[l] = pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc.integral
         hyper_grid$PR_AUC_pos[l] = pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc.integral
@@ -423,35 +429,18 @@ for (p in 1:length(repeats)) {
       hyper_grid$mtry <- mg3$mtry[r]
       hyper_grid$sample_frac <- mg3$sample_frac[r]
       hyper_grid$num_indep_vars <- frail_rf$`num.independent.variables`
-  
       #single class Brier scores
-      hyper_grid$bscore_neut <- Brier(preds[, 1], y_test[[1]], 0, 1)
-      hyper_grid$bscore_pos = Brier(preds[, 2], y_test[[2]], 0, 1)
-      hyper_grid$bscore_neg = Brier(preds[, 3], y_test[[3]], 0, 1)
+      hyper_grid$bscore_neut <- Brier(preds[, 1], y_test[[1]], 1)
+      hyper_grid$bscore_pos = Brier(preds[, 2], y_test[[2]], 1)
+      hyper_grid$bscore_neg = Brier(preds[, 3], y_test[[3]], 1)
       #single class scaled Brier scores
-      hyper_grid$sbrier_neut = BrierScaled(preds[, 1], y_test[[1]], 0, 1)
-      hyper_grid$sbrier_pos = BrierScaled(preds[, 2], y_test[[2]], 0, 1)
-      hyper_grid$sbrier_neg = BrierScaled(preds[, 3], y_test[[3]], 0, 1)
-      #set column names for multiclass.Brier
-      colnames(preds) <- c(1, 2, 3)
-      #get a single categorical outcome variable for multiclass.Brier
-      factr <- y_test %>%
-        as_tibble() %>%
-        mutate(factr = ifelse(.[[1]] == 1, 1,
-                              ifelse(.[[2]] == 1, 2,
-                                     ifelse(.[[3]] == 1, 3, NA))))
-      obs <- factr$factr
+      hyper_grid$sbrier_neut = scaled_Brier(preds[, 1], y_test[[1]], 1)
+      hyper_grid$sbrier_pos = scaled_Brier(preds[, 2], y_test[[2]], 1)
+      hyper_grid$sbrier_neg = scaled_Brier(preds[, 3], y_test[[3]], 1)
       #multiclass brier score
-      hyper_grid$bscore_multi <- multiclass.Brier(preds, obs)
-      hyper_grid$bscore_multi <- multiclass.Brier(preds, obs)
-      #make event rate matrix for multiclass scaled brier
-      er <- matrix(0, nrow=length(obs), ncol=3)
-      er[, 1] <- sum(obs == 1)/length(obs)
-      er[, 2] <- sum(obs == 2)/length(obs)
-      er[, 3] <- sum(obs == 3)/length(obs)
-      colnames(er) = c(1, 2, 3)
+      hyper_grid$bscore_multi <- multi_Brier(preds, y_test)
       #multiclass scaled brier score
-      hyper_grid$sbrier_multi <- scaled_brier_score(preds, obs, er)
+      hyper_grid$sbrier_multi <- multi_scaled_Brier(preds, y_test)
       #Precision-recall area under the curve
       hyper_grid$PR_AUC_neut = pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc.integral
       hyper_grid$PR_AUC_pos = pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc.integral
