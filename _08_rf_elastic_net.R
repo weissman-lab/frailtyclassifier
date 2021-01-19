@@ -18,9 +18,9 @@ if (length(exp)==0) {
 }
 
 #set directories based on location
-dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_SENT/',
-         '/media/drv2/andrewcd2/frailty/output/lin_trees_SENT/',
-         '/share/gwlab/frailty/output/lin_trees_SENT/')
+dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_TEST/',
+         '/media/drv2/andrewcd2/frailty/output/lin_trees_TEST/',
+         '/share/gwlab/frailty/output/lin_trees_TEST/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     datadir = dirs[d]
@@ -64,49 +64,37 @@ multi_Brier <- function(predictions, observations) {
 
 # multiclass scaled Brier score
 multi_scaled_Brier <- function(predictions, observations) {
-  event_rate_matrix <- matrix(colMeans(y_test), 
-                              ncol = length(colMeans(y_test)), 
+  event_rate_matrix <- matrix(colMeans(observations), 
+                              ncol = length(colMeans(observations)), 
                               nrow = nrow(observations),
                               byrow = TRUE)
   1 - (multi_Brier(predictions, observations) / 
          multi_Brier(event_rate_matrix, observations))
 }
 
-
 #set seed
 seed = 92120
 #Include structured data?
 inc_struc = TRUE
-
-#listing features (to prevent accidentally including a label)
-x_vars <- c("length", "n_encs", "n_ed_visits", "n_admissions", 
-            "days_hospitalized", "mean_sys_bp", "mean_dia_bp", "sd_sys_bp", 
-            "sd_dia_bp", "bmi_mean", "bmi_slope", "max_o2", "spo2_worst", "TSH", 
-            "sd_TSH", "n_TSH", 'n_unique_meds', 'elixhauser', 'n_comorb', 'AGE',
-            'SEXFemale', 'SEXMale', 'MARITAL_STATUSMarried', 'MARITAL_STATUSOther',
-            'MARITAL_STATUSSingle', 'MARITAL_STATUSWidowed', 'EMPY_STATFull.Time',
-            'EMPY_STATNot.Employed', 'EMPY_STATOther', 'EMPY_STATPart.Time', 
-            'EMPY_STATRetired', 'RACEOther', 'RACEWhite', 'LANGUAGEOther', 
-            'LANGUAGESpanish', 'MV_n_encs', 'MV_n_ed_visits', 'MV_n_admissions', 
-            'MV_days_hospitalized', 'MV_mean_sys_bp', 'MV_mean_dia_bp', 
-            'MV_sd_sys_bp', 'MV_sd_dia_bp', 'MV_bmi_mean', 'MV_bmi_slope', 
-            'MV_max_o2', 'MV_spo2_worst', 'MV_TSH', 'MV_sd_TSH', 'MV_n_TSH', 
-            'MV_n_unique_meds', 'MV_AGE', 'MV_SEX', 'MV_MARITAL_STATUS', 
-            'MV_EMPY_STAT', 'MV_RACE', 'MV_LANGUAGE')
+#repeats & folds
+repeats <- 1
+folds <- 1
+svd <- c('embed', '300', '1000')
   
 #repeated k-fold cross validation
-repeats <- 1
 for (p in 1:length(repeats)) {
-  
   #load data in parallel
-  folds <- 1
   for (d in 1:length(folds)) {
     assign(paste0('r', repeats[p], '_f', folds[d], '_tr'),
            fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv')))
     assign(paste0('r', repeats[p], '_f', folds[d], '_te'),
            fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_te_df.csv')))
   }
-  svd <- c('embed', '300', '1000')
+  #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
+  for (d in 1:length(folds)) {
+    assign(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'), fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_cw.csv')))
+  }
+
   for (s in 1:length(svd)) {
     if (svd[s] == 'embed') {
       train <- foreach (d = 1:length(folds)) %dopar% {
@@ -120,6 +108,7 @@ for (p in 1:length(repeats)) {
           embeddings_tr <- data.matrix(embeddings_tr[, -c('sentence_id', 'note')])
         } else {
           #drop 'note' and 'sentence_id' column & concatenate embeddings with structured data
+          x_vars <- grep('pc_', colnames(get(paste0('r', repeats[p], '_f', folds[d], '_tr'))), value = TRUE)
           embeddings_tr <- data.matrix(cbind(embeddings_tr[, -c('sentence_id', 'note')], get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[, ..x_vars]))
         }
         return(embeddings_tr)
@@ -135,6 +124,7 @@ for (p in 1:length(repeats)) {
           embeddings_te <- data.matrix(embeddings_te[, -c('sentence_id', 'note')])
         } else {
           #drop 'note' and 'sentence_id' column & concatenate embeddings with structured data
+          x_vars <- grep('pc_', colnames(get(paste0('r', repeats[p], '_f', folds[d], '_te'))), value = TRUE)
           embeddings_te <- data.matrix(cbind(embeddings_te[, -c('sentence_id', 'note')], get(paste0('r', repeats[p], '_f', folds[d], '_te'))[, ..x_vars]))
         }
         return(embeddings_te)
@@ -147,6 +137,7 @@ for (p in 1:length(repeats)) {
             x_train <- data.matrix(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1))
           } else {
             #concatenate svd with structured data
+            x_vars <- grep('pc_', colnames(get(paste0('r', repeats[p], '_f', folds[d], '_tr'))), value = TRUE)
             x_train <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[, ..x_vars]))
           }
           #test that svd row length matches training/test row length
@@ -162,6 +153,7 @@ for (p in 1:length(repeats)) {
             x_test <- data.matrix(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
           } else {
             #concatenate svd with structured data
+            x_vars <- grep('pc_', colnames(get(paste0('r', repeats[p], '_f', folds[d], '_te'))), value = TRUE)
             x_test <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_te'))[, ..x_vars]))
           }
           #test that svd row length matches training/test row length
@@ -187,7 +179,7 @@ for (p in 1:length(repeats)) {
     rm(list = paste0('r', repeats[p], '_s_', svd[s], '_x_test'))
   }
   gc()
-    
+  
   #hyperparameter grid for experiments
   #set sequence of lambda values to test
   lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
@@ -197,6 +189,7 @@ for (p in 1:length(repeats)) {
     svd = c('embed', '300', '1000'),
     frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
     alpha = c(0.9, 0.5, 0.1),
+    case_weights = c(TRUE, FALSE)
   )
   
   # # small test grid
@@ -217,7 +210,7 @@ for (p in 1:length(repeats)) {
   
   #check for models that have already been completed & remove them from the grid
   mg1 <- mg1 %>%
-    mutate(filename = paste0('exp', exp, '_hypergrid_r', repeats[p], '_f', fold, '_', frail_lab, '_svd_', svd, '_alpha', alpha_l, '.csv')) %>%
+    mutate(filename = paste0('exp', exp, '_hypergrid_r', repeats[p], '_f', fold, '_', frail_lab, '_svd_', svd, '_alpha', alpha_l, '_cw', as.integer(case_weights), '.csv')) %>%
     filter(!filename %in% list.files(enet_modeldir)) %>%
     select(-'filename')
   
@@ -234,6 +227,12 @@ for (p in 1:length(repeats)) {
                   paste0(mg$frail_lab[r], '_neg'))
       y_train <- data.matrix(get(paste0('r', repeats[p], '_f', mg$fold[r], '_tr'))[, ..y_cols])
       y_test <- data.matrix(get(paste0('r', repeats[p], '_f', mg$fold[r], '_te'))[, ..y_cols])
+      #get matching case weights
+      if (mg$case_weights[r] == FALSE) {
+        cw <- NULL
+      } else {
+        cw <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_tr_cw'))[[paste0(mg$frail_lab[r], '_cw')]]
+      }
       #measure CPU time for glmnet
       benchmark <- benchmark("glmnet" = {
       #train model
@@ -241,11 +240,12 @@ for (p in 1:length(repeats)) {
                             y_train,
                             family = 'multinomial',
                             alpha = mg$alpha[r],
-                            lambda = lambda_seq)
+                            lambda = lambda_seq,
+                            weights = cw)
       }, replications = 1
       )
       #save benchmarking
-      fwrite(benchmark, paste0(enet_durationdir, 'exp', exp, '_duration_hyper_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.txt'))
+      fwrite(benchmark, paste0(enet_durationdir, 'exp', exp, '_duration_hyper_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '_cw', as.integer(mg$case_weights[r]), '.txt'))
       #make predictions on test fold for each alpha
       alpha_preds <- predict(frail_logit, x_test, type = 'response')
       #set lambas as dimnames for 3rd dimension
@@ -260,7 +260,7 @@ for (p in 1:length(repeats)) {
         preds_s[[d]] <- preds_save
       }
       preds_save <- rbindlist(preds_s)
-      fwrite(preds_save, paste0(enet_predsdir, 'exp', exp, '_preds_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+      fwrite(preds_save, paste0(enet_predsdir, 'exp', exp, '_preds_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '_cw', as.integer(mg$case_weights[r]), '.csv'))
       #build hyperparameter grid
       hyper_grid <- expand.grid(
         frail_lab = NA,
@@ -269,6 +269,7 @@ for (p in 1:length(repeats)) {
         SVD = NA,
         lambda = rep(NA, dim(alpha_preds)[3]), #lambdas are in the 3rd dimension of this array
         alpha = NA,
+        case_weights = NA,
         df = NA,
         bscore_multi = NA,
         bscore_neut = NA,
@@ -292,6 +293,7 @@ for (p in 1:length(repeats)) {
         hyper_grid$fold[l] <- mg$fold[r]
         hyper_grid$SVD[l] <- mg$svd[r]
         hyper_grid$alpha[l] <- mg$alpha[r]
+        hyper_grid$case_weights[l] <- mg$case_weights[r]
         #lambda
         hyper_grid$lambda[l] <- frail_logit$lambda[l]
         #number of nonzero coefficients (Df)
@@ -321,9 +323,9 @@ for (p in 1:length(repeats)) {
       }
       
       #save hyper_grid for each glmnet run
-      fwrite(hyper_grid, paste0(enet_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '.csv'))
+      fwrite(hyper_grid, paste0(enet_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '_cw', as.integer(mg$case_weights[r]), '.csv'))
       #remove objects & garbage collection
-      rm(x_train, x_test, y_train, y_test, frail_logit, benchmark, alpha_preds, preds_save, preds_s, preds, obs, er, hyper_grid)
+      rm(x_train, x_test, y_train, y_test, frail_logit, benchmark, alpha_preds, preds_save, preds_s, preds, hyper_grid)
       gc()
     }
   }
@@ -349,7 +351,8 @@ for (p in 1:length(repeats)) {
     frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
     ntree       = 400,
     mtry        = signif(seq(7, 45, length.out = 3), 2),
-    sample_frac = signif(seq(0.6, 1, length.out = 3), 1)
+    sample_frac = signif(seq(0.6, 1, length.out = 3), 1),
+    case_weights = c(TRUE, FALSE)
   )
   
   #small test grid
@@ -368,17 +371,11 @@ for (p in 1:length(repeats)) {
                                                  ifelse(sample_frac == 1.0, 10, NA))))
   #check for models that have already been completed & remove them from the grid
   mg3 <- mg3 %>%
-    mutate(filename = paste0('exp', exp, '_hypergrid_r', repeats[p], '_f', fold, '_', frail_lab, '_svd_', svd, '_mtry', mtry, '_sfrac', sample_frac_l, '.csv')) %>%
+    mutate(filename = paste0('exp', exp, '_hypergrid_r', repeats[p], '_f', fold, '_', frail_lab, '_svd_', svd, '_mtry', mtry, '_sfrac', sample_frac_l, '_cw_',  as.integer(case_weights), '.csv')) %>%
     filter(!filename %in% list.files(rf_modeldir)) %>%
     select(-'filename')
   
-  #load caseweights (weight non-neutral tokens by the inverse of their prevalence)
-  #e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
-  folds <- seq(1, 10)
-  for (d in 1:length(folds)) {
-    assign(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'), fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_cw.csv')))
-  }
-  #run glmnet if incomplete
+  #run rf if incomplete
   if ((nrow(mg3) == 0) == FALSE) {
     for (r in 1:nrow(mg3)){
       #get matching training and test labels
@@ -394,8 +391,12 @@ for (p in 1:length(repeats)) {
                                      ifelse(.[[3]] == 1, 3, NA))))
       y_train_factor <- y_train$factr
       y_test <- get(paste0('r', repeats[p], '_f', mg3$fold[r], '_te'))[, ..y_cols]
-      #get matching caseweights
-      cw <- get(paste0('r', repeats[p], '_f', mg3$fold[r], '_tr_cw'))[[paste0(mg3$frail_lab[r], '_cw')]]
+      #get matching case weights
+      if (mg3$case_weights[r] == FALSE) {
+        cw <- NULL
+      } else {
+        cw <- get(paste0('r', repeats[p], '_f', mg3$fold[r], '_tr_cw'))[[paste0(mg3$frail_lab[r], '_cw')]]
+      }
       #measure CPU time for rf
       benchmark <- benchmark("rf" = {
         frail_rf <- ranger(y = y_train_factor,
@@ -411,7 +412,7 @@ for (p in 1:length(repeats)) {
       }, replications = 1
       )
       #save benchmarking
-      fwrite(benchmark, paste0(rf_durationdir, 'exp', exp, '_duration_hyper_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '.csv'))
+      fwrite(benchmark, paste0(rf_durationdir, 'exp', exp, '_duration_hyper_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
       #make predictions on test fold
       preds <- predict(frail_rf, data=x_test)$predictions
       colnames(preds) <- y_cols
@@ -419,7 +420,7 @@ for (p in 1:length(repeats)) {
       preds_save$sentence_id <- get(paste0('r', repeats[p], '_f', mg3$fold[r], '_te'))$sentence_id
       preds_save$note <- get(paste0('r', repeats[p], '_f', mg3$fold[r], '_te'))$note
       #save predictions
-      fwrite(as.data.table(preds_save), paste0(rf_predsdir, 'exp', exp, '_preds_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '.csv'))
+      fwrite(as.data.table(preds_save), paste0(rf_predsdir, 'exp', exp, '_preds_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
   
       #label each row
       hyper_grid <- data.frame(frail_lab = mg3$frail_lab[r])
@@ -428,6 +429,7 @@ for (p in 1:length(repeats)) {
       hyper_grid$SVD <- mg3$svd[r]
       hyper_grid$mtry <- mg3$mtry[r]
       hyper_grid$sample_frac <- mg3$sample_frac[r]
+      hyper_grid$case_weights <- mg3$case_weights[r]
       hyper_grid$num_indep_vars <- frail_rf$`num.independent.variables`
       #single class Brier scores
       hyper_grid$bscore_neut <- Brier(preds[, 1], y_test[[1]], 1)
@@ -450,7 +452,7 @@ for (p in 1:length(repeats)) {
       hyper_grid$ROC_AUC_pos = roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc
       hyper_grid$ROC_AUC_neg = roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc
       #save hyper_grid for each rf run
-      fwrite(hyper_grid, paste0(rf_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '.csv'))
+      fwrite(hyper_grid, paste0(rf_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
       gc()
     }
   }
