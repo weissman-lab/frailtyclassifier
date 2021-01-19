@@ -17,7 +17,9 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import TruncatedSVD, PCA
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfTransformer
+
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -105,8 +107,7 @@ str_varnames = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
  'SEXFemale', 'SEXMale', 'MARITAL_STATUSMarried', 'MARITAL_STATUSOther',
  'MARITAL_STATUSSingle', 'MARITAL_STATUSWidowed', 'EMPY_STATFull.Time',
  'EMPY_STATNot.Employed', 'EMPY_STATOther', 'EMPY_STATPart.Time',
- 'EMPY_STATRetired', 'RACEOther', 'RACEWhite', 'LANGUAGEOther',
- 'LANGUAGESpanish', 'MV_n_encs', 'MV_n_ed_visits', 'MV_n_admissions',
+ 'EMPY_STATRetired', 'MV_n_encs', 'MV_n_ed_visits', 'MV_n_admissions',
  'MV_days_hospitalized', 'MV_mean_sys_bp', 'MV_mean_dia_bp', 'MV_sd_sys_bp',
  'MV_sd_dia_bp', 'MV_bmi_mean', 'MV_bmi_slope', 'MV_max_o2', 'MV_spo2_worst',
  'MV_ALBUMIN', 'MV_ALKALINE_PHOSPHATASE', 'MV_AST', 'MV_BILIRUBIN', 'MV_BUN',
@@ -128,7 +129,7 @@ str_varnames = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
  'MV_sd_PT', 'MV_n_PT', 'MV_PHOSPHATE', 'MV_sd_PHOSPHATE', 'MV_n_PHOSPHATE',
  'MV_PTT', 'MV_sd_PTT', 'MV_n_PTT', 'MV_TSH', 'MV_sd_TSH', 'MV_n_TSH',
  'MV_n_unique_meds', 'MV_n_comorb', 'MV_AGE', 'MV_SEX', 'MV_MARITAL_STATUS',
- 'MV_EMPY_STAT', 'MV_RACE', 'MV_LANGUAGE']
+ 'MV_EMPY_STAT']
 embedding_colnames = [i for i in df2.columns if re.match("identity", i)]
 out_varnames = df2.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
 input_dims = len(embedding_colnames) + len(str_varnames)
@@ -240,18 +241,22 @@ for r in range(3):
         # Identify training (k-1) folds and test fold
         f_tr = str_lab[~str_lab.note.isin(fold)].reset_index(drop=True)
         f_te = str_lab[str_lab.note.isin(fold)].reset_index(drop=True)
-        #Fit PCA on structured data and take 95% of variance
+        # Scale structured data
+        scaler = StandardScaler()
+        str_tr = scaler.fit_transform(f_tr[str_varnames])
+        str_te = scaler.transform(f_te[str_varnames])
+        # Fit PCA on structured data and take 95% of variance, then scale again
         pca = PCA(n_components=0.95, svd_solver='full')
-        f_tr_str = pd.DataFrame(pca.fit_transform(f_tr[str_varnames]))
-        f_te_str = pd.DataFrame(pca.transform(f_te[str_varnames]))
-        pca_cols = ['pc_' + str(p) for p in f_tr_str.columns]
-        f_tr_str.columns = pca_cols
-        f_te_str.columns = pca_cols
+        str_tr = pd.DataFrame(scaler.fit_transform(pca.fit_transform(str_tr)))
+        str_te = pd.DataFrame(scaler.transform(pca.transform(str_te)))
+        pca_cols = ['pc_' + str(p) for p in str_tr.columns]
+        str_tr.columns = pca_cols
+        str_te.columns = pca_cols
         #replace structured data with PCA
         f_tr = pd.concat([f_tr[f_tr.columns[~f_tr.columns.isin(str_varnames)]],
-                          f_tr_str], axis=1)
+                          str_tr], axis=1)
         f_te = pd.concat([f_te[f_te.columns[~f_te.columns.isin(str_varnames)]],
-                          f_te_str], axis=1)
+                          str_te], axis=1)
         # get embeddings for fold
         embeddings_tr = embeddings2[~embeddings2.note.isin(fold)].reset_index(drop=True)
         embeddings_te = embeddings2[embeddings2.note.isin(fold)].reset_index(drop=True)
