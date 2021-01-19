@@ -18,9 +18,9 @@ if (length(exp)==0) {
 }
 
 #set directories based on location
-dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_TEST/',
-         '/media/drv2/andrewcd2/frailty/output/lin_trees_TEST/',
-         '/share/gwlab/frailty/output/lin_trees_TEST/')
+dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_SENT/',
+         '/media/drv2/andrewcd2/frailty/output/lin_trees_SENT/',
+         '/share/gwlab/frailty/output/lin_trees_SENT/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     datadir = dirs[d]
@@ -72,14 +72,15 @@ multi_scaled_Brier <- function(predictions, observations) {
          multi_Brier(event_rate_matrix, observations))
 }
 
-#set seed
-seed = 92120
-#Include structured data?
-inc_struc = TRUE
 #repeats & folds
 repeats <- 1
 folds <- 1
+#text features
 svd <- c('embed', '300', '1000')
+#include structured data?
+inc_struc = TRUE
+#set seed
+seed = 92120
   
 #repeated k-fold cross validation
 for (p in 1:length(repeats)) {
