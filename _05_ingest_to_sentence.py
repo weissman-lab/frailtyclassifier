@@ -27,14 +27,12 @@ from _99_project_module import read_txt, read_json, ncol
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-# load scispacy model
-sci_nlp = spacy.load("en_core_sci_md", disable=['tagger', 'ner'])
-# add custom sentence boundary (newline)
-newline = re.compile("\n")
-mwe_period_space = re.compile(r"\._")
-
 
 def set_custom_boundaries(doc):
+    # carriage return is a sentence boundary
+    newline = re.compile("\n")
+    # a period inside a multi-word expressions is a sentence boundary
+    mwe_period_space = re.compile(r"\._")
     for token in doc[:-1]:
         if newline.search(token.text) is not None:
             doc[token.i + 1].is_sent_start = True
@@ -42,25 +40,24 @@ def set_custom_boundaries(doc):
             doc[token.i + 1].is_sent_start = True
     return doc
 
-
-# add custom boundary to nlp pipeline
-sci_nlp.add_pipe(set_custom_boundaries, before="parser",
-             name='set_custom_boundaries')
-
-# stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
-tags = ['Frailty_nos', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
-mapping_dict = dict(frailty_nos_tags="Frailty_nos",
-                    msk_prob_tags="Msk_prob",
-                    nutrition="Nutrition",
-                    resp_imp_tags="Resp_imp",
-                    fall_risk_tags="Fall_risk")
-
-
 #modified 'tokenize_and_label' and 'featurize' to output sentences
 def tokenize_and_label_sent(output_file_path,
                             annotator_of_record="CURATION_USER"):
     webanno_unzipped_dir = re.sub("\.zip", "", output_file_path)
     os.system(f"mkdir {webanno_unzipped_dir}/labels/")
+    # load scispacy model
+    sci_nlp = spacy.load("en_core_sci_md", disable=['tagger', 'ner'])
+    # add custom boundary to nlp pipeline
+    sci_nlp.add_pipe(set_custom_boundaries, before="parser",
+                     name='set_custom_boundaries')
+
+    # stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
+    tags = ['Frailty_nos', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
+    mapping_dict = dict(frailty_nos_tags="Frailty_nos",
+                        msk_prob_tags="Msk_prob",
+                        nutrition="Nutrition",
+                        resp_imp_tags="Resp_imp",
+                        fall_risk_tags="Fall_risk")
     outlist = []
     stubs = [i for i in os.listdir(webanno_unzipped_dir + "/curation") if
              '.txt' in i]  # do this to avoid crufty DS_store files getting in there
@@ -176,18 +173,29 @@ def main():
     zipfile = options.zipfile
     embeddings = options.embeddings
     outdir = options.outdir
+
+    # load raw structured data
+    strdat2 = pd.read_csv('/Users/martijac/Documents/Frailty/frailty_classifier/output/structured_data_merged_cleaned.csv')
+
+
     structured_data_path = options.structured_data_path
     # load stuff first in case anything breaks here
     strdat = pd.read_csv(structured_data_path)
     strdat.drop(columns="Unnamed: 0", inplace=True)
+
+
+
     # embeddings = KeyedVectors.load(embeddings, mmap='r')
     # unzip the raw output
     process_webanno_output(zipfile)
     # tokenize
     dflist = tokenize_and_label_sent(zipfile)
+
     # merge on the structured data
     [i.columns for i in dflist]
     dflist = [i.merge(strdat, how="left") for i in dflist]
+
+
     # embed
     pool = mp.Pool(
         8)  # hard-coding 8 because the embeddings takes a ton of memory

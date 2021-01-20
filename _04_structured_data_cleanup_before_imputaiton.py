@@ -45,7 +45,7 @@ strdat = strdat.merge(mm, how='outer')
 
 rawnotes = pd.read_pickle(f"{datadir}raw_notes_df.pkl")
 demogs = rawnotes[['PAT_ID', 'AGE', 'SEX', 'MARITAL_STATUS', 'RELIGION',
-                   'EMPY_STAT', 'RACE', 'LANGUAGE']]#, 'COUNTY']]
+                   'EMPY_STAT', 'RACE', 'LANGUAGE']].copy() #, 'COUNTY']]
 demogs.AGE = demogs.AGE.astype(float)
 demogs.loc[demogs.MARITAL_STATUS == 'Domestic Partner', 'MARITAL_STATUS'] = 'Partner'
 demogs.loc[demogs.RELIGION == 'Church of Jesus Christ of Latter-day Saints', 'RELIGION'] = 'Mormon'
@@ -56,4 +56,27 @@ demogs['month'] = rawnotes.NOTE_ENTRY_TIME.dt.month + (rawnotes.NOTE_ENTRY_TIME.
 demogs = demogs.drop_duplicates(subset=['PAT_ID', 'month'])
 
 strdat = strdat.merge(demogs, how = 'left', on = ['PAT_ID', 'month'])
-strdat.to_csv(f"{outdir}structured_data_merged_partially_cleaned.csv")
+
+# re-wrote data cleaning from _04_combine_structured_data.R in python
+strdat.loc[strdat.RACE.isin(['Unknown', '']), 'RACE'] = np.nan
+strdat.loc[~strdat.RACE.isin(['White', 'Black']) & strdat.RACE.notnull(), 'RACE'] = "Other"
+strdat.loc[(strdat.AGE > 100) | (strdat.AGE < 18), 'AGE'] = np.nan
+strdat.loc[strdat.SEX == '', 'SEX'] = np.nan
+strdat.loc[strdat.EMPY_STAT.isin(['', 'Unknown']), 'EMPY_STAT'] = np.nan
+strdat.loc[strdat.EMPY_STAT.isin(['Homemaker', 'Self Employed',
+                                 'On Active Military Duty', 'Per Diem',
+                                 'Student - Part Time', 'Student - Full Time']),
+           'EMPY_STAT'] = "Other"
+strdat.loc[strdat.EMPY_STAT == 'Retired Military', 'EMPY_STAT'] = 'Retired'
+strdat.loc[strdat.MARITAL_STATUS == '', 'MARITAL_STATUS'] = np.nan
+strdat.loc[strdat.MARITAL_STATUS == 'Separated', 'MARITAL_STATUS'] = 'Divorced'
+strdat.loc[strdat.MARITAL_STATUS == 'Partner', 'MARITAL_STATUS'] = 'Other'
+strdat.loc[strdat.LANGUAGE == '', 'LANGUAGE'] = np.nan
+
+#convert all missing to np.nan
+strdat = strdat.fillna(value=np.nan)
+
+# I don't understand this one
+# df$X <- df$RELIGION <- NULL
+
+strdat.to_csv(f"{outdir}structured_data_merged_cleaned.csv")

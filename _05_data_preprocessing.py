@@ -5,7 +5,7 @@ Takes the output of _05_ingest_to_sentence.py and does the following:
 3.) For each sentence, get the labels, structured data, and element-wise
  min/max/mean for the embeddings.
 4.) Split the data into 10 folds for cross validation
-5.) For each fold, get the output labels, PCA of structuerd data, caseweights,
+5.) For each fold, get the output labels, PCA of structured data, caseweights,
 embeddings and 300- & 1000-d SVD of tf-idf
 '''
 
@@ -44,7 +44,7 @@ if datadir == dirs[1]:  # grace
     notesdir = f"{os.getcwd()}/output/"
 if datadir == dirs[2]:  # azure
     notesdir = datadir
-outdir = f"{datadir}lin_trees_SENT/"
+outdir = f"{datadir}notes_preprocessed_SENTENCES/"
 SVDdir = f"{outdir}svd/"
 embeddingsdir = f"{outdir}embeddings/"
 trtedatadir = f"{outdir}trtedata/"
@@ -130,9 +130,7 @@ str_varnames = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
  'MV_PTT', 'MV_sd_PTT', 'MV_n_PTT', 'MV_TSH', 'MV_sd_TSH', 'MV_n_TSH',
  'MV_n_unique_meds', 'MV_n_comorb', 'MV_AGE', 'MV_SEX', 'MV_MARITAL_STATUS',
  'MV_EMPY_STAT']
-embedding_colnames = [i for i in df2.columns if re.match("identity", i)]
-out_varnames = df2.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
-input_dims = len(embedding_colnames) + len(str_varnames)
+out_varnames = ['Msk_prob', 'Nutrition', 'Resp_imp', 'Fall_risk']
 
 # set a unique sentence id that does not reset to 0 with each note
 sentence = []
