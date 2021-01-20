@@ -94,7 +94,3 @@ sumstats$impmean <- prettyNum(signif(sumstats$impmean,2))
 sumstats$mean <- prettyNum(signif(sumstats$mean,2))
 write.csv(sumstats, paste0(figdir, "sumstats_imp.csv"))
 
-# what is up with all of the missing encounters?
-df[is.na(df$n_encs),] %>% head
-
-df[df$PAT_ID == "000059949",] %>% dim

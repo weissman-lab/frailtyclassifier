@@ -139,7 +139,8 @@ labdf.to_csv(f"{outdir}/labs_r_start.csv")
 
 
 ## Running R script & reading output
-os.system("Rscript ./_03_pull_structured_data_labs.R &")
+# assert 5 == 6, "This is broken, below.  For some reason, calling R this way doesn't yield the same result as calling R locally"
+# os.system("Rscript ./_03_pull_structured_data_labs.R &")
 
 labdf = pd.read_csv((f"{outdir}/labs_r_finish.csv"),
                  dtype={'PAT_ENC_CSN_ID': object, "PAT_ID": object, "COMMON_NAME": object, "VAL_NUM": np.float64},

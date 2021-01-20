@@ -6,7 +6,7 @@ library(tidyr)
 cwd <- getwd()
 setwd(paste0(cwd, "/output"))
 outdir = getwd()
-
+print(getwd())
 labdf3 <- read.csv('labs_r_start.csv', stringsAsFactors = FALSE)
 print('loaded file from R')
 #clean labs
@@ -78,7 +78,7 @@ labdf4 <-
   #drop REFERENCE_UNIT because no longer needed
   select(-REFERENCE_UNIT)
 
-print(table(labdf4))
+print(table(labdf4$COMMON_NAME))
 
 #send back to python script
 write.csv(labdf4, paste0(outdir, "/labs_r_finish.csv"))
