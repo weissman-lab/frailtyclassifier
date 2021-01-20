@@ -186,7 +186,7 @@ for (p in 1:length(repeats)) {
   lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
   #model grid 1
   mg1 <- expand_grid(
-    fold = 1,
+    fold = folds,
     svd = c('embed', '300', '1000'),
     frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
     alpha = c(0.9, 0.5, 0.1),
@@ -347,7 +347,7 @@ for (p in 1:length(repeats)) {
   
   #experiment grid
   mg3 <- expand_grid(
-    fold = 1,
+    fold = folds,
     svd = c('embed', '300', '1000'),
     frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
     ntree       = 400,
