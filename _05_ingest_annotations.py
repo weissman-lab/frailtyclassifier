@@ -28,16 +28,16 @@ def process_webanno_output(output_file_path):
         cmd = f"unzip -n {output_dir}/curation/{i}/\*.zip -d {output_dir}/curation/{i}/"
         os.system(cmd)
 
-
-nlp = spacy.load("en", disable=['parser', 'tagger', 'ner'])
-
-# stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
-tags = ['Frailty_nos', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
-mapping_dict = dict(frailty_nos_tags="Frailty_nos",
-                    msk_prob_tags="Msk_prob",
-                    nutrition="Nutrition",
-                    resp_imp_tags="Resp_imp",
-                    fall_risk_tags="Fall_risk")
+# removed this from global env (in case it interferes with scispacy library in _05_ingest_to_sentence.py
+# nlp = spacy.load("en", disable=['parser', 'tagger', 'ner'])
+#
+# # stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
+# tags = ['Frailty_nos', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
+# mapping_dict = dict(frailty_nos_tags="Frailty_nos",
+#                     msk_prob_tags="Msk_prob",
+#                     nutrition="Nutrition",
+#                     resp_imp_tags="Resp_imp",
+#                     fall_risk_tags="Fall_risk")
 
 def tokenize_and_label(output_file_path, annotator_of_record = "CURATION_USER"):
     webanno_unzipped_dir = re.sub("\.zip", "", output_file_path)
