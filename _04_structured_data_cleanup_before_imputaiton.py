@@ -72,6 +72,14 @@ strdat.loc[strdat.MARITAL_STATUS == '', 'MARITAL_STATUS'] = np.nan
 strdat.loc[strdat.MARITAL_STATUS == 'Separated', 'MARITAL_STATUS'] = 'Divorced'
 strdat.loc[strdat.MARITAL_STATUS == 'Partner', 'MARITAL_STATUS'] = 'Other'
 strdat.loc[strdat.LANGUAGE == '', 'LANGUAGE'] = np.nan
+#set dtypes
+strdat.SEX = strdat.SEX.astype(str)
+strdat.MARITAL_STATUS = strdat.MARITAL_STATUS.astype(str)
+strdat.RELIGION = strdat.RELIGION.astype(str)
+strdat.EMPY_STAT = strdat.EMPY_STAT.astype(str)
+strdat.RACE = strdat.RACE.astype(str)
+strdat.LANGUAGE = strdat.LANGUAGE.astype(str)
+
 
 #convert all missing to np.nan
 strdat = strdat.fillna(value=np.nan)
