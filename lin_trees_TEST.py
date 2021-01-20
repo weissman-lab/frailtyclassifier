@@ -3,16 +3,18 @@ Same as _08_sentence_classifier.py, except it makes a much smaller data set
 where each fold contains 1 compressed note
 '''
 
+
 import os
 import random
 import re
-import sys
 
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import TruncatedSVD, PCA
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfTransformer
+
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -69,25 +71,63 @@ notes_excluded = [i for i in notes_2018 if
 assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 # get notes_labeled_embedded that match eligible patients only
 df = pd.concat(
-    [pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i) for i in
+    [pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i,
+    dtype={'sent_start': 'boolean', 'token': 'string', 'PAT_ID': 'string'}) for i in
      notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
-# reset the index (and drop the old index)
+# reset the index
 df2 = df.reset_index(drop=True)
 
 # set seed
 seed = 111120
 
 # define some useful constants
-str_varnames = df2.loc[:, "n_encs":'MV_LANGUAGE'].columns.tolist()
+str_varnames = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
+ 'mean_sys_bp', 'mean_dia_bp', 'sd_sys_bp', 'sd_dia_bp', 'bmi_mean',
+ 'bmi_slope', 'max_o2', 'spo2_worst', 'ALBUMIN', 'ALKALINE_PHOSPHATASE', 'AST',
+ 'BILIRUBIN', 'BUN', 'CALCIUM', 'CO2', 'CREATININE', 'HEMATOCRIT', 'HEMOGLOBIN',
+ 'LDL', 'MCHC', 'MCV', 'PLATELETS', 'POTASSIUM', 'PROTEIN', 'RDW', 'SODIUM', 'WBC',
+ 'sd_ALBUMIN', 'sd_ALKALINE_PHOSPHATASE', 'sd_AST', 'sd_BILIRUBIN', 'sd_BUN',
+ 'sd_CALCIUM', 'sd_CO2', 'sd_CREATININE', 'sd_HEMATOCRIT', 'sd_HEMOGLOBIN',
+ 'sd_LDL', 'sd_MCHC', 'sd_MCV', 'sd_PLATELETS', 'sd_POTASSIUM', 'sd_PROTEIN',
+ 'sd_RDW', 'sd_SODIUM', 'sd_WBC', 'n_ALBUMIN', 'n_ALKALINE_PHOSPHATASE',
+ 'n_AST', 'n_BILIRUBIN', 'n_BUN', 'n_CALCIUM', 'n_CO2', 'n_CREATININE',
+ 'n_HEMATOCRIT', 'n_HEMOGLOBIN', 'n_LDL', 'n_MCHC', 'n_MCV', 'n_PLATELETS',
+ 'n_POTASSIUM', 'n_PROTEIN', 'n_RDW', 'n_SODIUM', 'n_WBC', 'FERRITIN', 'IRON',
+ 'MAGNESIUM', 'TRANSFERRIN', 'TRANSFERRIN_SAT', 'sd_FERRITIN', 'sd_IRON',
+ 'sd_MAGNESIUM', 'sd_TRANSFERRIN', 'sd_TRANSFERRIN_SAT', 'n_FERRITIN',
+ 'n_IRON', 'n_MAGNESIUM', 'n_TRANSFERRIN', 'n_TRANSFERRIN_SAT', 'PT', 'sd_PT',
+ 'n_PT', 'PHOSPHATE', 'sd_PHOSPHATE', 'n_PHOSPHATE', 'PTT', 'sd_PTT', 'n_PTT',
+ 'TSH', 'sd_TSH', 'n_TSH', 'n_unique_meds', 'elixhauser', 'n_comorb', 'AGE',
+ 'SEXFemale', 'SEXMale', 'MARITAL_STATUSMarried', 'MARITAL_STATUSOther',
+ 'MARITAL_STATUSSingle', 'MARITAL_STATUSWidowed', 'EMPY_STATFull.Time',
+ 'EMPY_STATNot.Employed', 'EMPY_STATOther', 'EMPY_STATPart.Time',
+ 'EMPY_STATRetired', 'MV_n_encs', 'MV_n_ed_visits', 'MV_n_admissions',
+ 'MV_days_hospitalized', 'MV_mean_sys_bp', 'MV_mean_dia_bp', 'MV_sd_sys_bp',
+ 'MV_sd_dia_bp', 'MV_bmi_mean', 'MV_bmi_slope', 'MV_max_o2', 'MV_spo2_worst',
+ 'MV_ALBUMIN', 'MV_ALKALINE_PHOSPHATASE', 'MV_AST', 'MV_BILIRUBIN', 'MV_BUN',
+ 'MV_CALCIUM', 'MV_CO2', 'MV_CREATININE', 'MV_HEMATOCRIT', 'MV_HEMOGLOBIN',
+ 'MV_LDL', 'MV_MCHC', 'MV_MCV', 'MV_PLATELETS', 'MV_POTASSIUM', 'MV_PROTEIN',
+ 'MV_RDW', 'MV_SODIUM', 'MV_WBC', 'MV_sd_ALBUMIN', 'MV_sd_ALKALINE_PHOSPHATASE',
+ 'MV_sd_AST', 'MV_sd_BILIRUBIN', 'MV_sd_BUN', 'MV_sd_CALCIUM', 'MV_sd_CO2',
+ 'MV_sd_CREATININE', 'MV_sd_HEMATOCRIT', 'MV_sd_HEMOGLOBIN', 'MV_sd_LDL',
+ 'MV_sd_MCHC', 'MV_sd_MCV', 'MV_sd_PLATELETS', 'MV_sd_POTASSIUM',
+ 'MV_sd_PROTEIN', 'MV_sd_RDW', 'MV_sd_SODIUM', 'MV_sd_WBC', 'MV_n_ALBUMIN',
+ 'MV_n_ALKALINE_PHOSPHATASE', 'MV_n_AST', 'MV_n_BILIRUBIN', 'MV_n_BUN',
+ 'MV_n_CALCIUM', 'MV_n_CO2', 'MV_n_CREATININE', 'MV_n_HEMATOCRIT',
+ 'MV_n_HEMOGLOBIN', 'MV_n_LDL', 'MV_n_MCHC', 'MV_n_MCV', 'MV_n_PLATELETS',
+ 'MV_n_POTASSIUM', 'MV_n_PROTEIN', 'MV_n_RDW', 'MV_n_SODIUM', 'MV_n_WBC',
+ 'MV_FERRITIN', 'MV_IRON', 'MV_MAGNESIUM', 'MV_TRANSFERRIN',
+ 'MV_TRANSFERRIN_SAT', 'MV_sd_FERRITIN', 'MV_sd_IRON', 'MV_sd_MAGNESIUM',
+ 'MV_sd_TRANSFERRIN', 'MV_sd_TRANSFERRIN_SAT', 'MV_n_FERRITIN', 'MV_n_IRON',
+ 'MV_n_MAGNESIUM', 'MV_n_TRANSFERRIN', 'MV_n_TRANSFERRIN_SAT', 'MV_PT',
+ 'MV_sd_PT', 'MV_n_PT', 'MV_PHOSPHATE', 'MV_sd_PHOSPHATE', 'MV_n_PHOSPHATE',
+ 'MV_PTT', 'MV_sd_PTT', 'MV_n_PTT', 'MV_TSH', 'MV_sd_TSH', 'MV_n_TSH',
+ 'MV_n_unique_meds', 'MV_n_comorb', 'MV_AGE', 'MV_SEX', 'MV_MARITAL_STATUS',
+ 'MV_EMPY_STAT']
 embedding_colnames = [i for i in df2.columns if re.match("identity", i)]
 out_varnames = df2.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
 input_dims = len(embedding_colnames) + len(str_varnames)
-
-# make dummies for the outcomes
-y_dums = pd.concat(
-    [pd.get_dummies(df2[[i]].astype(str)) for i in out_varnames], axis=1)
-df_dums = pd.concat([y_dums, df2['note']], axis=1)
 
 # set a unique sentence id that does not reset to 0 with each note
 sentence = []
@@ -191,7 +231,12 @@ embeddings2 = embeddings.loc[:,
 # make df of structured data and labels
 # drop embeddings, notes (duplicate column)
 str_lab = df2.loc[:, ~df2.columns.str.startswith('identity') &
-                     ~df2.columns.str.startswith('note')].copy()
+                     ~df2.columns.str.startswith('note') &
+                     ~df2.columns.str.startswith('Frailty_nos') &
+                     ~df2.columns.str.endswith('_0') &
+                     ~df2.columns.str.endswith('_1') &
+                     ~df2.columns.str.endswith('_-1') &
+                     ~df2.columns.isin(out_varnames)].copy()
 # get one row of structured data for each sentence
 str_lab = str_lab.groupby('sentence_id', as_index=True).first().reset_index(drop=False)
 #check that sentence_ids match
@@ -204,26 +249,41 @@ str_lab = pd.concat([str_lab, df2_label.drop(columns=['sentence_id'])], axis=1).
 seed_start = 942020
 # split into 10 folds, each containing different notes
 notes = list(str_lab.note.unique())
-# sort notes before randomly splitting in order to standardize the random split based on the seed
+# sort notes first in order to standardize the random split based on the seed
 notes.sort()
 # Set up repeats
 for r in range(3):
-    #shuffle differently for each repeat
+    # shuffle differently for each repeat
     random.seed(seed_start + r)
     np.random.shuffle(notes)
     # make a list of notes in each of the 10 test folds
     fold_list = np.array_split(notes, 10)
-
     # Set up folds
     for f in range(10):
         # split fold
         fold = list(fold_list[f])
         # Identify training (k-1) folds and test fold
-        f_tr = str_lab[~str_lab.note.isin(fold)]
-        f_te = str_lab[str_lab.note.isin(fold)]
+        f_tr = str_lab[~str_lab.note.isin(fold)].reset_index(drop=True)
+        f_te = str_lab[str_lab.note.isin(fold)].reset_index(drop=True)
+        # Scale structured data
+        scaler = StandardScaler()
+        str_tr = scaler.fit_transform(f_tr[str_varnames])
+        str_te = scaler.transform(f_te[str_varnames])
+        # Fit PCA on structured data and take 95% of variance, then scale again
+        pca = PCA(n_components=0.95, svd_solver='full')
+        str_tr = pd.DataFrame(scaler.fit_transform(pca.fit_transform(str_tr)))
+        str_te = pd.DataFrame(scaler.transform(pca.transform(str_te)))
+        pca_cols = ['pc_' + str(p) for p in str_tr.columns]
+        str_tr.columns = pca_cols
+        str_te.columns = pca_cols
+        #replace structured data with PCA
+        f_tr = pd.concat([f_tr[f_tr.columns[~f_tr.columns.isin(str_varnames)]],
+                          str_tr], axis=1)
+        f_te = pd.concat([f_te[f_te.columns[~f_te.columns.isin(str_varnames)]],
+                          str_te], axis=1)
         # get embeddings for fold
-        embeddings_tr = embeddings2[~embeddings2.note.isin(fold)]
-        embeddings_te = embeddings2[embeddings2.note.isin(fold)]
+        embeddings_tr = embeddings2[~embeddings2.note.isin(fold)].reset_index(drop=True)
+        embeddings_te = embeddings2[embeddings2.note.isin(fold)].reset_index(drop=True)
         # test for matching length
         assert len(f_tr.note) == len(
             embeddings_tr.note), 'notes do not match embeddings'
@@ -231,17 +291,15 @@ for r in range(3):
             embeddings_te.note), 'notes do not match embeddings'
         # get a vector of caseweights for each frailty aspect
         # weight non-neutral tokens by the inverse of their prevalence
-        # e.g. 1.3% of fall_risk tokens are non-neutral. Therefore, non-neutral tokens are weighted * (1/0.013)
         f_tr_cw = {}
         for v in out_varnames:
             non_neutral = np.array(np.sum(
-                str_lab[[i for i in str_lab.columns if (v in i) and
+                f_tr[[i for i in f_tr.columns if (v in i) and
                          (("_pos" in i) or ("_neg" in i))]], axis=1)).astype(
                 'float32')
-            nnweight = 1 / np.mean(non_neutral[~str_lab.note.isin(fold)])
-            caseweights = np.ones(str_lab.shape[0])
-            caseweights[non_neutral.astype(bool)] *= nnweight
-            tr_caseweights = caseweights[~str_lab.note.isin(fold)]
+            nnweight = 1 / np.mean(non_neutral)
+            tr_caseweights = np.ones(f_tr.shape[0])
+            tr_caseweights[non_neutral.astype(bool)] *= nnweight
             f_tr_cw[f'{v}_cw'] = tr_caseweights
         # make cw df
         f_tr_cw = pd.DataFrame(f_tr_cw)
@@ -252,7 +310,8 @@ for r in range(3):
         cv = CountVectorizer(analyzer='word', stop_words=None)
         # compute tf
         f_tr_tf = cv.fit_transform(tr_docs)
-        # id additional stopwords: medlist_was_here_but_got_cut, meds_was_here_but_got_cut, catv2_was_here_but_got_cut
+        # id additional stopwords: medlist_was_here_but_got_cut,
+        # meds_was_here_but_got_cut, catv2_was_here_but_got_cut
         cuttext = '_was_here_but_got_cut'
         stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
         # repeat countvec with full list of stopwords
@@ -275,7 +334,7 @@ for r in range(3):
         # transform test data (do NOT fit on test data)
         f_te_svd300 = pd.DataFrame(svd_300.transform(f_te_tfidf))
         f_te_svd1000 = pd.DataFrame(svd_1000.transform(f_te_tfidf))
-        ## Output for r
+        # Output for r
         f_tr.to_csv(f"{trtedatadir}r{r + 1}_f{f + 1}_tr_df.csv")
         f_te.to_csv(f"{trtedatadir}r{r + 1}_f{f + 1}_te_df.csv")
         f_tr_cw.to_csv(f"{trtedatadir}r{r + 1}_f{f + 1}_tr_cw.csv")

@@ -203,6 +203,13 @@ tenotes = [re.sub("enote_", "", re.sub(".csv", "", i)) for i in tenotes]
 #write out trnotes for window experiment
 pd.DataFrame(trnotes).to_csv(f"{outdir}{exp}_train_notes.csv")
 
+
+
+
+
+
+
+
 # make categorical labels in correct tensor shape
 tr_labels = []
 te_labels = []
