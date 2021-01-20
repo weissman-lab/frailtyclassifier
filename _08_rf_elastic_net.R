@@ -74,7 +74,7 @@ multi_scaled_Brier <- function(predictions, observations) {
 
 #repeats & folds
 repeats <- 1
-folds <- 10
+folds <- seq(2, 10)
 #text features
 svd <- c('embed', '300', '1000')
 #include structured data?
