@@ -37,14 +37,13 @@ conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
 mm = conc_notes_df[['PAT_ID', 'month', 'n_comorb']]
 strdat = strdat.merge(mm, how='outer')
 
+# Including race & language here, but will remove from model features
 rawnotes = pd.read_pickle(f"{datadir}raw_notes_df.pkl")
-demogs = rawnotes[['PAT_ID', 'AGE', 'SEX', 'MARITAL_STATUS', 'RELIGION',
-                   'EMPY_STAT', 'RACE', 'LANGUAGE']].copy()  # , 'COUNTY']]
+demogs = rawnotes[['PAT_ID', 'AGE', 'SEX', 'MARITAL_STATUS', 'EMPY_STAT',
+                   'RACE', 'LANGUAGE']].copy()  # 'RELIGION', 'COUNTY']]
 demogs.AGE = demogs.AGE.astype(float)
 demogs.loc[
     demogs.MARITAL_STATUS == 'Domestic Partner', 'MARITAL_STATUS'] = 'Partner'
-demogs.loc[
-    demogs.RELIGION == 'Church of Jesus Christ of Latter-day Saints', 'RELIGION'] = 'Mormon'
 demogs.loc[~demogs.LANGUAGE.isin(['English', 'Spanish']), 'LANGUAGE'] = 'Other'
 demogs['month'] = rawnotes.NOTE_ENTRY_TIME.dt.month + (
             rawnotes.NOTE_ENTRY_TIME.dt.year - 2018) * 12
@@ -53,8 +52,6 @@ demogs = demogs.drop_duplicates(subset=['PAT_ID', 'month'])
 strdat = strdat.merge(demogs, how='left', on=['PAT_ID', 'month'])
 
 # re-wrote data cleaning from _04_combine_structured_data.R in python
-# I don't understand the first one
-# df$X <- df$RELIGION <- NULL
 strdat.loc[strdat.RACE.isin(['Unknown', '']), 'RACE'] = np.nan
 strdat.loc[~strdat.RACE.isin(
     ['White', 'Black']) & strdat.RACE.notnull(), 'RACE'] = "Other"
@@ -83,7 +80,14 @@ for c in strdat_MV.columns:
 #rename cols
 strdat_MV.columns = ['MV_' + n for n in strdat_MV.columns]
 
-strdat_all = pd.concat([strdat, strdat_MV], axis=1)
+#make dummies for categoricals
+#don't need dums for race & language because they wont be in the model
+dumcols = ['SEX', 'MARITAL_STATUS', 'EMPY_STAT']
+dums = pd.concat(
+    [pd.get_dummies(strdat[[i]]) for i in dumcols], axis=1)
 
-#write csv
+#combine and write out
+strdat_all = pd.concat([strdat.loc[:, ~strdat.columns.isin(dumcols)],
+                        dums,
+                        strdat_MV], axis=1)
 strdat_all.to_csv(f"{outdir}structured_data_merged_cleaned.csv")
