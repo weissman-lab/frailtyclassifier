@@ -1,3 +1,4 @@
+
 '''
 Takes the output of _05_ingest_to_sentence.py and does the following:
 1.) Concatenate notes that are eligible for training/validation
@@ -12,7 +13,7 @@ embeddings and 300- & 1000-d SVD of tf-idf
 import os
 import random
 import re
-
+from configargparse import ArgParser
 import numpy as np
 import pandas as pd
 from sklearn.impute import SimpleImputer
@@ -32,125 +33,244 @@ def sheepish_mkdir(path):
     except FileExistsError:
         pass
 
-# get the correct directories
-dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/",
-        "/media/drv2/andrewcd2/frailty/output/",
-        "/share/gwlab/frailty/output/"]
-for d in dirs:
-    if os.path.exists(d):
-        datadir = d
-if datadir == dirs[0]:  # mb
-    notesdir = datadir
-if datadir == dirs[1]:  # grace
-    notesdir = f"{os.getcwd()}/output/"
-if datadir == dirs[2]:  # azure
-    notesdir = datadir
-outdir = f"{datadir}notes_preprocessed_SENTENCES/"
-SVDdir = f"{outdir}svd/"
-embeddingsdir = f"{outdir}embeddings/"
-trtedatadir = f"{outdir}trtedata/"
-sheepish_mkdir(outdir)
-sheepish_mkdir(SVDdir)
-sheepish_mkdir(embeddingsdir)
-sheepish_mkdir(trtedatadir)
+# batchstring = 'testJ21'
 
-# load SENTENCES
-# check for .csv in filename to avoid the .DSstore file
-# load the notes from 2018
-notes_2018 = [i for i in
-              os.listdir(notesdir + "notes_labeled_embedded_SENTENCES/")
+def main():
+    p = ArgParser()
+    p.add("-b", "--batchstring", help="batch string, i.e.: 00 or 01 or 02")
+    options = p.parse_args()
+    zipfile = options.zipfile
+    batchstring = options.batchstring
+    # identify the active learning directory
+    outdir = f"{os.getcwd()}/output/"
+    datadir = f"{os.getcwd()}/data/"
+    ALdir = f"{outdir}/saved_models/AL{batchstring}"
+    sheepish_mkdir(ALdir)
+    # make files for the CSV output
+    sheepish_mkdir(f"{ALdir}/processed_data/")
+    sheepish_mkdir(f"{ALdir}/processed_data/svd")
+    sheepish_mkdir(f"{ALdir}/processed_data/embeddings")
+    sheepish_mkdir(f"{ALdir}/processed_data/trtedata")
+    notes_2018 = [i for i in
+              os.listdir(outdir + "notes_labeled_embedded_SENTENCES/")
               if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
-# drop the notes that aren't in the concatenated notes data frame
-# some notes got labeled and embedded but were later removed from the pipeline
-# on July 14 2020, due to the inclusion of the 12-month ICD lookback
-cndf = pd.read_pickle(f"{datadir}conc_notes_df.pkl")
-cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
-cndf['month'] = cndf.LATEST_TIME.dt.month + (
-        cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
-# generate 'note' label (used in webanno and notes_labeled_embedded)
-uidstr = ("m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".csv").tolist()
-# conc_notes_df contains official list of eligible patients
-notes_2018_in_cndf = [i for i in notes_2018 if
-                      "_".join(i.split("_")[-2:]) in uidstr]
-notes_excluded = [i for i in notes_2018 if
-                  "_".join(i.split("_")[-2:]) not in uidstr]
-assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
-# get notes_labeled_embedded that match eligible patients only
-df = pd.concat(
-    [pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i,
-    dtype={'sent_start': bool, 'token': str, 'PAT_ID': str}) for i in
-     notes_2018_in_cndf])
-df.drop(columns='Unnamed: 0', inplace=True)
-# reset the index
-df = df.reset_index(drop=True)
+    cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
+    cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
+    cndf['month'] = cndf.LATEST_TIME.dt.month + (
+            cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
+    # generate 'note' label (used in webanno and notes_labeled_embedded)
+    cndf.month = cndf.month.astype(str)
+    uidstr = ("m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".csv").tolist()
+    # conc_notes_df contains official list of eligible patients
+    notes_2018_in_cndf = [i for i in notes_2018 if
+                          "_".join(i.split("_")[-2:]) in uidstr]
+    notes_excluded = [i for i in notes_2018 if
+                      "_".join(i.split("_")[-2:]) not in uidstr]
+    assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
+    
+    # clean up the notes_2018_in_cndf
+    
+    df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded_SENTENCES/" + i,
+                                dtype={'token': str, 'PAT_ID': str}) for i in
+                    notes_2018_in_cndf])
+    
+    cc = 0
+    xxx = {}
+    for n, i in enumerate(notes_2018_in_cndf):
+        xx = pd.read_csv(outdir + "notes_labeled_embedded_SENTENCES/" + i,
+                                dtype={'token': str, 'PAT_ID': str})
+        print(xx.shape)
+        xxx[i] = xx
+        print(i)
+    
+    [i for i in range(len(xxx)) if xxx[i].shape[0]==808]
 
-# set seed
-seed = 111120
 
-# define some useful constants
-str_varnames = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
-                'mean_sys_bp', 'mean_dia_bp', 'sd_sys_bp', 'sd_dia_bp',
-                'bmi_mean', 'bmi_slope', 'max_o2', 'spo2_worst', 'ALBUMIN',
-                'ALKALINE_PHOSPHATASE', 'AST', 'BILIRUBIN', 'BUN', 'CALCIUM',
-                'CO2', 'CREATININE', 'HEMATOCRIT', 'HEMOGLOBIN', 'LDL', 'MCHC',
-                'MCV', 'PLATELETS', 'POTASSIUM', 'PROTEIN', 'RDW', 'SODIUM',
-                'WBC', 'sd_ALBUMIN', 'sd_ALKALINE_PHOSPHATASE', 'sd_AST',
-                'sd_BILIRUBIN', 'sd_BUN', 'sd_CALCIUM', 'sd_CO2',
-                'sd_CREATININE', 'sd_HEMATOCRIT', 'sd_HEMOGLOBIN', 'sd_LDL',
-                'sd_MCHC', 'sd_MCV', 'sd_PLATELETS', 'sd_POTASSIUM',
-                'sd_PROTEIN', 'sd_RDW', 'sd_SODIUM', 'sd_WBC', 'n_ALBUMIN',
-                'n_ALKALINE_PHOSPHATASE', 'n_AST', 'n_BILIRUBIN', 'n_BUN',
-                'n_CALCIUM', 'n_CO2', 'n_CREATININE', 'n_HEMATOCRIT',
-                'n_HEMOGLOBIN', 'n_LDL', 'n_MCHC', 'n_MCV', 'n_PLATELETS',
-                'n_POTASSIUM', 'n_PROTEIN', 'n_RDW', 'n_SODIUM', 'n_WBC',
-                'FERRITIN', 'IRON', 'MAGNESIUM', 'TRANSFERRIN',
-                'TRANSFERRIN_SAT', 'sd_FERRITIN', 'sd_IRON', 'sd_MAGNESIUM',
-                'sd_TRANSFERRIN', 'sd_TRANSFERRIN_SAT', 'n_FERRITIN', 'n_IRON',
-                'n_MAGNESIUM', 'n_TRANSFERRIN', 'n_TRANSFERRIN_SAT', 'PT',
-                'sd_PT', 'n_PT', 'PHOSPHATE', 'sd_PHOSPHATE', 'n_PHOSPHATE',
-                'PTT', 'sd_PTT', 'n_PTT', 'TSH', 'sd_TSH', 'n_TSH',
-                'n_unique_meds', 'elixhauser', 'n_comorb', 'AGE', 'SEX_Female',
-                'SEX_Male', 'MARITAL_STATUS_Divorced', 'MARITAL_STATUS_Married',
-                'MARITAL_STATUS_Other', 'MARITAL_STATUS_Single',
-                'MARITAL_STATUS_Widowed', 'EMPY_STAT_Disabled',
-                'EMPY_STAT_Full Time', 'EMPY_STAT_Not Employed',
-                'EMPY_STAT_Other', 'EMPY_STAT_Part Time', 'EMPY_STAT_Retired',
-                'MV_n_encs', 'MV_n_ed_visits', 'MV_n_admissions',
-                'MV_days_hospitalized', 'MV_mean_sys_bp', 'MV_mean_dia_bp',
-                'MV_sd_sys_bp', 'MV_sd_dia_bp', 'MV_bmi_mean', 'MV_bmi_slope',
-                'MV_max_o2', 'MV_spo2_worst', 'MV_ALBUMIN',
-                'MV_ALKALINE_PHOSPHATASE', 'MV_AST', 'MV_BILIRUBIN', 'MV_BUN',
-                'MV_CALCIUM', 'MV_CO2', 'MV_CREATININE', 'MV_HEMATOCRIT',
-                'MV_HEMOGLOBIN', 'MV_LDL', 'MV_MCHC', 'MV_MCV', 'MV_PLATELETS',
-                'MV_POTASSIUM', 'MV_PROTEIN', 'MV_RDW', 'MV_SODIUM', 'MV_WBC',
-                'MV_sd_ALBUMIN', 'MV_sd_ALKALINE_PHOSPHATASE', 'MV_sd_AST',
-                'MV_sd_BILIRUBIN', 'MV_sd_BUN', 'MV_sd_CALCIUM', 'MV_sd_CO2',
-                'MV_sd_CREATININE', 'MV_sd_HEMATOCRIT', 'MV_sd_HEMOGLOBIN',
-                'MV_sd_LDL', 'MV_sd_MCHC', 'MV_sd_MCV', 'MV_sd_PLATELETS',
-                'MV_sd_POTASSIUM', 'MV_sd_PROTEIN', 'MV_sd_RDW',
-                'MV_sd_SODIUM', 'MV_sd_WBC', 'MV_n_ALBUMIN',
-                'MV_n_ALKALINE_PHOSPHATASE', 'MV_n_AST', 'MV_n_BILIRUBIN',
-                'MV_n_BUN', 'MV_n_CALCIUM', 'MV_n_CO2', 'MV_n_CREATININE',
-                'MV_n_HEMATOCRIT', 'MV_n_HEMOGLOBIN', 'MV_n_LDL', 'MV_n_MCHC',
-                'MV_n_MCV', 'MV_n_PLATELETS', 'MV_n_POTASSIUM', 'MV_n_PROTEIN',
-                'MV_n_RDW', 'MV_n_SODIUM', 'MV_n_WBC', 'MV_FERRITIN',
-                'MV_IRON', 'MV_MAGNESIUM', 'MV_TRANSFERRIN',
-                'MV_TRANSFERRIN_SAT', 'MV_sd_FERRITIN', 'MV_sd_IRON',
-                'MV_sd_MAGNESIUM', 'MV_sd_TRANSFERRIN',
-                'MV_sd_TRANSFERRIN_SAT', 'MV_n_FERRITIN', 'MV_n_IRON',
-                'MV_n_MAGNESIUM', 'MV_n_TRANSFERRIN', 'MV_n_TRANSFERRIN_SAT',
-                'MV_PT', 'MV_sd_PT', 'MV_n_PT', 'MV_PHOSPHATE',
-                'MV_sd_PHOSPHATE', 'MV_n_PHOSPHATE', 'MV_PTT', 'MV_sd_PTT',
-                'MV_n_PTT', 'MV_TSH', 'MV_sd_TSH', 'MV_n_TSH',
-                'MV_n_unique_meds', 'MV_elixhauser', 'MV_n_comorb', 'MV_AGE',
-                'MV_SEX', 'MV_MARITAL_STATUS', 'MV_EMPY_STAT']
-out_varnames = ['Msk_prob', 'Nutrition', 'Resp_imp', 'Fall_risk']
 
-# drop the mean & sd for labs that are >70% missing. Keep the missing value
-# indicator (so rare labs become present/absent)
-missingness = df[str_varnames].isnull().sum()/df.shape[0]
-missingness = missingness.loc[missingness > 0.7].index
-str_varnames = np.setdiff1d(str_varnames, missingness)
+pids = {}
+# find the set of pat ids that are duplicated
+for i in notes_2018_in_cndf:
+    pid = re.sub(".csv", "", "_".join(i.split("_")[-2:]))
+    try:
+        pids[pid] += 1
+    except:
+        pids[pid] = 1
+
+x2=0
+x3=0
+for i in pids:
+    if pids[i] == 2:
+        x2 +=1
+    elif pids[i] == 3:
+        x3 +=1
+
+
+pids = {}
+# find the set of pat ids that are duplicated
+for i in notes_2018_in_cndf:
+    pid = re.sub(".csv", "", i.split("_")[-1])
+    try:
+        pids[pid] += 1
+    except:
+        pids[pid] = 1
+
+reps = []
+for k in pids
+
+for i in pids
+
+(pd.DataFrame(pids, index = [0]) == 2).sum().sum()
+
+
+for i in pids:
+    if pids[i] >1:
+        print(f"{[j for j in notes_2018_in_cndf if i in j]}")
+
+
+
+[i for i in AL00 if 'Z3095842' in i]
+[i for i in AL01 if 'Z3095842' in i]
+
+[i for i in AL00 if '057800369' in i]
+[i for i in AL01 if '057800369' in i]
+
+[i for i in AL00 if '006364095' in i]
+[i for i in AL01 if '006364095' in i]
+
+[i for i in AL00 if '004081006' in i]
+[i for i in AL01 if '004081006' in i]
+
+
+
+AL00 = []
+AL01 = []
+batch = []
+for i in notes_2018_in_cndf:
+    if "AL00" in i:
+        AL00.append(i)
+    elif "AL01" in i:
+        AL01.append(i)
+    else:
+        batch.append(i)
+        
+xxx['enote_AL01_m9_Z3095842.csv'].loc[:,out_varnames].mean()
+xxx['enote_AL00_m9_Z3095842.csv'].loc[:,out_varnames].mean()
+        
+
+
+
+[i for i in notes_2018_in_cndf if "044286789" in i]
+        
+len(batch)
+len(AL00)
+len(AL01)
+32+15+26
+
+xxx[36].iloc[:10, :20]
+xxx[38].iloc[:10, :20]
+xxx[61].iloc[:10, :20]
+xxx[38].iloc[:5, :5]
+
+dd = xxx[38].loc[:,out_varnames] - xxx[36].loc[:,out_varnames]
+dd.mean().mean()
+
+xxx[38].note.unique()
+xxx[36].note.unique()
+xxx[36].loc[:,out_varnames].mean()
+
+
+
+notes_2018_in_cndf[38]
+notes_2018_in_cndf[36]
+    df = df.drop(columns = ['Unnamed: 0', 'sent_start', 'length'])
+    
+    [i for i in notes_2018_in_cndf if re.sub(".csv", "", re.sub('enote_', "", i)) not in list(df.note.unique())]
+    
+    len(set(notes_2018_in_cndf))
+    
+    ###########
+    # Load and process structured data
+    strdat = pd.read_csv(f"{outdir}structured_data_merged_cleaned.csv", 
+                         index_col = 0)
+    
+    # set seed
+    seed = 8675309
+    str_varnames = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
+                    'mean_sys_bp', 'mean_dia_bp', 'sd_sys_bp', 'sd_dia_bp',
+                    'bmi_mean', 'bmi_slope', 'max_o2', 'spo2_worst', 'ALBUMIN',
+                    'ALKALINE_PHOSPHATASE', 'AST', 'BILIRUBIN', 'BUN', 'CALCIUM',
+                    'CO2', 'CREATININE', 'HEMATOCRIT', 'HEMOGLOBIN', 'LDL', 'MCHC',
+                    'MCV', 'PLATELETS', 'POTASSIUM', 'PROTEIN', 'RDW', 'SODIUM',
+                    'WBC', 'sd_ALBUMIN', 'sd_ALKALINE_PHOSPHATASE', 'sd_AST',
+                    'sd_BILIRUBIN', 'sd_BUN', 'sd_CALCIUM', 'sd_CO2',
+                    'sd_CREATININE', 'sd_HEMATOCRIT', 'sd_HEMOGLOBIN', 'sd_LDL',
+                    'sd_MCHC', 'sd_MCV', 'sd_PLATELETS', 'sd_POTASSIUM',
+                    'sd_PROTEIN', 'sd_RDW', 'sd_SODIUM', 'sd_WBC', 'n_ALBUMIN',
+                    'n_ALKALINE_PHOSPHATASE', 'n_AST', 'n_BILIRUBIN', 'n_BUN',
+                    'n_CALCIUM', 'n_CO2', 'n_CREATININE', 'n_HEMATOCRIT',
+                    'n_HEMOGLOBIN', 'n_LDL', 'n_MCHC', 'n_MCV', 'n_PLATELETS',
+                    'n_POTASSIUM', 'n_PROTEIN', 'n_RDW', 'n_SODIUM', 'n_WBC',
+                    'FERRITIN', 'IRON', 'MAGNESIUM', 'TRANSFERRIN',
+                    'TRANSFERRIN_SAT', 'sd_FERRITIN', 'sd_IRON', 'sd_MAGNESIUM',
+                    'sd_TRANSFERRIN', 'sd_TRANSFERRIN_SAT', 'n_FERRITIN', 'n_IRON',
+                    'n_MAGNESIUM', 'n_TRANSFERRIN', 'n_TRANSFERRIN_SAT', 'PT',
+                    'sd_PT', 'n_PT', 'PHOSPHATE', 'sd_PHOSPHATE', 'n_PHOSPHATE',
+                    'PTT', 'sd_PTT', 'n_PTT', 'TSH', 'sd_TSH', 'n_TSH',
+                    'n_unique_meds', 'elixhauser', 'n_comorb', 'AGE', 'SEX_Female',
+                    'SEX_Male', 'MARITAL_STATUS_Divorced', 'MARITAL_STATUS_Married',
+                    'MARITAL_STATUS_Other', 'MARITAL_STATUS_Single',
+                    'MARITAL_STATUS_Widowed', 'EMPY_STAT_Disabled',
+                    'EMPY_STAT_Full Time', 'EMPY_STAT_Not Employed',
+                    'EMPY_STAT_Other', 'EMPY_STAT_Part Time', 'EMPY_STAT_Retired',
+                    'MV_n_encs', 'MV_n_ed_visits', 'MV_n_admissions',
+                    'MV_days_hospitalized', 'MV_mean_sys_bp', 'MV_mean_dia_bp',
+                    'MV_sd_sys_bp', 'MV_sd_dia_bp', 'MV_bmi_mean', 'MV_bmi_slope',
+                    'MV_max_o2', 'MV_spo2_worst', 'MV_ALBUMIN',
+                    'MV_ALKALINE_PHOSPHATASE', 'MV_AST', 'MV_BILIRUBIN', 'MV_BUN',
+                    'MV_CALCIUM', 'MV_CO2', 'MV_CREATININE', 'MV_HEMATOCRIT',
+                    'MV_HEMOGLOBIN', 'MV_LDL', 'MV_MCHC', 'MV_MCV', 'MV_PLATELETS',
+                    'MV_POTASSIUM', 'MV_PROTEIN', 'MV_RDW', 'MV_SODIUM', 'MV_WBC',
+                    'MV_sd_ALBUMIN', 'MV_sd_ALKALINE_PHOSPHATASE', 'MV_sd_AST',
+                    'MV_sd_BILIRUBIN', 'MV_sd_BUN', 'MV_sd_CALCIUM', 'MV_sd_CO2',
+                    'MV_sd_CREATININE', 'MV_sd_HEMATOCRIT', 'MV_sd_HEMOGLOBIN',
+                    'MV_sd_LDL', 'MV_sd_MCHC', 'MV_sd_MCV', 'MV_sd_PLATELETS',
+                    'MV_sd_POTASSIUM', 'MV_sd_PROTEIN', 'MV_sd_RDW',
+                    'MV_sd_SODIUM', 'MV_sd_WBC', 'MV_n_ALBUMIN',
+                    'MV_n_ALKALINE_PHOSPHATASE', 'MV_n_AST', 'MV_n_BILIRUBIN',
+                    'MV_n_BUN', 'MV_n_CALCIUM', 'MV_n_CO2', 'MV_n_CREATININE',
+                    'MV_n_HEMATOCRIT', 'MV_n_HEMOGLOBIN', 'MV_n_LDL', 'MV_n_MCHC',
+                    'MV_n_MCV', 'MV_n_PLATELETS', 'MV_n_POTASSIUM', 'MV_n_PROTEIN',
+                    'MV_n_RDW', 'MV_n_SODIUM', 'MV_n_WBC', 'MV_FERRITIN',
+                    'MV_IRON', 'MV_MAGNESIUM', 'MV_TRANSFERRIN',
+                    'MV_TRANSFERRIN_SAT', 'MV_sd_FERRITIN', 'MV_sd_IRON',
+                    'MV_sd_MAGNESIUM', 'MV_sd_TRANSFERRIN',
+                    'MV_sd_TRANSFERRIN_SAT', 'MV_n_FERRITIN', 'MV_n_IRON',
+                    'MV_n_MAGNESIUM', 'MV_n_TRANSFERRIN', 'MV_n_TRANSFERRIN_SAT',
+                    'MV_PT', 'MV_sd_PT', 'MV_n_PT', 'MV_PHOSPHATE',
+                    'MV_sd_PHOSPHATE', 'MV_n_PHOSPHATE', 'MV_PTT', 'MV_sd_PTT',
+                    'MV_n_PTT', 'MV_TSH', 'MV_sd_TSH', 'MV_n_TSH',
+                    'MV_n_unique_meds', 'MV_elixhauser', 'MV_n_comorb', 'MV_AGE',
+                    'MV_SEX', 'MV_MARITAL_STATUS', 'MV_EMPY_STAT']
+    out_varnames = ['Msk_prob', 'Nutrition', 'Resp_imp', 'Fall_risk']
+    
+    
+    strdat = strdat.drop(columns = ['RACE', 'LANGUAGE', 'MV_RACE', 'MV_LANGUAGE'])
+    strdat = strdat.merge(df[['PAT_ID','month']].drop_duplicates())
+    strdat.shape
+    
+    
+    df[['PAT_ID','month']].drop_duplicates().shape
+    
+    # drop the mean & sd for labs that are >70% missing. Keep the missing value
+    # indicator (so rare labs become present/absent)
+    missingness = df[str_varnames].isnull().sum()/df.shape[0]
+    missingness = missingness.loc[missingness > 0.7].index
+    str_varnames = np.setdiff1d(str_varnames, missingness)
+
+
+df.columns
+
+[i for i in str_varnames if i not in df.columns]
 
 # set a unique sentence id that does not reset to 0 with each note
 sentence = []
@@ -341,3 +461,40 @@ for r in range(3):
         f_tr_svd1000.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_tr_svd1000.csv")
         f_te_svd300.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_te_svd300.csv")
         f_te_svd1000.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_te_svd1000.csv")
+
+
+
+
+
+        
+    # # get the correct directories
+    # dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/notes_preprocessed_SENTENCES/",
+    #         "/media/drv2/andrewcd2/frailty/output/notes_preprocessed_SENTENCES/",
+    #         "/share/gwlab/frailty/output/notes_preprocessed_SENTENCES/",
+    #         "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/notes_preprocessed_SENTENCES/"]
+    # for d in dirs:
+    #     if os.path.exists(d):
+    #         notesdir = d
+    # if datadir == dirs[0]:  # mb
+    #     notesdir = datadir
+    # if datadir == dirs[1]:  # grace
+    #     notesdir = f"{os.getcwd()}/output/"
+    # if datadir == dirs[2]:  # azure
+    #     notesdir = datadir
+    # outdir = f"{datadir}notes_preprocessed_SENTENCES/"
+    # SVDdir = f"{outdir}svd/"
+    # embeddingsdir = f"{outdir}embeddings/"
+    # trtedatadir = f"{outdir}trtedata/"
+    # sheepish_mkdir(outdir)
+    # sheepish_mkdir(SVDdir)
+    # sheepish_mkdir(embeddingsdir)
+    # sheepish_mkdir(trtedatadir)
+
+# load SENTENCES
+# check for .csv in filename to avoid the .DSstore file
+# load the notes from 2018
+
+# drop the notes that aren't in the concatenated notes data frame
+# some notes got labeled and embedded but were later removed from the pipeline
+# on July 14 2020, due to the inclusion of the 12-month ICD lookback
+# get notes_labeled_embedded that match eligible patients only
