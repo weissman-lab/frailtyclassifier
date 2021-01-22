@@ -20,13 +20,80 @@ from gensim.models import KeyedVectors
 
 # import annotation ingestion scripts from the prior pipeline that did not
 # include sentences
-from _05_ingest_annotations import process_webanno_output, embeddings_catcher, \
-    remove_headers
+# from _05_ingest_annotations import process_webanno_output, embeddings_catcher, \
+#     remove_headers
 from _99_project_module import read_txt, read_json, ncol
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
+
+
+def process_webanno_output(output_file_path):
+    output_dir = re.sub('\.zip', '', output_file_path)
+    os.system(f"mkdir {output_dir}")
+    os.system(f'unzip -o {output_file_path} -d {output_dir}')
+    # unzip all of the annotation files in the overall output file
+    for i in os.listdir(output_dir + "/annotation"):  # note that the dirs are named after the text files
+        cmd = f"unzip -n {output_dir}/annotation/{i}/\*.zip -d {output_dir}/annotation/{i}/"
+        os.system(cmd)
+    # same with curation
+    for i in os.listdir(output_dir + "/curation"):  # note that the dirs are named after the text files
+        cmd = f"unzip -n {output_dir}/curation/{i}/\*.zip -d {output_dir}/curation/{i}/"
+        os.system(cmd)
+
+# removed this from global env (in case it interferes with scispacy library in _05_ingest_to_sentence.py
+# nlp = spacy.load("en", disable=['parser', 'tagger', 'ner'])
+#
+# # stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
+# tags = ['Frailty_nos', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
+# mapping_dict = dict(frailty_nos_tags="Frailty_nos",
+#                     msk_prob_tags="Msk_prob",
+#                     nutrition="Nutrition",
+#                     resp_imp_tags="Resp_imp",
+#                     fall_risk_tags="Fall_risk")
+
+def remove_headers(fi):
+    '''
+    This removes metadata tags that are bounded by long sequences of dashes
+    It'll loop through the tokens and make note of places with long such strings.
+    Then it'll check if there is an even number of them.
+    If there is an even number, it will define spans.
+    Inside each span it'll assert that there is something that looks like a timestamp
+    If all that is true, those obs will be removed
+    '''
+    # make sure that all of the separators are the correct number of dashes
+    dash_token_indices = [fi.index[i] for i in fi.index if fi.token[i] == '--------------------------------------------------------------']
+    # make sure that there is an even number of them
+    assert len(dash_token_indices) %2 == 0
+    # make sure that they all have the same distance apart
+    spanlengths = [dash_token_indices[i] - dash_token_indices[i-1] for i in range(1, len(dash_token_indices),2)]
+    if len(list(set(spanlengths))) != 1:
+        breakpoint()
+    assert(len(list(set(spanlengths)))) == 1
+    # make sure there is at least one year inside these spans
+    for i in range(1, len(dash_token_indices),2):
+        jstring = "".join(fi.token[(dash_token_indices[i-1]):(dash_token_indices[i]+1)])
+        assert re.search("(19[789]\d|20[012]\d)", jstring)
+    # if these pass, lose the spans
+    for i in range(1, len(dash_token_indices),2):
+        fi = fi.drop(index=list(range((dash_token_indices[i-1]-1),(dash_token_indices[i]+2))))
+    # now drop the newlines -- they're not in the dictionary
+    fi = fi[fi.token != "\n"]
+    fi = fi[fi.token != "\n "]
+    return fi
+
+
+def embeddings_catcher(tok, embeddings):
+    '''
+    This function is a workaround for the fact that some OOV words throw errors in the OA corpus, because the
+    dictionary wasn't identical to the corpus.
+    Tok is a string and embeddings is a gensim object
+    '''
+    try:
+        return embeddings[tok]
+    except Exception:
+        return np.zeros(embeddings.vector_size)
 
 def set_custom_boundaries(doc):
     # carriage return is a sentence boundary
@@ -182,13 +249,11 @@ def main():
                                  'RACE': 'string',
                                  'LANGUAGE': 'string'})
     strdat.drop(columns="Unnamed: 0", inplace=True)
-    # embeddings = KeyedVectors.load(embeddings, mmap='r')
     # unzip the raw output
     process_webanno_output(zipfile)
     # tokenize
     dflist = tokenize_and_label_sent(zipfile)
     # merge on the structured data
-    [i.columns for i in dflist]
     dflist = [i.merge(strdat, how="left") for i in dflist]
     # embed
     pool = mp.Pool(
