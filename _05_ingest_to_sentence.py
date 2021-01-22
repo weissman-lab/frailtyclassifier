@@ -193,7 +193,6 @@ def featurize_sent(file,
             "FastText" in type(embeddings).__name__)
     # now load the file and remove its headers (note concatenation indicators)
     # fi = pd.read_pickle(f"{anno_dir + webanno_output}/labels/{file}")
-    print("a")
     fi = remove_headers(file)
     # fix sentence numbering now that we have cleaned up the tokens
     sentence = []
@@ -211,7 +210,6 @@ def featurize_sent(file,
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         Elist = [embeddings_catcher(i, embeddings) for i in fi.token]
-    print("b")
     # make a variable that indicates whether the word was found in the vocab
     fi['invocab'] = [1 if len(set(Elist[i])) > 1 else 0 for i in
                      range(len(Elist))]
@@ -228,33 +226,26 @@ def featurize_sent(file,
     output = pd.concat([fi] + outlist, axis=1)
     return output.reset_index(drop=True)
 
-
+# zipfile = './annotation/frailty_phenotype_AL_00_2020-06-29_0939.zip'
+# outdir = './old_misc/foodir/'
+# embeddings = './data/w2v_oa_all_300d.bin'
 def main():
     p = ArgParser()
     p.add("-z", "--zipfile", help="zip file to ingest")
     p.add("-e", "--embeddings", help="path to the embeddings file")
     p.add("-o", "--outdir", help="path to save embedded notes")
-    p.add("-s", "--structured_data_path", help="path to structured data")
     options = p.parse_args()
     zipfile = options.zipfile
     embeddings = options.embeddings
     outdir = options.outdir
-    structured_data_path = options.structured_data_path
-    # structured data before imputation: /output/structured_data_merged_cleaned.csv
-    strdat = pd.read_csv(structured_data_path,
-                          dtype={'SEX': 'string',
-                                 'MARITAL_STATUS': 'string',
-                                 'RELIGION': 'string',
-                                 'EMPY_STAT': 'string',
-                                 'RACE': 'string',
-                                 'LANGUAGE': 'string'})
-    strdat.drop(columns="Unnamed: 0", inplace=True)
+    try:
+        os.mkdir(outdir)
+    except:
+        pass
     # unzip the raw output
     process_webanno_output(zipfile)
     # tokenize
     dflist = tokenize_and_label_sent(zipfile)
-    # merge on the structured data
-    dflist = [i.merge(strdat, how="left") for i in dflist]
     # embed
     pool = mp.Pool(
         8)  # hard-coding 8 because the embeddings takes a ton of memory

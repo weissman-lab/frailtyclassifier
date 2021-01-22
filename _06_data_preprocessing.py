@@ -78,11 +78,11 @@ assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
 # get notes_labeled_embedded that match eligible patients only
 df = pd.concat(
     [pd.read_csv(notesdir + "notes_labeled_embedded_SENTENCES/" + i,
-    dtype={'sent_start': 'boolean', 'token': 'string', 'PAT_ID': 'string'}) for i in
+    dtype={'sent_start': bool, 'token': str, 'PAT_ID': str}) for i in
      notes_2018_in_cndf])
 df.drop(columns='Unnamed: 0', inplace=True)
 # reset the index
-df2 = df.reset_index(drop=True)
+df = df.reset_index(drop=True)
 
 # set seed
 seed = 111120
@@ -148,31 +148,31 @@ out_varnames = ['Msk_prob', 'Nutrition', 'Resp_imp', 'Fall_risk']
 
 # drop the mean & sd for labs that are >70% missing. Keep the missing value
 # indicator (so rare labs become present/absent)
-missingness = df2[str_varnames].isnull().sum()/df2.shape[0]
+missingness = df[str_varnames].isnull().sum()/df.shape[0]
 missingness = missingness.loc[missingness > 0.7].index
 str_varnames = np.setdiff1d(str_varnames, missingness)
 
 # set a unique sentence id that does not reset to 0 with each note
 sentence = []
 sent = -1
-for s in range(df2.shape[0]):
-    if df2.iloc[s]['sentence'] != df2.iloc[s - 1]['sentence']:
+for s in range(df.shape[0]):
+    if df.iloc[s]['sentence'] != df.iloc[s - 1]['sentence']:
         sent += 1
     sentence.append(sent)
-df2['sentence_id'] = sentence
+df['sentence_id'] = sentence
 # rename the note-specific sentence label
-df2.rename(columns={'sentence': 'sentence_in_note'}, inplace=True)
+df.rename(columns={'sentence': 'sentence_in_note'}, inplace=True)
 
 # dummies for labels
-out_varnames = df2.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
+out_varnames = df.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
 y_dums = pd.concat(
-    [pd.get_dummies(df2[[i]].astype(str)) for i in out_varnames], axis=1)
-df2 = pd.concat([y_dums, df2], axis=1)
+    [pd.get_dummies(df[[i]].astype(str)) for i in out_varnames], axis=1)
+df = pd.concat([y_dums, df], axis=1)
 
 # label each sentence using heirachical rule:
 # Positive label if any token is positive
 # Negative label if there are no positive tokens and any token is negative
-df2_label = df2.groupby('sentence_id', as_index=True).agg(
+df_label = df.groupby('sentence_id', as_index=True).agg(
     sentence=('token', lambda x: ' '.join(x.astype(str))),  # sentence tokens
     sentence_in_note=('sentence_in_note', 'first'),
     n_tokens=('token', 'count'),
@@ -187,35 +187,35 @@ df2_label = df2.groupby('sentence_id', as_index=True).agg(
 )
 # need to set the group as the index, then reset it (unclear why this is not
 # equivalent to 'as_index=False')
-df2_label = df2_label.reset_index(drop=False)
+df_label = df_label.reset_index(drop=False)
 # add negative & neutral label using heirarchical rule
 for n in out_varnames:
-    df2_label[f"{n}_neg"] = np.where(
-        ((df2_label[f"{n}_pos"] != 1) & (df2_label[f"any_{n}_neg"] == 1)), 1,
+    df_label[f"{n}_neg"] = np.where(
+        ((df_label[f"{n}_pos"] != 1) & (df_label[f"any_{n}_neg"] == 1)), 1,
         0)
-    df2_label[f"{n}_neut"] = np.where(
-        ((df2_label[f"{n}_pos"] != 1) & (df2_label[f"{n}_neg"] != 1)), 1, 0)
+    df_label[f"{n}_neut"] = np.where(
+        ((df_label[f"{n}_pos"] != 1) & (df_label[f"{n}_neg"] != 1)), 1, 0)
 # drop extra columns
-df2_label = df2_label.loc[:, ~df2_label.columns.str.startswith('any_')].copy()
+df_label = df_label.loc[:, ~df_label.columns.str.startswith('any_')].copy()
 
 # summarize embeddings (element-wise min/max/mean) for each sentence
 # first, make empty df
 clmns = ['sentence_id', 'note']
-for v in range(0, df2.columns.str.startswith('identity_').sum()):
+for v in range(0, df.columns.str.startswith('identity_').sum()):
     clmns.append(f"min_{v}")
     clmns.append(f"max_{v}")
     clmns.append(f"mean_{v}")
-embeddings = pd.DataFrame(0, index=range(df2.sentence_id.nunique()),
+embeddings = pd.DataFrame(0, index=range(df.sentence_id.nunique()),
                           columns=clmns)
-embeddings['sentence_id'] = list(df2.sentence_id.drop_duplicates())
-embeddings['note'] = df2.groupby('sentence_id', as_index=False)['note'].agg('first')['note']
+embeddings['sentence_id'] = list(df.sentence_id.drop_duplicates())
+embeddings['note'] = df.groupby('sentence_id', as_index=False)['note'].agg('first')['note']
 # for each sentence, find the element-wise min/max/mean for embeddings
-for v in range(0, df2.columns.str.startswith('identity_').sum()):
-    embeddings[f"min_{v}"] = df2.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
+for v in range(0, df.columns.str.startswith('identity_').sum()):
+    embeddings[f"min_{v}"] = df.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
         min)[f"identity_{v}"]
-    embeddings[f"max_{v}"] = df2.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
+    embeddings[f"max_{v}"] = df.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
         max)[f"identity_{v}"]
-    embeddings[f"mean_{v}"] = df2.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
+    embeddings[f"mean_{v}"] = df.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
         'mean')[f"identity_{v}"]
 
 # drop embeddings for center word
@@ -223,16 +223,16 @@ embeddings2 = embeddings.loc[:,
               ~embeddings.columns.str.startswith('identity')].copy()
 
 # make df of structured data and labels
-str_lab = df2.loc[:, df2.columns.isin(['PAT_ID', 'note', 'month',
+str_lab = df.loc[:, df.columns.isin(['PAT_ID', 'note', 'month',
                                            'sentence_id']) |
-                     df2.columns.isin(str_varnames)].copy()
+                     df.columns.isin(str_varnames)].copy()
 # get one row of structured data for each sentence
 str_lab = str_lab.groupby('sentence_id', as_index=True).first().reset_index(drop=False)
 #check that sentence_ids match
-assert sum(str_lab.sentence_id == df2_label.sentence_id) == len(
+assert sum(str_lab.sentence_id == df_label.sentence_id) == len(
     str_lab), 'sentence_ids do not match'
 # add labels & drop duplicate column
-str_lab = pd.concat([str_lab, df2_label.drop(columns=['sentence_id'])], axis=1).copy()
+str_lab = pd.concat([str_lab, df_label.drop(columns=['sentence_id'])], axis=1).copy()
 
 ##### REPEATED K-FOLD CROSS-VALIDATION #####
 seed_start = 942020
