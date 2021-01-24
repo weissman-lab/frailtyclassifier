@@ -21,7 +21,7 @@ from sklearn.decomposition import TruncatedSVD, PCA
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfTransformer
-
+from _99_project_module import send_message_to_slack
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -67,8 +67,59 @@ def main():
     notes_excluded = [i for i in notes_2018 if
                       "_".join(i.split("_")[-2:]) not in uidstr]
     assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
+    # remove double-annotated notes
+    '''
+    25 Jan 2021:  removing double-annotated notes, and notes from different 
+    span of same patient.  Move the actual files so they don't get picked up later.
+    As such, the code below will only do culling once.
+    It will also move notes that were excluded in the July 2020 cull
+    '''
+    pids = set([re.sub(".csv", "", i.split("_")[-1]) for i in notes_2018_in_cndf])
+    keepers = []
+    for i in pids:
+        notes_i = [j for j in notes_2018_in_cndf if i in j]
+        if len(notes_i) >1:
+            # check and see if there are notes from different batches.  
+            # use the first one if so
+            batchstrings = [k.split("_")[1] for k in notes_i]
+            assert all(["AL" in k for k in batchstrings]), "not all double-coded notes are from an AL round."
+            in_latest_batch = [k for k in notes_i if max(batchstrings) in k]
+            if len(in_latest_batch) == 1:
+                keepers.append(in_latest_batch[0])
+            elif len(set([k.split("_")[-2] for k in in_latest_batch]))>1: # deal with different spans
+                spans = [k.split("_")[-2] for k in in_latest_batch]
+                latest_span = [k for k in in_latest_batch if max(spans) in k]
+                assert len(latest_span) == 1
+                keepers.append(latest_span[0])
+            elif any(['v2' in k for k in in_latest_batch]): # deal with the case of the "v2" notes -- an outgrowth of confusion around the culling in July 2020
+                v2_over_v1 = [k for k in in_latest_batch if 'v2' in k]
+                assert len(v2_over_v1) == 1
+                keepers.append(v2_over_v1[0])
+            else:
+                print('problem with culling')
+                breakpoint()
+        else:
+            keepers.append(notes_i[0])
+    assert len(keepers) == len(pids)
+    droppers = [i for i in notes_2018_in_cndf if i not in keepers]
+    if any(droppers):
+        msg = "The following notes are getting moved/dropped because of duplication:" + "\n".join(droppers) + f"\n\nthere are {len(droppers)} of them"
+        send_message_to_slack(msg)
+    enote_dir = f"{outdir}/notes_labeled_embedded_SENTENCES"
+    drop_dir = f"{enote_dir}/dropped_notes"
+    sheepish_mkdir(drop_dir)
+    assert os.path.exists(enote_dir)
+    assert os.path.exists(drop_dir)
+    for i in droppers:
+        fra = enote_dir + "/" + i
+        till = drop_dir + "/" + i
+        os.rename(fra, till)
+    assert all([i in os.listdir(enote_dir) for i in keepers])
+    
     
     # clean up the notes_2018_in_cndf
+    len(notes_2018_in_cndf)
+    
     
     df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded_SENTENCES/" + i,
                                 dtype={'token': str, 'PAT_ID': str}) for i in
