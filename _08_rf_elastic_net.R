@@ -85,7 +85,7 @@ svd <- c('embed', '300', '1000')
 inc_struc = TRUE
 #set seed
 seed = 92120
-  
+
 #repeated k-fold cross validation
 for (p in 1:length(repeats)) {
   #load data in parallel
@@ -99,7 +99,7 @@ for (p in 1:length(repeats)) {
   for (d in 1:length(folds)) {
     assign(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'), fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_tr_cw.csv')))
   }
-
+  
   for (s in 1:length(svd)) {
     if (svd[s] == 'embed') {
       train <- foreach (d = 1:length(folds)) %dopar% {
@@ -135,37 +135,37 @@ for (p in 1:length(repeats)) {
         return(embeddings_te)
       }
     } else {
-        train <- foreach (d = 1:length(folds)) %dopar% {
-          #svd with or without structured data
-          if (inc_struc == FALSE) {
-            #load only the svd - drop first 2 columns (index and note label)
-            x_train <- data.matrix(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1))
-          } else {
-            #concatenate svd with structured data
-            x_vars <- grep('pc_', colnames(get(paste0('r', repeats[p], '_f', folds[d], '_tr'))), value = TRUE)
-            x_train <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[, ..x_vars]))
-          }
-          #test that svd row length matches training/test row length
-          if ((nrow(x_train) == nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr')))) == FALSE) stop("svd do not match training data")
-          return(x_train)
+      train <- foreach (d = 1:length(folds)) %dopar% {
+        #svd with or without structured data
+        if (inc_struc == FALSE) {
+          #load only the svd - drop first 2 columns (index and note label)
+          x_train <- data.matrix(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1))
+        } else {
+          #concatenate svd with structured data
+          x_vars <- grep('pc_', colnames(get(paste0('r', repeats[p], '_f', folds[d], '_tr'))), value = TRUE)
+          x_train <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_tr'))[, ..x_vars]))
         }
-        test <- foreach (d = 1:length(folds)) %dopar% {
-          #load labels and structured data
-          df_te <- fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_te_df.csv'))
-          #svd with or without structured data
-          if (inc_struc == FALSE) {
-            #load only the svd - drop first 2 columns (index and note label)
-            x_test <- data.matrix(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
-          } else {
-            #concatenate svd with structured data
-            x_vars <- grep('pc_', colnames(get(paste0('r', repeats[p], '_f', folds[d], '_te'))), value = TRUE)
-            x_test <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_te'))[, ..x_vars]))
-          }
-          #test that svd row length matches training/test row length
-          if ((nrow(x_test) == nrow(get(paste0('r', repeats[p], '_f', folds[d], '_te')))) == FALSE) stop("svd do not match training data")
-          return(x_test)
-        }
+        #test that svd row length matches training/test row length
+        if ((nrow(x_train) == nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr')))) == FALSE) stop("svd do not match training data")
+        return(x_train)
       }
+      test <- foreach (d = 1:length(folds)) %dopar% {
+        #load labels and structured data
+        df_te <- fread(paste0(trtedatadir, 'r', repeats[p], '_f', folds[d], '_te_df.csv'))
+        #svd with or without structured data
+        if (inc_struc == FALSE) {
+          #load only the svd - drop first 2 columns (index and note label)
+          x_test <- data.matrix(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1))
+        } else {
+          #concatenate svd with structured data
+          x_vars <- grep('pc_', colnames(get(paste0('r', repeats[p], '_f', folds[d], '_te'))), value = TRUE)
+          x_test <- data.matrix(cbind(fread(paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_te_svd', svd[s], '.csv'), skip = 1, drop = 1), get(paste0('r', repeats[p], '_f', folds[d], '_te'))[, ..x_vars]))
+        }
+        #test that svd row length matches training/test row length
+        if ((nrow(x_test) == nrow(get(paste0('r', repeats[p], '_f', folds[d], '_te')))) == FALSE) stop("svd do not match training data")
+        return(x_test)
+      }
+    }
     assign(paste0('r', repeats[p], '_s_', svd[s], '_x_train'), train)
     assign(paste0('r', repeats[p], '_s_', svd[s], '_x_test'), test)
   }
@@ -199,8 +199,8 @@ for (p in 1:length(repeats)) {
   
   #label alpha (for naming .csv files)
   mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
-                                    ifelse(alpha == 0.5, 5,
-                                           ifelse(alpha == 0.1, 1, NA))))
+                                      ifelse(alpha == 0.5, 5,
+                                             ifelse(alpha == 0.1, 1, NA))))
   
   #check for models that have already been completed & remove them from the grid
   mg1 <- mg1 %>%
@@ -229,13 +229,13 @@ for (p in 1:length(repeats)) {
       }
       #measure CPU time for glmnet
       benchmark <- benchmark("glmnet" = {
-      #train model
-      frail_logit <- glmnet(x_train, 
-                            y_train,
-                            family = 'multinomial',
-                            alpha = mg$alpha[r],
-                            lambda = lambda_seq,
-                            weights = cw)
+        #train model
+        frail_logit <- glmnet(x_train, 
+                              y_train,
+                              family = 'multinomial',
+                              alpha = mg$alpha[r],
+                              lambda = lambda_seq,
+                              weights = cw)
       }, replications = 1
       )
       #save benchmarking
@@ -295,26 +295,26 @@ for (p in 1:length(repeats)) {
         if (((sum(is.na(preds)) > 0) == FALSE) &
             ((sum(y_test[, 2]) > 0) == TRUE) & 
             ((sum(y_test[, 3]) > 0) == TRUE))  {
-        #single class Brier scores
-        hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 1)
-        hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 1)
-        hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 1)
-        #single class scaled Brier scores
-        hyper_grid$sbrier_neut[l] = scaled_Brier(preds[, 1], y_test[, 1], 1)
-        hyper_grid$sbrier_pos[l] = scaled_Brier(preds[, 2], y_test[, 2], 1)
-        hyper_grid$sbrier_neg[l] = scaled_Brier(preds[, 3], y_test[, 3], 1)
-        #multiclass brier score
-        hyper_grid$bscore_multi[l] <- multi_Brier(preds, y_test)
-        #multiclass scaled brier score
-        hyper_grid$sbrier_multi[l] <- multi_scaled_Brier(preds, y_test)
-        #Precision-recall area under the curve
-        hyper_grid$PR_AUC_neut[l] = pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc.integral
-        hyper_grid$PR_AUC_pos[l] = pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc.integral
-        hyper_grid$PR_AUC_neg[l] = pr.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc.integral
-        #Receiver operating characteristic area under the curve
-        hyper_grid$ROC_AUC_neut[l] = roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc
-        hyper_grid$ROC_AUC_pos[l] = roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc
-        hyper_grid$ROC_AUC_neg[l] = roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc
+          #single class Brier scores
+          hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 1)
+          hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 1)
+          hyper_grid$bscore_neg[l] = Brier(preds[, 3], y_test[, 3], 1)
+          #single class scaled Brier scores
+          hyper_grid$sbrier_neut[l] = scaled_Brier(preds[, 1], y_test[, 1], 1)
+          hyper_grid$sbrier_pos[l] = scaled_Brier(preds[, 2], y_test[, 2], 1)
+          hyper_grid$sbrier_neg[l] = scaled_Brier(preds[, 3], y_test[, 3], 1)
+          #multiclass brier score
+          hyper_grid$bscore_multi[l] <- multi_Brier(preds, y_test)
+          #multiclass scaled brier score
+          hyper_grid$sbrier_multi[l] <- multi_scaled_Brier(preds, y_test)
+          #Precision-recall area under the curve
+          hyper_grid$PR_AUC_neut[l] = pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc.integral
+          hyper_grid$PR_AUC_pos[l] = pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc.integral
+          hyper_grid$PR_AUC_neg[l] = pr.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc.integral
+          #Receiver operating characteristic area under the curve
+          hyper_grid$ROC_AUC_neut[l] = roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc
+          hyper_grid$ROC_AUC_pos[l] = roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc
+          hyper_grid$ROC_AUC_neg[l] = roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc
         }
       }
       
@@ -354,8 +354,8 @@ for (p in 1:length(repeats)) {
   
   #label sample fraction (for naming .csv files)
   mg3 <- mutate(mg3, sample_frac_l = ifelse(sample_frac == 0.6, 6,
-                                          ifelse(sample_frac == 0.8, 8,
-                                                 ifelse(sample_frac == 1.0, 10, NA))))
+                                            ifelse(sample_frac == 0.8, 8,
+                                                   ifelse(sample_frac == 1.0, 10, NA))))
   #check for models that have already been completed & remove them from the grid
   mg3 <- mg3 %>%
     mutate(filename = paste0('exp', exp, '_hypergrid_r', repeats[p], '_f', fold, '_', frail_lab, '_svd_', svd, '_mtry', mtry, '_sfrac', sample_frac_l, '_cw_',  as.integer(case_weights), '.csv')) %>%
@@ -434,26 +434,26 @@ for (p in 1:length(repeats)) {
       if (((sum(is.na(preds)) > 0) == FALSE) &
           ((sum(y_test[[2]]) > 0) == TRUE) & 
           ((sum(y_test[[3]]) > 0) == TRUE))  {
-      #single class Brier scores
-      hyper_grid$bscore_neut <- Brier(preds[, 1], y_test[[1]], 1)
-      hyper_grid$bscore_pos <- Brier(preds[, 2], y_test[[2]], 1)
-      hyper_grid$bscore_neg <- Brier(preds[, 3], y_test[[3]], 1)
-      #single class scaled Brier scores
-      hyper_grid$sbrier_neut <- scaled_Brier(preds[, 1], y_test[[1]], 1)
-      hyper_grid$sbrier_pos <- scaled_Brier(preds[, 2], y_test[[2]], 1)
-      hyper_grid$sbrier_neg <- scaled_Brier(preds[, 3], y_test[[3]], 1)
-      #multiclass brier score
-      hyper_grid$bscore_multi <- multi_Brier(preds, y_test)
-      #multiclass scaled brier score
-      hyper_grid$sbrier_multi <- multi_scaled_Brier(preds, y_test)
-      #Precision-recall area under the curve
-      hyper_grid$PR_AUC_neut <- pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc.integral
-      hyper_grid$PR_AUC_pos <- pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc.integral
-      hyper_grid$PR_AUC_neg <- pr.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc.integral
-      #Receiver operating characteristic area under the curve
-      hyper_grid$ROC_AUC_neut <- roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc
-      hyper_grid$ROC_AUC_pos <- roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc
-      hyper_grid$ROC_AUC_neg <- roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc
+        #single class Brier scores
+        hyper_grid$bscore_neut <- Brier(preds[, 1], y_test[[1]], 1)
+        hyper_grid$bscore_pos <- Brier(preds[, 2], y_test[[2]], 1)
+        hyper_grid$bscore_neg <- Brier(preds[, 3], y_test[[3]], 1)
+        #single class scaled Brier scores
+        hyper_grid$sbrier_neut <- scaled_Brier(preds[, 1], y_test[[1]], 1)
+        hyper_grid$sbrier_pos <- scaled_Brier(preds[, 2], y_test[[2]], 1)
+        hyper_grid$sbrier_neg <- scaled_Brier(preds[, 3], y_test[[3]], 1)
+        #multiclass brier score
+        hyper_grid$bscore_multi <- multi_Brier(preds, y_test)
+        #multiclass scaled brier score
+        hyper_grid$sbrier_multi <- multi_scaled_Brier(preds, y_test)
+        #Precision-recall area under the curve
+        hyper_grid$PR_AUC_neut <- pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc.integral
+        hyper_grid$PR_AUC_pos <- pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc.integral
+        hyper_grid$PR_AUC_neg <- pr.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc.integral
+        #Receiver operating characteristic area under the curve
+        hyper_grid$ROC_AUC_neut <- roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc
+        hyper_grid$ROC_AUC_pos <- roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc
+        hyper_grid$ROC_AUC_neg <- roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc
       }
       #save hyper_grid for each rf run
       fwrite(hyper_grid, paste0(rf_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
@@ -494,4 +494,3 @@ rf_bench <- lapply(paste0(rf_durationdir, rf_bench), fread)
 rf_bench <- rbindlist(rf_bench)
 #Save
 fwrite(rf_bench, paste0(outdir, 'exp', exp, '_rf_cpu_time.csv'))
-
