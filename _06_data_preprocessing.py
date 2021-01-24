@@ -79,12 +79,16 @@ def main():
     for i in pids:
         notes_i = [j for j in notes_2018_in_cndf if i in j]
         if len(notes_i) >1:
-            # check and see if there are notes from different batches.  
-            # use the first one if so
+            # check and see if there are notes from different batches.  Use the last one if so
             batchstrings = [k.split("_")[1] for k in notes_i]
             assert all(["AL" in k for k in batchstrings]), "not all double-coded notes are from an AL round."
             in_latest_batch = [k for k in notes_i if max(batchstrings) in k]
-            if len(in_latest_batch) == 1:
+            # deal with a couple of manual cases
+            if i == '004081006':
+                keepers.append('enote_AL01_v2_m2_004081006.csv')
+            elif i == '044286789':
+                keepers.append('enote_AL01_m2_044286789.csv')
+            elif len(in_latest_batch) == 1:
                 keepers.append(in_latest_batch[0])
             elif len(set([k.split("_")[-2] for k in in_latest_batch]))>1: # deal with different spans
                 spans = [k.split("_")[-2] for k in in_latest_batch]
@@ -115,11 +119,34 @@ def main():
         till = drop_dir + "/" + i
         os.rename(fra, till)
     assert all([i in os.listdir(enote_dir) for i in keepers])
+    len(keepers)
     
-    
+
+
+
+
+
+# cruft starts here:
     # clean up the notes_2018_in_cndf
     len(notes_2018_in_cndf)
     
+    [i for i in keepers if '004081006' in i]
+    [i for i in notes_2018_in_cndf if '004081006' in i]
+    
+    jm = [ 'enote_AL00_m11_057800369.csv', 'enote_AL00_m4_057800369.csv', 'enote_AL00_m9_058589987.csv', 'enote_AL01_v2_m8_004081006.csv', 'enote_AL00_m8_004081006.csv', 'enote_AL00_m1_052080793.csv', 'enote_AL01_v2_m2_044286789.csv', 'enote_AL01_m3_Z3095842.csv', 'enote_AL00_m9_Z3095842.csv', 'enote_AL00_m12_054002217.csv', 'enote_AL00_m11_Z1816871.csv', 'enote_AL00_m1_Z2198505.csv', 'enote_AL00_m2_006364095.csv']
+    [i for i in droppers if i not in jm]    
+    [i for i in droppers if '004081006' in i]    
+
+
+044286789    
+    [i for i in keepers if '004081006' in i]
+    [i for i in notes_2018_in_cndf if '044286789' in i]
+    
+    jm = [ 'enote_AL00_m11_057800369.csv', 'enote_AL00_m4_057800369.csv', 'enote_AL00_m9_058589987.csv', 'enote_AL01_v2_m8_004081006.csv', 'enote_AL00_m8_004081006.csv', 'enote_AL00_m1_052080793.csv', 'enote_AL01_v2_m2_044286789.csv', 'enote_AL01_m3_Z3095842.csv', 'enote_AL00_m9_Z3095842.csv', 'enote_AL00_m12_054002217.csv', 'enote_AL00_m11_Z1816871.csv', 'enote_AL00_m1_Z2198505.csv', 'enote_AL00_m2_006364095.csv']
+    [i for i in droppers if i not in jm]    
+    [i for i in droppers if '004081006' in i]    
+
+[i for i in jm if '044286789' in i]
     
     df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded_SENTENCES/" + i,
                                 dtype={'token': str, 'PAT_ID': str}) for i in
