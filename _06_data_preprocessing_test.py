@@ -171,28 +171,6 @@ for r in range(3):
         # Identify training (k-1) folds and test fold
         f_tr = str_lab[~str_lab.note.isin(fold)].reset_index(drop=True)
         f_te = str_lab[str_lab.note.isin(fold)].reset_index(drop=True)
-        # Impute structured data
-        imp_mean = SimpleImputer(strategy='mean')
-        str_tr = pd.DataFrame(imp_mean.fit_transform(f_tr[str_varnames]),
-                              columns=f_tr[str_varnames].columns)
-        str_te = pd.DataFrame(imp_mean.transform(f_te[str_varnames]),
-                              columns=f_te[str_varnames].columns)
-        # Scale structured data
-        scaler = StandardScaler()
-        str_tr = scaler.fit_transform(str_tr)
-        str_te = scaler.transform(str_te)
-        # Fit PCA on structured data and take 95% of variance, then scale again
-        pca = PCA(n_components=0.95, svd_solver='full')
-        str_tr = pd.DataFrame(scaler.fit_transform(pca.fit_transform(str_tr)))
-        str_te = pd.DataFrame(scaler.transform(pca.transform(str_te)))
-        pca_cols = ['pc_' + str(p) for p in str_tr.columns]
-        str_tr.columns = pca_cols
-        str_te.columns = pca_cols
-        #replace structured data with PCA
-        f_tr = pd.concat([f_tr[f_tr.columns[~f_tr.columns.isin(str_varnames)]],
-                          str_tr], axis=1)
-        f_te = pd.concat([f_te[f_te.columns[~f_te.columns.isin(str_varnames)]],
-                          str_te], axis=1)
         # get embeddings for fold
         embeddings_tr = embeddings2[~embeddings2.note.isin(fold)].reset_index(drop=True)
         embeddings_te = embeddings2[embeddings2.note.isin(fold)].reset_index(drop=True)
