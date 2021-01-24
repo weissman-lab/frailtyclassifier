@@ -137,15 +137,13 @@ str_varnames = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
                 'MV_SEX', 'MV_MARITAL_STATUS', 'MV_EMPY_STAT']
 out_varnames = ['Msk_prob', 'Nutrition', 'Resp_imp', 'Fall_risk']
 
-
-#check for completely missing data (repeat after using ACD updated structured
-# data scripts
-str_varnames2 = str_varnames.copy()
-str_varnames2.append('note')
-missing_note = df2[str_varnames2].groupby('note').apply(lambda x: x.isnull().mean())
-missing_note = missing_note.mean(axis=1)
-list(missing_note.loc[missing_note > 0.9].index)
-
+# #check for completely missing data (repeat after using ACD updated structured
+# # data scripts
+# str_varnames2 = str_varnames.copy()
+# str_varnames2.append('note')
+# missing_note = df2[str_varnames2].groupby('note').apply(lambda x: x.isnull().mean())
+# missing_note = missing_note.mean(axis=1)
+# list(missing_note.loc[missing_note > 0.9].index)
 
 # drop the mean & sd for labs that are >70% missing. Keep the missing value
 # indicator (so rare labs become present/absent)
