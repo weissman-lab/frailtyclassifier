@@ -16,6 +16,7 @@ import re
 from configargparse import ArgParser
 import numpy as np
 import pandas as pd
+import hashlib
 from sklearn.impute import SimpleImputer
 from sklearn.decomposition import TruncatedSVD, PCA
 from sklearn.feature_extraction.text import CountVectorizer
@@ -33,7 +34,12 @@ def sheepish_mkdir(path):
     except FileExistsError:
         pass
 
-# batchstring = 'testJ21'
+def hasher(x):
+    hash_object = hashlib.sha512(x.encode('utf-8'))
+    hex_dig = hash_object.hexdigest()    
+    return hex_dig
+
+batchstring = 'testJ21'
 
 def main():
     p = ArgParser()
@@ -76,6 +82,7 @@ def main():
     '''
     pids = set([re.sub(".csv", "", i.split("_")[-1]) for i in notes_2018_in_cndf])
     keepers = []
+    Nhashed = 0
     for i in pids:
         notes_i = [j for j in notes_2018_in_cndf if i in j]
         if len(notes_i) >1:
@@ -84,10 +91,14 @@ def main():
             assert all(["AL" in k for k in batchstrings]), "not all double-coded notes are from an AL round."
             in_latest_batch = [k for k in notes_i if max(batchstrings) in k]
             # deal with a couple of manual cases
-            if i == '004081006':
-                keepers.append('enote_AL01_v2_m2_004081006.csv')
-            elif i == '044286789':
-                keepers.append('enote_AL01_m2_044286789.csv')
+            if hasher(i) == 'faef3f1f1a76c57e42f9b35a662656096b4e2dfe15040a61a896b1de06ef1e0a45e61e7e9b26f9282047847854d2d1887d19cbf3041aff2130e102d65243e724':
+                keepers.append(f'enote_AL01_v2_m2_{i}.csv')
+                print(i)
+                Nhashed +=1
+            elif hasher(i) == 'e13eced415697e4f59bcc8e75659dcffa4182a8de44b976d5e1d8160407711d276e38946ec52ec366a3ad92f197d92e8d56c1bd4e9029103d17ac12944cc3bc5':
+                keepers.append(f'enote_AL01_m2_{i}.csv')
+                print(i)
+                Nhashed +=1
             elif len(in_latest_batch) == 1:
                 keepers.append(in_latest_batch[0])
             elif len(set([k.split("_")[-2] for k in in_latest_batch]))>1: # deal with different spans
@@ -104,6 +115,7 @@ def main():
                 breakpoint()
         else:
             keepers.append(notes_i[0])
+    assert Nhashed == 2
     assert len(keepers) == len(pids)
     droppers = [i for i in notes_2018_in_cndf if i not in keepers]
     if any(droppers):
@@ -119,147 +131,13 @@ def main():
         till = drop_dir + "/" + i
         os.rename(fra, till)
     assert all([i in os.listdir(enote_dir) for i in keepers])
-    len(keepers)
-    
+    assert all([i in os.listdir(drop_dir) for i in droppers])
+
+
+******************
 
 
 
-
-
-# cruft starts here:
-    # clean up the notes_2018_in_cndf
-    len(notes_2018_in_cndf)
-    
-    [i for i in keepers if '004081006' in i]
-    [i for i in notes_2018_in_cndf if '004081006' in i]
-    
-    jm = [ 'enote_AL00_m11_057800369.csv', 'enote_AL00_m4_057800369.csv', 'enote_AL00_m9_058589987.csv', 'enote_AL01_v2_m8_004081006.csv', 'enote_AL00_m8_004081006.csv', 'enote_AL00_m1_052080793.csv', 'enote_AL01_v2_m2_044286789.csv', 'enote_AL01_m3_Z3095842.csv', 'enote_AL00_m9_Z3095842.csv', 'enote_AL00_m12_054002217.csv', 'enote_AL00_m11_Z1816871.csv', 'enote_AL00_m1_Z2198505.csv', 'enote_AL00_m2_006364095.csv']
-    [i for i in droppers if i not in jm]    
-    [i for i in droppers if '004081006' in i]    
-
-
-044286789    
-    [i for i in keepers if '004081006' in i]
-    [i for i in notes_2018_in_cndf if '044286789' in i]
-    
-    jm = [ 'enote_AL00_m11_057800369.csv', 'enote_AL00_m4_057800369.csv', 'enote_AL00_m9_058589987.csv', 'enote_AL01_v2_m8_004081006.csv', 'enote_AL00_m8_004081006.csv', 'enote_AL00_m1_052080793.csv', 'enote_AL01_v2_m2_044286789.csv', 'enote_AL01_m3_Z3095842.csv', 'enote_AL00_m9_Z3095842.csv', 'enote_AL00_m12_054002217.csv', 'enote_AL00_m11_Z1816871.csv', 'enote_AL00_m1_Z2198505.csv', 'enote_AL00_m2_006364095.csv']
-    [i for i in droppers if i not in jm]    
-    [i for i in droppers if '004081006' in i]    
-
-[i for i in jm if '044286789' in i]
-    
-    df = pd.concat([pd.read_csv(outdir + "notes_labeled_embedded_SENTENCES/" + i,
-                                dtype={'token': str, 'PAT_ID': str}) for i in
-                    notes_2018_in_cndf])
-    
-    cc = 0
-    xxx = {}
-    for n, i in enumerate(notes_2018_in_cndf):
-        xx = pd.read_csv(outdir + "notes_labeled_embedded_SENTENCES/" + i,
-                                dtype={'token': str, 'PAT_ID': str})
-        print(xx.shape)
-        xxx[i] = xx
-        print(i)
-    
-    [i for i in range(len(xxx)) if xxx[i].shape[0]==808]
-
-
-
-pids = {}
-# find the set of pat ids that are duplicated
-for i in notes_2018_in_cndf:
-    pid = re.sub(".csv", "", "_".join(i.split("_")[-2:]))
-    try:
-        pids[pid] += 1
-    except:
-        pids[pid] = 1
-
-x2=0
-x3=0
-for i in pids:
-    if pids[i] == 2:
-        x2 +=1
-    elif pids[i] == 3:
-        x3 +=1
-
-
-pids = {}
-# find the set of pat ids that are duplicated
-for i in notes_2018_in_cndf:
-    pid = re.sub(".csv", "", i.split("_")[-1])
-    try:
-        pids[pid] += 1
-    except:
-        pids[pid] = 1
-
-reps = []
-for k in pids
-
-for i in pids
-
-(pd.DataFrame(pids, index = [0]) == 2).sum().sum()
-
-
-for i in pids:
-    if pids[i] >1:
-        print(f"{[j for j in notes_2018_in_cndf if i in j]}")
-
-
-
-[i for i in AL00 if 'Z3095842' in i]
-[i for i in AL01 if 'Z3095842' in i]
-
-[i for i in AL00 if '057800369' in i]
-[i for i in AL01 if '057800369' in i]
-
-[i for i in AL00 if '006364095' in i]
-[i for i in AL01 if '006364095' in i]
-
-[i for i in AL00 if '004081006' in i]
-[i for i in AL01 if '004081006' in i]
-
-
-
-AL00 = []
-AL01 = []
-batch = []
-for i in notes_2018_in_cndf:
-    if "AL00" in i:
-        AL00.append(i)
-    elif "AL01" in i:
-        AL01.append(i)
-    else:
-        batch.append(i)
-        
-xxx['enote_AL01_m9_Z3095842.csv'].loc[:,out_varnames].mean()
-xxx['enote_AL00_m9_Z3095842.csv'].loc[:,out_varnames].mean()
-        
-
-
-
-[i for i in notes_2018_in_cndf if "044286789" in i]
-        
-len(batch)
-len(AL00)
-len(AL01)
-32+15+26
-
-xxx[36].iloc[:10, :20]
-xxx[38].iloc[:10, :20]
-xxx[61].iloc[:10, :20]
-xxx[38].iloc[:5, :5]
-
-dd = xxx[38].loc[:,out_varnames] - xxx[36].loc[:,out_varnames]
-dd.mean().mean()
-
-xxx[38].note.unique()
-xxx[36].note.unique()
-xxx[36].loc[:,out_varnames].mean()
-
-
-
-notes_2018_in_cndf[38]
-notes_2018_in_cndf[36]
     df = df.drop(columns = ['Unnamed: 0', 'sent_start', 'length'])
     
     [i for i in notes_2018_in_cndf if re.sub(".csv", "", re.sub('enote_', "", i)) not in list(df.note.unique())]
