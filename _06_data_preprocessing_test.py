@@ -63,7 +63,7 @@ notes_excluded = [i for i in notes_2018 if
                   "_".join(i.split("_")[-2:]) not in uidstr]
 
 #get culled repeat notes
-culled_repeats = list(pd.read_csv('/Users/martijac/Documents/Frailty/frailty_classifier/output/cull_list_2021_01_24.txt').iloc[:, 1])
+culled_repeats = list(pd.read_csv(f"{datadir}cull_list_2021_01_24.txt").iloc[:, 1])
 notes_2018_in_cndf_culled = set(notes_2018_in_cndf).difference(culled_repeats)
 
 assert len(notes_2018_in_cndf_culled) + len(notes_excluded) + len(culled_repeats) == len(notes_2018)
