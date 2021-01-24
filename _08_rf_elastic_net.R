@@ -18,19 +18,23 @@ if (length(exp)==0) {
 }
 
 #set directories based on location
-dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_SENT/',
-         '/media/drv2/andrewcd2/frailty/output/lin_trees_SENT/',
-         '/share/gwlab/frailty/output/lin_trees_SENT/')
+dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/',
+         '/media/drv2/andrewcd2/frailty/output/',
+         '/share/gwlab/frailty/output/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
-    datadir = dirs[d]
+    rootdir = dirs[d]
   }
 }
+
+datadir <- paste0(rootdir, 'notes_preprocessed_SENTENCES/')
+#datadir <- paste0(rootdir, 'lin_trees_TEST/')
+
 SVDdir <- paste0(datadir, 'svd/') 
 embeddingsdir <- paste0(datadir, 'embeddings/')
 trtedatadir <- paste0(datadir, 'trtedata/')
 #new output directory for each experiment:
-outdir <- paste0(datadir, 'exp', exp, '/')
+outdir <- paste0(rootdir, 'lin_trees_SENT/exp', exp, '/')
 #directory for performance for each enet model:
 enet_modeldir <- paste0(outdir,'enet_models/')
 #directory for duration for each enet model:
@@ -74,7 +78,7 @@ multi_scaled_Brier <- function(predictions, observations) {
 
 #repeats & folds
 repeats <- 1
-folds <- seq(2, 10)
+folds <- seq(1, 10)
 #text features
 svd <- c('embed', '300', '1000')
 #include structured data?
@@ -179,7 +183,7 @@ for (p in 1:length(repeats)) {
     rm(list = paste0('r', repeats[p], '_s_', svd[s], '_x_train'))
     rm(list = paste0('r', repeats[p], '_s_', svd[s], '_x_test'))
   }
-  gc()
+  invisible(gc(verbose = FALSE))
   
   #hyperparameter grid for experiments
   #set sequence of lambda values to test
@@ -187,22 +191,11 @@ for (p in 1:length(repeats)) {
   #model grid 1
   mg1 <- expand_grid(
     fold = folds,
-    svd = c('embed', '300', '1000'),
+    svd = svd,
     frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
     alpha = c(0.9, 0.5, 0.1),
     case_weights = c(TRUE, FALSE)
   )
-  
-  # # small test grid
-  # #set sequence of lambda values to test
-  # lambda_seq <- signif(c(10^seq(-2, -3, length.out = 3)), 4)
-  # #model grid 1
-  # mg1 <- expand_grid(
-  #   fold = seq(1,10),
-  #   svd = c('embed', '300', '1000'),
-  #   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-  #   alpha = c(0.9, 0.5),
-  # )
   
   #label alpha (for naming .csv files)
   mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
@@ -219,7 +212,7 @@ for (p in 1:length(repeats)) {
   if ((nrow(mg1) == 0) == FALSE) {
     #run for first model grid
     mg <- mg1
-    foreach (r = 1:nrow(mg), .errorhandling = "remove") %dopar% {
+    enet_error = foreach (r = 1:nrow(mg), .errorhandling = "pass") %dopar% {
       #get matching training and test labels
       x_train <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_s_', mg$svd[r], '_x_train'))
       x_test <- get(paste0('r', repeats[p], '_f', mg$fold[r], '_s_', mg$svd[r], '_x_test'))
@@ -271,7 +264,6 @@ for (p in 1:length(repeats)) {
         lambda = rep(NA, dim(alpha_preds)[3]), #lambdas are in the 3rd dimension of this array
         alpha = NA,
         case_weights = NA,
-        df = NA,
         bscore_multi = NA,
         bscore_neut = NA,
         bscore_pos = NA,
@@ -297,10 +289,12 @@ for (p in 1:length(repeats)) {
         hyper_grid$case_weights[l] <- mg$case_weights[r]
         #lambda
         hyper_grid$lambda[l] <- frail_logit$lambda[l]
-        #number of nonzero coefficients (Df)
-        hyper_grid$df[l] <- frail_logit$df[l]
         #preds for this lambda
         preds <- alpha_preds[, , l]
+        #check for missing values in preds and relevant obs in test set
+        if (((sum(is.na(preds)) > 0) == FALSE) &
+            ((sum(y_test[, 2]) > 0) == TRUE) & 
+            ((sum(y_test[, 3]) > 0) == TRUE))  {
         #single class Brier scores
         hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_test[, 1], 1)
         hyper_grid$bscore_pos[l] = Brier(preds[, 2], y_test[, 2], 1)
@@ -321,16 +315,18 @@ for (p in 1:length(repeats)) {
         hyper_grid$ROC_AUC_neut[l] = roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[, 1])$auc
         hyper_grid$ROC_AUC_pos[l] = roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[, 2])$auc
         hyper_grid$ROC_AUC_neg[l] = roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[, 3])$auc
+        }
       }
       
       #save hyper_grid for each glmnet run
       fwrite(hyper_grid, paste0(enet_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg$fold[r], '_', mg$frail_lab[r], '_svd_', mg$svd[r], '_alpha', mg$alpha_l[r], '_cw', as.integer(mg$case_weights[r]), '.csv'))
       #remove objects & garbage collection
       rm(x_train, x_test, y_train, y_test, frail_logit, benchmark, alpha_preds, preds_save, preds_s, preds, hyper_grid)
-      gc()
+      invisible(gc(verbose = FALSE))
     }
+    fwrite(enet_error, paste0(outdir, 'exp', exp, '_enet_error_r', repeats[p], '.txt'))
   }
-  gc()
+  invisible(gc(verbose = FALSE))
   
   #RANDOM FOREST
   
@@ -348,23 +344,13 @@ for (p in 1:length(repeats)) {
   #experiment grid
   mg3 <- expand_grid(
     fold = folds,
-    svd = c('embed', '300', '1000'),
+    svd = svd,
     frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
     ntree       = 400,
     mtry        = signif(seq(7, 45, length.out = 3), 2),
     sample_frac = signif(seq(0.6, 1, length.out = 3), 1),
     case_weights = c(TRUE, FALSE)
   )
-  
-  #small test grid
-  # mg3 <- expand_grid(
-  #   fold = seq(1,10),
-  #   svd = c('embed', '300'),
-  #   frail_lab = c('Fall_risk', 'Nutrition'),
-  #   ntree       = 400,
-  #   mtry        = signif(seq(7, 45, length.out = 2), 2),
-  #   sample_frac = signif(seq(0.6, 1, length.out = 2), 1)
-  # )
   
   #label sample fraction (for naming .csv files)
   mg3 <- mutate(mg3, sample_frac_l = ifelse(sample_frac == 0.6, 6,
@@ -390,7 +376,7 @@ for (p in 1:length(repeats)) {
         mutate(factr = ifelse(.[[1]] == 1, 1,
                               ifelse(.[[2]] == 1, 2,
                                      ifelse(.[[3]] == 1, 3, NA))))
-      y_train_factor <- y_train$factr
+      y_train_factor <- as.factor(y_train$factr)
       y_test <- get(paste0('r', repeats[p], '_f', mg3$fold[r], '_te'))[, ..y_cols]
       #get matching case weights
       if (mg3$case_weights[r] == FALSE) {
@@ -422,7 +408,6 @@ for (p in 1:length(repeats)) {
       preds_save$note <- get(paste0('r', repeats[p], '_f', mg3$fold[r], '_te'))$note
       #save predictions
       fwrite(as.data.table(preds_save), paste0(rf_predsdir, 'exp', exp, '_preds_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
-  
       #label each row
       hyper_grid <- data.frame(frail_lab = mg3$frail_lab[r])
       hyper_grid$cv_repeat <- repeats[p]
@@ -431,36 +416,54 @@ for (p in 1:length(repeats)) {
       hyper_grid$mtry <- mg3$mtry[r]
       hyper_grid$sample_frac <- mg3$sample_frac[r]
       hyper_grid$case_weights <- mg3$case_weights[r]
-      hyper_grid$num_indep_vars <- frail_rf$`num.independent.variables`
+      hyper_grid$bscore_neut <- NA
+      hyper_grid$bscore_pos <- NA
+      hyper_grid$bscore_neg <- NA
+      hyper_grid$sbrier_neut <- NA
+      hyper_grid$sbrier_pos <- NA
+      hyper_grid$sbrier_neg <- NA
+      hyper_grid$bscore_multi <- NA
+      hyper_grid$sbrier_multi <- NA
+      hyper_grid$PR_AUC_neut <- NA
+      hyper_grid$PR_AUC_pos <- NA
+      hyper_grid$PR_AUC_neg <- NA
+      hyper_grid$ROC_AUC_neut <- NA
+      hyper_grid$ROC_AUC_pos <- NA
+      hyper_grid$ROC_AUC_neg <- NA
+      #check for missing values in preds and relevant obs in test set
+      if (((sum(is.na(preds)) > 0) == FALSE) &
+          ((sum(y_test[[2]]) > 0) == TRUE) & 
+          ((sum(y_test[[3]]) > 0) == TRUE))  {
       #single class Brier scores
       hyper_grid$bscore_neut <- Brier(preds[, 1], y_test[[1]], 1)
-      hyper_grid$bscore_pos = Brier(preds[, 2], y_test[[2]], 1)
-      hyper_grid$bscore_neg = Brier(preds[, 3], y_test[[3]], 1)
+      hyper_grid$bscore_pos <- Brier(preds[, 2], y_test[[2]], 1)
+      hyper_grid$bscore_neg <- Brier(preds[, 3], y_test[[3]], 1)
       #single class scaled Brier scores
-      hyper_grid$sbrier_neut = scaled_Brier(preds[, 1], y_test[[1]], 1)
-      hyper_grid$sbrier_pos = scaled_Brier(preds[, 2], y_test[[2]], 1)
-      hyper_grid$sbrier_neg = scaled_Brier(preds[, 3], y_test[[3]], 1)
+      hyper_grid$sbrier_neut <- scaled_Brier(preds[, 1], y_test[[1]], 1)
+      hyper_grid$sbrier_pos <- scaled_Brier(preds[, 2], y_test[[2]], 1)
+      hyper_grid$sbrier_neg <- scaled_Brier(preds[, 3], y_test[[3]], 1)
       #multiclass brier score
       hyper_grid$bscore_multi <- multi_Brier(preds, y_test)
       #multiclass scaled brier score
       hyper_grid$sbrier_multi <- multi_scaled_Brier(preds, y_test)
       #Precision-recall area under the curve
-      hyper_grid$PR_AUC_neut = pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc.integral
-      hyper_grid$PR_AUC_pos = pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc.integral
-      hyper_grid$PR_AUC_neg = pr.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc.integral
+      hyper_grid$PR_AUC_neut <- pr.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc.integral
+      hyper_grid$PR_AUC_pos <- pr.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc.integral
+      hyper_grid$PR_AUC_neg <- pr.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc.integral
       #Receiver operating characteristic area under the curve
-      hyper_grid$ROC_AUC_neut = roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc
-      hyper_grid$ROC_AUC_pos = roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc
-      hyper_grid$ROC_AUC_neg = roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc
+      hyper_grid$ROC_AUC_neut <- roc.curve(scores.class0 = preds[, 1], weights.class0 = y_test[[1]])$auc
+      hyper_grid$ROC_AUC_pos <- roc.curve(scores.class0 = preds[, 2], weights.class0 = y_test[[2]])$auc
+      hyper_grid$ROC_AUC_neg <- roc.curve(scores.class0 = preds[, 3], weights.class0 = y_test[[3]])$auc
+      }
       #save hyper_grid for each rf run
       fwrite(hyper_grid, paste0(rf_modeldir, 'exp', exp, '_hypergrid_r', repeats[p], '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r], '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
-      gc()
+      invisible(invisible(gc(verbose = FALSE)))
     }
   }
   #remove all objects related to current CV repeat
   objects_cv_repeat <- grep(paste0('r', repeats[p], '_f'), names(.GlobalEnv), value=TRUE)
   rm(list = objects_cv_repeat)
-  gc()
+  invisible(invisible(gc(verbose = FALSE)))
 }
 
 
