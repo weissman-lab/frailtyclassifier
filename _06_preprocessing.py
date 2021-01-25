@@ -11,19 +11,16 @@ embeddings and 300- & 1000-d SVD of tf-idf
 '''
 
 import os
-import random
 import re
 from configargparse import ArgParser
 import numpy as np
 import pandas as pd
 import copy
 import hashlib
-from sklearn.impute import SimpleImputer
-from sklearn.decomposition import TruncatedSVD, PCA
+from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfTransformer
-from sklearn.pipeline import Pipeline
 from _99_project_module import send_message_to_slack, write_pickle
 
 pd.options.display.max_rows = 4000
@@ -55,8 +52,6 @@ def compselect(d, pct, seed=0):
             ncomp = np.where((pca.explained_variance_ratio_.cumsum()>pct) == True)[0].min()
             return ncomp
 
-batchstring = 'testJ21'
-
 
 def main():
     try:
@@ -66,7 +61,6 @@ def main():
         batchstring = options.batchstring
         # identify the active learning directory
         outdir = f"{os.getcwd()}/output/"
-        datadir = f"{os.getcwd()}/data/"
         ALdir = f"{outdir}/saved_models/AL{batchstring}"
         sheepish_mkdir(ALdir)
         # make files for the CSV output
@@ -410,6 +404,7 @@ def main():
                 # case weights
                 cwdf.to_csv(f"{ALdir}/processed_data/caseweights/r{repeat}_f{fold}_tr_caseweights.csv")
                 write_pickle(fold_sklearn_artifacts, f"{ALdir}/processed_data/sklearn_artifacts/r{repeat}_f{fold}skl_dict.pkl")
+        fold_definition.to_csv(f"{ALdir}/processed_data/fold_definitions.csv")
     except Exception as e:
         print(e)
         breakpoint()
@@ -420,148 +415,3 @@ if __name__ == "__main__":
 
 
 
-
-
-
-# ##### REPEATED K-FOLD CROSS-VALIDATION #####
-# seed_start = 942020
-# # split into 10 folds, each containing different notes
-# notes = list(str_lab.note.unique())
-# # sort notes first in order to standardize the random split based on the seed
-# notes.sort()
-# # Set up repeats
-# for r in range(3):
-#     # shuffle differently for each repeat
-#     random.seed(seed_start + r)
-#     np.random.shuffle(notes)
-#     # make a list of notes in each of the 10 test folds
-#     fold_list = np.array_split(notes, 10)
-#     # Set up folds
-#     for f in range(10):
-#         # split fold
-#         fold = list(fold_list[f])
-#         # Identify training (k-1) folds and test fold
-#         f_tr = str_lab[~str_lab.note.isin(fold)].reset_index(drop=True)
-#         f_te = str_lab[str_lab.note.isin(fold)].reset_index(drop=True)
-#         # Impute structured data
-#         imp_mean = SimpleImputer(strategy='mean')
-#         str_tr = pd.DataFrame(imp_mean.fit_transform(f_tr[str_varnames]),
-#                               columns=f_tr[str_varnames].columns)
-#         str_te = pd.DataFrame(imp_mean.transform(f_te[str_varnames]),
-#                               columns=f_te[str_varnames].columns)
-#         # Scale structured data
-#         scaler = StandardScaler()
-#         str_tr = scaler.fit_transform(str_tr)
-#         str_te = scaler.transform(str_te)
-#         # Fit PCA on structured data and take 95% of variance, then scale again
-#         pca = PCA(n_components=0.95, svd_solver='full')
-#         str_tr = pd.DataFrame(scaler.fit_transform(pca.fit_transform(str_tr)))
-#         str_te = pd.DataFrame(scaler.transform(pca.transform(str_te)))
-#         pca_cols = ['pc_' + str(p) for p in str_tr.columns]
-#         str_tr.columns = pca_cols
-#         str_te.columns = pca_cols
-#         #replace structured data with PCA
-#         f_tr = pd.concat([f_tr[f_tr.columns[~f_tr.columns.isin(str_varnames)]],
-#                           str_tr], axis=1)
-#         f_te = pd.concat([f_te[f_te.columns[~f_te.columns.isin(str_varnames)]],
-#                           str_te], axis=1)
-
-#         # test for matching length
-#         assert len(f_tr.note) == len(
-#             embeddings_tr.note), 'notes do not match embeddings'
-#         assert len(f_te.note) == len(
-#             embeddings_te.note), 'notes do not match embeddings'
-#         # get a vector of caseweights for each frailty aspect
-#         # weight non-neutral tokens by the inverse of their prevalence
-#         f_tr_cw = {}
-#         for v in out_varnames:
-#             non_neutral = np.array(np.sum(
-#                 f_tr[[i for i in f_tr.columns if (v in i) and
-#                          (("_pos" in i) or ("_neg" in i))]], axis=1)).astype(
-#                 'float32')
-#             nnweight = 1 / np.mean(non_neutral)
-#             tr_caseweights = np.ones(f_tr.shape[0])
-#             tr_caseweights[non_neutral.astype(bool)] *= nnweight
-#             f_tr_cw[f'{v}_cw'] = tr_caseweights
-#         # make cw df
-#         f_tr_cw = pd.DataFrame(f_tr_cw)
-#         # Convert text into matrix of tf-idf features:
-#         # id documents
-#         tr_docs = f_tr['sentence'].tolist()
-#         # instantiate countvectorizer (turn off default stopwords)
-#         cv = CountVectorizer(analyzer='word', stop_words=None)
-#         # compute tf
-#         f_tr_tf = cv.fit_transform(tr_docs)
-#         # id additional stopwords: medlist_was_here_but_got_cut,
-#         # meds_was_here_but_got_cut, catv2_was_here_but_got_cut
-#         cuttext = '_was_here_but_got_cut'
-#         stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
-#         # repeat countvec with full list of stopwords
-#         cv = CountVectorizer(analyzer='word', stop_words=stopw)
-#         # fit to data, then transform to count matrix
-#         f_tr_tf = cv.fit_transform(tr_docs)
-#         # fit to count matrix, then transform to tf-idf representation
-#         tfidf_transformer = TfidfTransformer()
-#         f_tr_tfidf = tfidf_transformer.fit_transform(f_tr_tf)
-#         # apply feature extraction to test set (do NOT fit on test data)
-#         te_docs = f_te['sentence'].tolist()
-#         f_te_tf = cv.transform(te_docs)
-#         f_te_tfidf = tfidf_transformer.transform(f_te_tf)
-#         # dimensionality reduction with truncated SVD
-#         svd_300 = TruncatedSVD(n_components=300, n_iter=5, random_state=9082020)
-#         svd_1000 = TruncatedSVD(n_components=1000, n_iter=5, random_state=9082020)
-#         # fit to training data & transform
-#         f_tr_svd300 = pd.DataFrame(svd_300.fit_transform(f_tr_tfidf))
-#         f_tr_svd1000 = pd.DataFrame(svd_1000.fit_transform(f_tr_tfidf))
-#         # transform test data (do NOT fit on test data)
-#         f_te_svd300 = pd.DataFrame(svd_300.transform(f_te_tfidf))
-#         f_te_svd1000 = pd.DataFrame(svd_1000.transform(f_te_tfidf))
-#         # Output for r
-#         f_tr.to_csv(f"{trvadatadir}r{r + 1}_f{f + 1}_tr_df.csv")
-#         f_te.to_csv(f"{trvadatadir}r{r + 1}_f{f + 1}_te_df.csv")
-#         f_tr_cw.to_csv(f"{trvadatadir}r{r + 1}_f{f + 1}_tr_cw.csv")
-#         embeddings_tr.to_csv(
-#             f"{embeddingsdir}r{r + 1}_f{f + 1}_tr_embed_min_max_mean_SENT.csv")
-#         embeddings_te.to_csv(
-#             f"{embeddingsdir}r{r + 1}_f{f + 1}_te_embed_min_max_mean_SENT.csv")
-#         f_tr_svd300.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_tr_svd300.csv")
-#         f_tr_svd1000.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_tr_svd1000.csv")
-#         f_te_svd300.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_te_svd300.csv")
-#         f_te_svd1000.to_csv(f"{SVDdir}r{r + 1}_f{f + 1}_te_svd1000.csv")
-
-
-
-
-
-        
-#     # # get the correct directories
-#     # dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/notes_preprocessed_SENTENCES/",
-#     #         "/media/drv2/andrewcd2/frailty/output/notes_preprocessed_SENTENCES/",
-#     #         "/share/gwlab/frailty/output/notes_preprocessed_SENTENCES/",
-#     #         "/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/notes_preprocessed_SENTENCES/"]
-#     # for d in dirs:
-#     #     if os.path.exists(d):
-#     #         notesdir = d
-#     # if datadir == dirs[0]:  # mb
-#     #     notesdir = datadir
-#     # if datadir == dirs[1]:  # grace
-#     #     notesdir = f"{os.getcwd()}/output/"
-#     # if datadir == dirs[2]:  # azure
-#     #     notesdir = datadir
-#     # outdir = f"{datadir}notes_preprocessed_SENTENCES/"
-#     # SVDdir = f"{outdir}svd/"
-#     # embeddingsdir = f"{outdir}embeddings/"
-#     # trvadatadir = f"{outdir}trvadata/"
-#     # sheepish_mkdir(outdir)
-#     # sheepish_mkdir(SVDdir)
-#     # sheepish_mkdir(embeddingsdir)
-#     # sheepish_mkdir(trvadatadir)
-
-# # load SENTENCES
-# # check for .csv in filename to avoid the .DSstore file
-# # load the notes from 2018
-
-# # drop the notes that aren't in the concatenated notes data frame
-# # some notes got labeled and embedded but were later removed from the pipeline
-# # on July 14 2020, due to the inclusion of the 12-month ICD lookback
-# # get notes_labeled_embedded that match eligible patients only
