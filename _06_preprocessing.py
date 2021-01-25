@@ -69,7 +69,6 @@ def main():
         sheepish_mkdir(f"{ALdir}/processed_data/embeddings")
         sheepish_mkdir(f"{ALdir}/processed_data/trvadata")
         sheepish_mkdir(f"{ALdir}/processed_data/caseweights")
-        sheepish_mkdir(f"{ALdir}/processed_data/sklearn_artifacts")
         notes_2018 = [i for i in
                   os.listdir(outdir + "notes_labeled_embedded_SENTENCES/")
                   if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
@@ -403,7 +402,7 @@ def main():
                 f_va_svd1000.to_csv(f"{ALdir}/processed_data/svd/r{repeat}_f{fold}_va_svd1000.csv")
                 # case weights
                 cwdf.to_csv(f"{ALdir}/processed_data/caseweights/r{repeat}_f{fold}_tr_caseweights.csv")
-                write_pickle(fold_sklearn_artifacts, f"{ALdir}/processed_data/sklearn_artifacts/r{repeat}_f{fold}skl_dict.pkl")
+        write_pickle(fold_sklearn_artifacts, f"{ALdir}/processed_data/r{repeat}_f{fold}skl_dict.pkl")
         fold_definition.to_csv(f"{ALdir}/processed_data/fold_definitions.csv")
     except Exception as e:
         print(e)
