@@ -41,8 +41,16 @@ enet_modeldir <- paste0(outdir,'enet_models/')
 enet_durationdir <- paste0(outdir,'enet_durations/')
 #directory for predictions:
 enet_predsdir <- paste0(outdir,'enet_preds/')
-
+#directory for performance for each rf model:
+rf_modeldir <- paste0(outdir,'rf_models/')
+#directory for duration for each rf model:
+rf_durationdir <- paste0(outdir,'rf_durations/')
+#directory for predictions:
+rf_predsdir <- paste0(outdir,'rf_preds/')
 #make directories
+dir.create(rf_durationdir)
+dir.create(rf_modeldir)
+dir.create(rf_predsdir)
 dir.create(outdir)
 dir.create(enet_modeldir)
 dir.create(enet_durationdir)
@@ -188,17 +196,6 @@ for (p in 1:length(repeats)) {
   
   #RANDOM FOREST
   
-  #directory for performance for each rf model:
-  rf_modeldir <- paste0(outdir,'rf_models/')
-  #directory for duration for each rf model:
-  rf_durationdir <- paste0(outdir,'rf_durations/')
-  #directory for predictions:
-  rf_predsdir <- paste0(outdir,'rf_preds/')
-  #make directories
-  dir.create(rf_durationdir)
-  dir.create(rf_modeldir)
-  dir.create(rf_predsdir)
-  
   #experiment grid
   mg3 <- expand_grid(
     fold = folds,
@@ -322,12 +319,12 @@ for (p in 1:length(repeats)) {
   
   #hyperparameter grid for experiments
   #set sequence of lambda values to test
-  lambda_seq <- signif(c(10^seq(-2, -4, length.out = 3)), 4)
+  lambda_seq <- signif(c(10^seq(1, -2, length.out = 10)), 4)
   #model grid 1
   mg1 <- expand_grid(
-    fold = folds,
+    fold = c(1, 2, 3),
     svd = svd,
-    frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+    frail_lab = c('Msk_prob', 'Fall_risk'),
     alpha = 0.1,
     case_weights = FALSE
   )
