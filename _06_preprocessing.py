@@ -404,6 +404,7 @@ def main():
                 # sklearn artifacts
                 write_pickle(sklearn_dict, f"{ALdir}/processed_data/sklearn_artifacts/r{repeat}_f{fold}sklearn_dict.pkl")
         fold_definition.to_csv(f"{ALdir}/processed_data/fold_definitions.csv")
+        send_message_to_slack('Preprocessing finished')
     except Exception as e:
         print(e)
         breakpoint()
