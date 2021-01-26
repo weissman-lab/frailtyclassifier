@@ -69,6 +69,7 @@ def main():
         sheepish_mkdir(f"{ALdir}/processed_data/embeddings")
         sheepish_mkdir(f"{ALdir}/processed_data/trvadata")
         sheepish_mkdir(f"{ALdir}/processed_data/caseweights")
+        sheepish_mkdir(f"{ALdir}/processed_data/sklearn_artifacts")
         notes_2018 = [i for i in
                   os.listdir(outdir + "notes_labeled_embedded_SENTENCES/")
                   if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
@@ -283,6 +284,8 @@ def main():
         embeddings2.insert(loc = 2, column = 'PAT_ID', value = embeddings2.note.apply(lambda x: x.split("_")[-1]))
         assert all([i in list(pids) for i in list(embeddings2.PAT_ID.unique())])
         assert all([i in list(embeddings2.PAT_ID.unique()) for i in list(pids)])
+        assert all(df_label.sentence_id.isin(embeddings2.sentence_id))
+        assert all(embeddings2.sentence_id.isin(df_label.sentence_id))
         #############################
         # breaking out input files by fold
         seed = 8675309
@@ -291,12 +294,9 @@ def main():
         pids.sort()
         folds = [i % 10 for i in range(len(pids))]
         fold_definition = pd.DataFrame(dict(PAT_ID = pids)) # start a data frame for documenting which notes are in each fold
-        fold_sklearn_artifacts = {}
         for repeat in [1,2,3]:
-            fold_sklearn_artifacts[repeat] = {} # first level of dict is for repeats
             folds = np.random.choice(folds, len(folds), replace = False)
             fold_definition[f"repeat{repeat}"] = folds        
-            fold_sklearn_artifacts[repeat] = {}
             for fold in range(10):
                 print(f"starting fold {fold}, repeat {repeat}")
                 tr = [pids[i] for i, j in enumerate(folds) if j != fold]
@@ -317,10 +317,10 @@ def main():
                 scaler_out = StandardScaler()
                 tr_rot_scaled = scaler_out.fit_transform(tr_rot)
                 va_rot_scaled = scaler_out.transform(va_rot)
-                fold_sklearn_artifacts[repeat][fold] = {}
-                fold_sklearn_artifacts[repeat][fold]['scaler_in'] = scaler_in
-                fold_sklearn_artifacts[repeat][fold]['pca'] = pca
-                fold_sklearn_artifacts[repeat][fold]['scaler_out'] = scaler_out
+                sklearn_dict = {}
+                sklearn_dict['scaler_in'] = scaler_in
+                sklearn_dict['pca'] = pca
+                sklearn_dict['scaler_out'] = scaler_out
                 # data frames for merging
                 print("A")
                 str_tr = pd.concat([pd.DataFrame(dict(PAT_ID = tr)), 
@@ -348,12 +348,11 @@ def main():
                 assert df_tr.shape[0] == dflab.loc[dflab.PAT_ID.isin(tr)].shape[0]
                 df_va = dflab.loc[dflab.PAT_ID.isin(va)].merge(str_va)
                 assert df_va.shape[0] == dflab.loc[dflab.PAT_ID.isin(va)].shape[0]
-    
-                print("B")
                 # get embeddings for fold
-                embeddings_tr = embeddings2[~embeddings2.PAT_ID.isin(tr)].reset_index(drop=True)
+                embeddings_tr = embeddings2[embeddings2.PAT_ID.isin(tr)].reset_index(drop=True)
                 embeddings_va = embeddings2[embeddings2.PAT_ID.isin(va)].reset_index(drop=True)
-    
+                assert df_tr.shape[0] == embeddings_tr.shape[0]
+                assert df_va.shape[0] == embeddings_va.shape[0]
                 # Convert text into matrix of tf-idf features:
                 # id documents
                 tr_docs = dflab.loc[dflab.PAT_ID.isin(tr), 'sentence'].tolist()
@@ -386,10 +385,10 @@ def main():
                 f_va_svd300 = pd.DataFrame(svd_300.transform(f_va_tfidf))
                 f_va_svd1000 = pd.DataFrame(svd_1000.transform(f_va_tfidf))
                 # sklearn stuff
-                fold_sklearn_artifacts[repeat][fold]['cv'] = cv
-                fold_sklearn_artifacts[repeat][fold]['tfidf_transformer'] = tfidf_transformer
-                fold_sklearn_artifacts[repeat][fold]['svd_300'] = svd_300
-                fold_sklearn_artifacts[repeat][fold]['svd_1000'] = svd_1000
+                sklearn_dict['cv'] = cv
+                sklearn_dict['tfidf_transformer'] = tfidf_transformer
+                sklearn_dict['svd_300'] = svd_300
+                sklearn_dict['svd_1000'] = svd_1000
                 # Output for r
                 df_tr.to_csv(f"{ALdir}/processed_data/trvadata/r{repeat}_f{fold}_tr_df.csv")
                 df_va.to_csv(f"{ALdir}/processed_data/trvadata/r{repeat}_f{fold}_va_df.csv")
@@ -402,7 +401,8 @@ def main():
                 f_va_svd1000.to_csv(f"{ALdir}/processed_data/svd/r{repeat}_f{fold}_va_svd1000.csv")
                 # case weights
                 cwdf.to_csv(f"{ALdir}/processed_data/caseweights/r{repeat}_f{fold}_tr_caseweights.csv")
-        write_pickle(fold_sklearn_artifacts, f"{ALdir}/processed_data/r{repeat}_f{fold}skl_dict.pkl")
+                # sklearn artifacts
+                write_pickle(sklearn_dict, f"{ALdir}/processed_data/sklearn_artifacts/r{repeat}_f{fold}sklearn_dict.pkl")
         fold_definition.to_csv(f"{ALdir}/processed_data/fold_definitions.csv")
     except Exception as e:
         print(e)
