@@ -316,9 +316,8 @@ def main():
                     print((df.loc[df.PAT_ID.isin(va), out_varnames]!=0).sum())
                     send_message_to_slack(f"Zeros at r{repeat} f{fold}")
                 # impute
-                from sklearn.experimental import enable_iterative_imputer
-                from sklearn.impute import IterativeImputer
-                imputer = IterativeImputer(random_state=seed, max_iter = 100)
+                from sklearn.impute import SimpleImputer
+                imputer = SimpleImputer(missing_values=np.nan, strategy='mean')                
                 strdat_imp_tr = imputer.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), str_varnames])
                 strdat_imp_va = imputer.transform(strdat.loc[strdat.PAT_ID.isin(va), str_varnames])
 
@@ -339,7 +338,6 @@ def main():
                 sklearn_dict['pca'] = pca
                 sklearn_dict['scaler_out'] = scaler_out
                 # data frames for merging
-                print("A")
                 str_tr = pd.concat([pd.DataFrame(dict(PAT_ID = tr)), 
                                     pd.DataFrame(tr_rot_scaled,
                                                  columns = ['pca' + str(i) for i in range(ncomp)])], 
