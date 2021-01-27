@@ -21,7 +21,7 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfTransformer
-from _99_project_module import send_message_to_slack, write_pickle
+from _99_project_module import send_message_to_slack, write_pickle, write_txt
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -86,6 +86,8 @@ def main():
         notes_excluded = [i for i in notes_2018 if
                           "_".join(i.split("_")[-2:]) not in uidstr]
         assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
+        notes_2018_in_cndf.sort()
+        len([i for i in notes_2018 if 'AL02' in i])
         # remove double-annotated notes
         '''
         25 Jan 2021:  removing double-annotated notes, and notes from different 
@@ -129,6 +131,29 @@ def main():
             else:
                 keepers.append(notes_i[0])
         droppers = [i for i in notes_2018_in_cndf if i not in keepers]
+        # make a little report on keepers and droppers
+        report = 'Keepers:\n'        
+        for i in range(3):
+            x = [j for j in keepers if f'AL0{str(i)}' in j]
+            report += f"{len(x)} notes in AL0{i}\n" 
+        x = [i for i in keepers if "AL0" not in i]
+        report += f"{len(x)} notes from initial random batches\n"
+        report += f"Total of {len(keepers)} notes keeping\n\n"
+        report += "Droppers\n"
+        for i in range(3):
+            x = [j for j in droppers if f'AL0{str(i)}' in j]
+            report += f"{len(x)} notes in AL0{i}\n" 
+        x = [i for i in droppers if "AL0" not in i]
+        report += f"{len(x)} notes from initial random batches\n"
+        report += f"Total of {len(droppers)} notes dropping"
+        report += "\n\nHere are the notes that got dropped, and their corresponding keeper:\n-----------------\n"
+        for i in droppers:
+            p = re.sub(".csv", "", i.split("_")[-1])
+            k = [j for j in keepers if p in j]
+            report += f"Dropping: {i}\n"
+            report += f"Keeping: {k[0]}\n---------\n"
+        print(report)
+        write_txt(report, f"{ALdir}keep_drop_report.txt")
         assert (Nhashed == 2) | (len(droppers) == 0)
         assert len(keepers) == len(pids)
         if any(droppers):
@@ -145,6 +170,8 @@ def main():
             os.rename(fra, till)
         assert all([i in os.listdir(enote_dir) for i in keepers])
         assert all([i in os.listdir(drop_dir) for i in droppers])
+        
+        
         ##################
         # load the files
         df = pd.concat([pd.read_csv(f"{outdir}notes_labeled_embedded_SENTENCES/{i}", 
@@ -217,7 +244,6 @@ def main():
     
         strdat = strdat.drop(columns = ['RACE', 'LANGUAGE', 'MV_RACE', 'MV_LANGUAGE'])
         strdat = strdat.merge(df[['PAT_ID', 'month']].drop_duplicates())    
-    
         # set a unique sentence id that does not reset to 0 with each note
         df.insert(2, 'sentence_id', df.note+"_sent"+df.sentence.astype(str))
         df.rename(columns={'sentence': 'sentence_in_note'}, inplace=True)
@@ -258,34 +284,19 @@ def main():
         assert all([i in list(pids) for i in list(df_label.PAT_ID.unique())])
         assert all([i in list(df_label.PAT_ID.unique()) for i in list(pids)])
         # summarize embeddings (element-wise min/max/mean) for each sentence
-        # first, make empty df
-        
-        clmns = ['sentence_id', 'note']
-        for v in range(0, df.columns.str.startswith('identity_').sum()):
-            clmns.append(f"min_{v}")
-            clmns.append(f"max_{v}")
-            clmns.append(f"mean_{v}")
-        embeddings = pd.DataFrame(0, index=range(df.sentence_id.nunique()),
-                                  columns=clmns)
-        embeddings['sentence_id'] = list(df.sentence_id.drop_duplicates())
-        embeddings['note'] = df.groupby('sentence_id', as_index=False)['note'].agg('first')['note']
-        # for each sentence, find the element-wise min/max/mean for embeddings
-        for v in range(0, df.columns.str.startswith('identity_').sum()):
-            embeddings[f"min_{v}"] = df.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
-                min)[f"identity_{v}"]
-            embeddings[f"max_{v}"] = df.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
-                max)[f"identity_{v}"]
-            embeddings[f"mean_{v}"] = df.groupby('sentence_id', as_index=False)[f"identity_{v}"].agg(
-                'mean')[f"identity_{v}"]
-
-        # drop embeddings for center word
-        embeddings2 = embeddings.loc[:,
-                      ~embeddings.columns.str.startswith('identity')].copy()
-        embeddings2.insert(loc = 2, column = 'PAT_ID', value = embeddings2.note.apply(lambda x: x.split("_")[-1]))
-        assert all([i in list(pids) for i in list(embeddings2.PAT_ID.unique())])
-        assert all([i in list(embeddings2.PAT_ID.unique()) for i in list(pids)])
-        assert all(df_label.sentence_id.isin(embeddings2.sentence_id))
-        assert all(embeddings2.sentence_id.isin(df_label.sentence_id))
+        mu = df.groupby(['PAT_ID', 'sentence_id'])[[i for i in df.columns if 'identity' in i]].mean().reset_index()
+        mx = df.groupby(['PAT_ID', 'sentence_id'])[[i for i in df.columns if 'identity' in i]].max().reset_index()
+        mn = df.groupby(['PAT_ID', 'sentence_id'])[[i for i in df.columns if 'identity' in i]].min().reset_index()
+        mu = mu.rename(columns = {i:re.sub('identity', 'mean', i) for i in mu.columns})
+        mx = mx.rename(columns = {i:re.sub('identity', 'max', i) for i in mx.columns})
+        mn = mn.rename(columns = {i:re.sub('identity', 'min', i) for i in mn.columns})
+        emb = mu.merge(mx.merge(mn))
+        assert emb.shape[0] == mu.shape[0]
+        assert emb.shape[1] == 902 # 300D embeddings
+        assert all([i in list(pids) for i in list(emb.PAT_ID.unique())])
+        assert all([i in list(emb.PAT_ID.unique()) for i in list(pids)])
+        assert all(df_label.sentence_id.isin(emb.sentence_id))
+        assert all(emb.sentence_id.isin(df_label.sentence_id))
         #############################
         # breaking out input files by fold
         seed = 8675309
@@ -304,12 +315,17 @@ def main():
                 if (df.loc[df.PAT_ID.isin(va), out_varnames]!=0).sum().min() == 0:
                     print((df.loc[df.PAT_ID.isin(va), out_varnames]!=0).sum())
                     send_message_to_slack(f"Zeros at r{repeat} f{fold}")
+                # impute
+                from sklearn.experimental import enable_iterative_imputer
+                from sklearn.impute import IterativeImputer
+                imputer = IterativeImputer(random_state=seed, max_iter = 100)
+                strdat_imp_tr = imputer.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), str_varnames])
+                strdat_imp_va = imputer.transform(strdat.loc[strdat.PAT_ID.isin(va), str_varnames])
+
                 # PCA for structured data.  Scale, then fit PCA, then scale output
                 scaler_in = StandardScaler()
-                tr_scaled = scaler_in.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), str_varnames])
-                tr_scaled = np.nan_to_num(tr_scaled) # set nans from constant columns to zero.  the PCA will drop them.  This is more robust than pre-removal, as it's more future-proof
-                va_scaled = scaler_in.transform(strdat.loc[strdat.PAT_ID.isin(va), str_varnames])
-                va_scaled = np.nan_to_num(va_scaled)
+                tr_scaled = scaler_in.fit_transform(strdat_imp_tr)
+                va_scaled = scaler_in.transform(strdat_imp_va)
                 ncomp = compselect(tr_scaled, .95)
                 pca = TruncatedSVD(n_components=ncomp, random_state=seed)
                 tr_rot = pca.fit_transform(tr_scaled)
@@ -318,6 +334,7 @@ def main():
                 tr_rot_scaled = scaler_out.fit_transform(tr_rot)
                 va_rot_scaled = scaler_out.transform(va_rot)
                 sklearn_dict = {}
+                sklearn_dict['imputer'] = imputer
                 sklearn_dict['scaler_in'] = scaler_in
                 sklearn_dict['pca'] = pca
                 sklearn_dict['scaler_out'] = scaler_out
@@ -349,13 +366,15 @@ def main():
                 df_va = dflab.loc[dflab.PAT_ID.isin(va)].merge(str_va)
                 assert df_va.shape[0] == dflab.loc[dflab.PAT_ID.isin(va)].shape[0]
                 # get embeddings for fold
-                embeddings_tr = embeddings2[embeddings2.PAT_ID.isin(tr)].reset_index(drop=True)
-                embeddings_va = embeddings2[embeddings2.PAT_ID.isin(va)].reset_index(drop=True)
+                embeddings_tr = emb[emb.PAT_ID.isin(tr)].reset_index(drop=True)
+                embeddings_va = emb[emb.PAT_ID.isin(va)].reset_index(drop=True)
                 assert df_tr.shape[0] == embeddings_tr.shape[0]
                 assert df_va.shape[0] == embeddings_va.shape[0]
                 # Convert text into matrix of tf-idf features:
                 # id documents
                 tr_docs = dflab.loc[dflab.PAT_ID.isin(tr), 'sentence'].tolist()
+                tfidf_ids_tr = dflab.loc[dflab.PAT_ID.isin(tr), 'sentence_id'].tolist()
+                tfidf_ids_va = dflab.loc[dflab.PAT_ID.isin(va), 'sentence_id'].tolist()
                 # instantiate countvectorizer (turn off default stopwords)
                 cv = CountVectorizer(analyzer='word', stop_words=None)
                 # compute tf
@@ -384,6 +403,26 @@ def main():
                 # transform test data (do NOT fit on test data)
                 f_va_svd300 = pd.DataFrame(svd_300.transform(f_va_tfidf))
                 f_va_svd1000 = pd.DataFrame(svd_1000.transform(f_va_tfidf))
+                # add sentence ID to all of the TFIDF data frames
+                f_tr_svd300.insert(0, value = tfidf_ids_tr, column = 'sentence_id')
+                f_tr_svd1000.insert(0, value = tfidf_ids_tr, column = 'sentence_id')
+                f_va_svd300.insert(0, value = tfidf_ids_va, column = 'sentence_id')
+                f_va_svd1000.insert(0, value = tfidf_ids_va, column = 'sentence_id')
+                # sorting                
+                embeddings_tr = embeddings_tr.sort_values('sentence_id')
+                embeddings_va = embeddings_va.sort_values('sentence_id')
+                f_tr_svd300 = f_tr_svd300.sort_values('sentence_id')
+                f_tr_svd1000 = f_tr_svd1000.sort_values('sentence_id')
+                f_va_svd300 = f_va_svd300.sort_values('sentence_id')
+                f_va_svd1000 = f_va_svd1000.sort_values('sentence_id')
+                #checking
+                assert all(df_tr.sentence_id.values == embeddings_tr.sentence_id.values)
+                assert all(df_va.sentence_id.values == embeddings_va.sentence_id.values)
+                assert all(df_tr.sentence_id.values == f_tr_svd300.sentence_id.values)
+                assert all(df_va.sentence_id.values == f_va_svd300.sentence_id.values)
+                assert all(df_tr.sentence_id.values == f_tr_svd1000.sentence_id.values)
+                assert all(df_va.sentence_id.values == f_va_svd1000.sentence_id.values)
+                
                 # sklearn stuff
                 sklearn_dict['cv'] = cv
                 sklearn_dict['tfidf_transformer'] = tfidf_transformer
