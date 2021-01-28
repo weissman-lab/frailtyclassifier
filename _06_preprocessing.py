@@ -244,7 +244,9 @@ def main():
         strdat = strdat.drop(columns = ['RACE', 'LANGUAGE', 'MV_RACE', 'MV_LANGUAGE'])
         strdat = strdat.merge(df[['PAT_ID', 'month']].drop_duplicates())    
         # set a unique sentence id that does not reset to 0 with each note
-        df.insert(2, 'sentence_id', df.note+"_sent"+df.sentence.astype(str))
+        # first prepend zeros to the sentence numbers so that the sorting works out
+        sent_str = df.sentence.apply(lambda x: "".join(["0" for i in range(6-len(str(x)))])+str(x))
+        df.insert(2, 'sentence_id', df.note+"_sent"+sent_str)
         df.rename(columns={'sentence': 'sentence_in_note'}, inplace=True)
         # dummies for labels
         out_varnames = df.loc[:, "Msk_prob":'Fall_risk'].columns.tolist()
@@ -315,10 +317,29 @@ def main():
         
         #############################
         # breaking out input files by fold
-        seed = 8675309
-        np.random.seed(seed)
         pids = list(pids)
         pids.sort()
+
+        def seed_checker(seed, recurse = True):
+            # this function ensures folds all have representation from each class
+            np.random.seed(seed)
+            folds = [i % 10 for i in range(len(pids))]
+            fold_definition = pd.DataFrame(dict(PAT_ID = pids)) # start a data frame for documenting which notes are in each fold
+            for repeat in [1,2,3]:
+                folds = np.random.choice(folds, len(folds), replace = False)
+                fold_definition[f"repeat{repeat}"] = folds        
+                for fold in range(10):
+                    # print(f"starting fold {fold}, repeat {repeat}")
+                    tr = [pids[i] for i, j in enumerate(folds) if j != fold]
+                    va = [pids[i] for i, j in enumerate(folds) if j == fold]                    
+                    if any(df_label.loc[df_label.PAT_ID.isin(va)].nunique() == 1) | any(df_label.loc[df_label.PAT_ID.isin(tr)].nunique() == 1):
+                        print(f"Seed {seed} didn't work.  Incrementing.")
+                        if recurse: 
+                            return seed_checker(seed+1)
+            return seed
+        # get a workable seed and run through folds
+        seed = seed_checker(0, recurse = True)
+        np.random.seed(seed)
         folds = [i % 10 for i in range(len(pids))]
         fold_definition = pd.DataFrame(dict(PAT_ID = pids)) # start a data frame for documenting which notes are in each fold
         for repeat in [1,2,3]:
@@ -327,15 +348,11 @@ def main():
             for fold in range(10):
                 print(f"starting fold {fold}, repeat {repeat}")
                 tr = [pids[i] for i, j in enumerate(folds) if j != fold]
-                va = [pids[i] for i, j in enumerate(folds) if j == fold]
-                if (df.loc[df.PAT_ID.isin(va), out_varnames]!=0).sum().min() == 0:
-                    print((df.loc[df.PAT_ID.isin(va), out_varnames]!=0).sum())
-                    send_message_to_slack(f"Zeros at r{repeat} f{fold}")
+                va = [pids[i] for i, j in enumerate(folds) if j == fold]                    
                 # impute
                 imputer = SimpleImputer(missing_values=np.nan, strategy='mean')                
                 strdat_imp_tr = imputer.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), str_varnames])
                 strdat_imp_va = imputer.transform(strdat.loc[strdat.PAT_ID.isin(va), str_varnames])
-
                 # PCA for structured data.  Scale, then fit PCA, then scale output
                 scaler_in = StandardScaler()
                 tr_scaled = scaler_in.fit_transform(strdat_imp_tr)
@@ -372,7 +389,6 @@ def main():
                     dflab.insert(loc = 0, column = f'{i}_cw', value = val)
                             
                 cwdf = dflab.loc[dflab.PAT_ID.isin(tr), ['sentence_id']+[i+"_cw" for i in out_varnames]]
-                                
                 # merge the structured data onto the main df, and cut into training and test sets
                 df_tr = dflab.loc[dflab.PAT_ID.isin(tr)].merge(str_tr)
                 assert df_tr.shape[0] == dflab.loc[dflab.PAT_ID.isin(tr)].shape[0]
@@ -421,7 +437,7 @@ def main():
                 f_tr_svd1000.insert(0, value = tfidf_ids_tr, column = 'sentence_id')
                 f_va_svd300.insert(0, value = tfidf_ids_va, column = 'sentence_id')
                 f_va_svd1000.insert(0, value = tfidf_ids_va, column = 'sentence_id')
-                # sorting                
+                # sorting
                 embeddings_tr = embeddings_tr.sort_values('sentence_id')
                 embeddings_va = embeddings_va.sort_values('sentence_id')
                 f_tr_svd300 = f_tr_svd300.sort_values('sentence_id')
