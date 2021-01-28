@@ -1,10 +1,3 @@
-'''
-Modifies the following two functions from _05_ingest_annotations.py in order to
-label sentences using scispaCy before the text is processed (e.g. lowercase,
-remove newlines, etc.):
-tokenize_and_label -> tokenize_and_label_sent
-featurize -> featurize_sent
-'''
 
 import multiprocessing as mp
 import os
@@ -17,11 +10,6 @@ import scispacy
 import spacy
 from configargparse import ArgParser
 from gensim.models import KeyedVectors
-
-# import annotation ingestion scripts from the prior pipeline that did not
-# include sentences
-# from _05_ingest_annotations import process_webanno_output, embeddings_catcher, \
-#     remove_headers
 from _99_project_module import read_txt, read_json, ncol
 
 pd.options.display.max_rows = 4000
@@ -171,13 +159,13 @@ def tokenize_and_label_sent(output_file_path,
                 span_df.loc[(span_df.end > tag_df.begin.iloc[i]) &
                             (span_df.start < tag_df.end.iloc[i]), var] = \
                     tag_df.value.iloc[i]
-            # add important variables
-            span_df['note'] = re.sub(".txt", "", stub)
-            # span_df['month'] = span_df.note.apply(lambda x: int(x.split("_")[2][1:]))
-            span_df['month'] = span_df.note.apply(
-                lambda x: int(re.sub("m", "", x.split("_")[-2])))
-            span_df['PAT_ID'] = span_df.note.apply(lambda x: x.split("_")[-1])
-            outlist.append(span_df)
+        # add important variables
+        span_df['note'] = re.sub(".txt", "", stub)
+        # span_df['month'] = span_df.note.apply(lambda x: int(x.split("_")[2][1:]))
+        span_df['month'] = span_df.note.apply(
+            lambda x: int(re.sub("m", "", x.split("_")[-2])))
+        span_df['PAT_ID'] = span_df.note.apply(lambda x: x.split("_")[-1])
+        outlist.append(span_df)
     return outlist
 
 
@@ -227,6 +215,7 @@ def featurize_sent(file,
     return output.reset_index(drop=True)
 
 # zipfile = './annotation/frailty_phenotype_AL_00_2020-06-29_0939.zip'
+# zipfile = '/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/frailty_phenotype_AL_02_2021-01-26_1538/'
 # outdir = './old_misc/foodir/'
 # embeddings = './data/w2v_oa_all_300d.bin'
 def main():
@@ -246,11 +235,14 @@ def main():
     process_webanno_output(zipfile)
     # tokenize
     dflist = tokenize_and_label_sent(zipfile)
+    assert len(dflist) == len(os.listdir(re.sub("\.zip", "", zipfile) + '/curation'))
+    len(dflist)
     # embed
     pool = mp.Pool(
         8)  # hard-coding 8 because the embeddings takes a ton of memory
     embedded_notes = pool.starmap(featurize_sent, [(i, embeddings) for i in dflist])
     pool.close()
+    assert len(embedded_notes) == len(os.listdir(re.sub("\.zip", "", zipfile) + '/curation'))
     # save them all
     for i in embedded_notes:
         i.to_csv(f"{outdir}enote_{str(i.note.iloc[0])}.csv")
@@ -259,11 +251,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-# azure
-# python _05_ingest_to_sentence.py -z /share/gwlab/frailty/annotation/frailty_phenotype_AL_00_2020-06-29_0939.zip -e /share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin -o /share/gwlab/frailty/output/notes_labeled_embedded_SENTENCES/ -s /share/gwlab/frailty/output/impdat_dums.csv && python _05_ingest_to_sentence.py -z /share/gwlab/frailty/annotation/frailty_phenotype_AL_01_2020-08-13_1218.zip -e /share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin -o /share/gwlab/frailty/output/notes_labeled_embedded_SENTENCES/ -s /share/gwlab/frailty/output/impdat_dums.csv && python _05_ingest_to_sentence.py -z /share/gwlab/frailty/annotation/frailty_phenotype_AL_01_ADDENDUM_2020-08-13_1218.zip -e /share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin -o /share/gwlab/frailty/output/notes_labeled_embedded_SENTENCES/ -s /share/gwlab/frailty/output/impdat_dums.csv && python _05_ingest_to_sentence.py -z /share/gwlab/frailty/annotation/frailty_phenotype_batch_1_2020-03-02_1328.zip -e /share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin -o /share/gwlab/frailty/output/notes_labeled_embedded_SENTENCES/ -s /share/gwlab/frailty/output/impdat_dums.csv && python _05_ingest_to_sentence.py -z /share/gwlab/frailty/annotation/frailty_phenotype_batch_2_2020-03-02_1325.zip -e /share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin -o /share/gwlab/frailty/output/notes_labeled_embedded_SENTENCES/ -s /share/gwlab/frailty/output/impdat_dums.csv && python _05_ingest_to_sentence.py -z /share/gwlab/frailty/annotation/frailty_phenotype_batch_3_2020-04-18_1444.zip -e /share/acd-azure/pwe/output/built_models/OA_ALL/W2V_300/w2v_oa_all_300d.bin -o /share/gwlab/frailty/output/notes_labeled_embedded_SENTENCES/ -s /share/gwlab/frailty/output/impdat_dums.csv
-
-# mac
-# python _05_ingest_to_sentence.py -z /Users/martijac/Documents/Frailty/frailty_classifier/annotation/frailty_phenotype_AL_00_2020-06-29_0939.zip -e /Users/martijac/Documents/Frailty/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /Users/martijac/Documents/Frailty/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /Users/martijac/Documents/Frailty/frailty_classifier/output/structured_data_merged_cleaned.csv && python _05_ingest_to_sentence.py -z /Users/martijac/Documents/Frailty/frailty_classifier/annotation/frailty_phenotype_AL_01_2020-08-13_1218.zip -e /Users/martijac/Documents/Frailty/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /Users/martijac/Documents/Frailty/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /Users/martijac/Documents/Frailty/frailty_classifier/output/structured_data_merged_cleaned.csv && python _05_ingest_to_sentence.py -z /Users/martijac/Documents/Frailty/frailty_classifier/annotation/frailty_phenotype_AL_01_ADDENDUM_2020-08-13_1218.zip -e /Users/martijac/Documents/Frailty/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /Users/martijac/Documents/Frailty/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /Users/martijac/Documents/Frailty/frailty_classifier/output/structured_data_merged_cleaned.csv && python _05_ingest_to_sentence.py -z /Users/martijac/Documents/Frailty/frailty_classifier/annotation/frailty_phenotype_batch_1_2020-03-02_1328.zip -e /Users/martijac/Documents/Frailty/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /Users/martijac/Documents/Frailty/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /Users/martijac/Documents/Frailty/frailty_classifier/output/structured_data_merged_cleaned.csv && python _05_ingest_to_sentence.py -z /Users/martijac/Documents/Frailty/frailty_classifier/annotation/frailty_phenotype_batch_2_2020-03-02_1325.zip -e /Users/martijac/Documents/Frailty/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /Users/martijac/Documents/Frailty/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /Users/martijac/Documents/Frailty/frailty_classifier/output/structured_data_merged_cleaned.csv && python _05_ingest_to_sentence.py -z /Users/martijac/Documents/Frailty/frailty_classifier/annotation/frailty_phenotype_batch_3_2020-04-18_1444.zip -e /Users/martijac/Documents/Frailty/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /Users/martijac/Documents/Frailty/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /Users/martijac/Documents/Frailty/frailty_classifier/output/structured_data_merged_cleaned.csv
-
-# grace
-# python _05_ingest_to_sentence.py -z /home/jakem/frailty_classifier/annotation/frailty_phenotype_AL_01_ADDENDUM_2020-08-13_1218.zip -e /home/jakem/frailty_classifier/embeddings/W2V_300_all/w2v_oa_all_300d.bin -o /home/jakem/frailty_classifier/output/notes_labeled_embedded_SENTENCES/ -s /home/jakem/frailty_classifier/output/impdat_dums.csv
