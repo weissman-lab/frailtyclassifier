@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import copy
 import hashlib
+from sklearn.impute import SimpleImputer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
@@ -153,7 +154,7 @@ def main():
             report += f"Dropping: {i}\n"
             report += f"Keeping: {k[0]}\n---------\n"
         print(report)
-        write_txt(report, f"{ALdir}keep_drop_report.txt")
+        write_txt(report, f"{ALdir}/keep_drop_report.txt")
         assert (Nhashed == 2) | (len(droppers) == 0)
         assert len(keepers) == len(pids)
         if any(droppers):
@@ -170,8 +171,6 @@ def main():
             os.rename(fra, till)
         assert all([i in os.listdir(enote_dir) for i in keepers])
         assert all([i in os.listdir(drop_dir) for i in droppers])
-        
-        
         ##################
         # load the files
         df = pd.concat([pd.read_csv(f"{outdir}notes_labeled_embedded_SENTENCES/{i}", 
@@ -241,7 +240,7 @@ def main():
                         'MV_n_unique_meds', 'MV_elixhauser', 'MV_n_comorb', 'MV_AGE',
                         'MV_SEX', 'MV_MARITAL_STATUS', 'MV_EMPY_STAT']
         out_varnames = ['Msk_prob', 'Nutrition', 'Resp_imp', 'Fall_risk']
-    
+        # sumdat = copy.deepcopy(strdat) # copying here to use in summarizing later
         strdat = strdat.drop(columns = ['RACE', 'LANGUAGE', 'MV_RACE', 'MV_LANGUAGE'])
         strdat = strdat.merge(df[['PAT_ID', 'month']].drop_duplicates())    
         # set a unique sentence id that does not reset to 0 with each note
@@ -297,6 +296,23 @@ def main():
         assert all([i in list(emb.PAT_ID.unique()) for i in list(pids)])
         assert all(df_label.sentence_id.isin(emb.sentence_id))
         assert all(emb.sentence_id.isin(df_label.sentence_id))
+        
+        # # generate summary stats by batch
+        # # for each batch, compute the mean, sd, quartiles of variable
+        # # first summarize the label data for merging onto the structured data
+        # sumlab = copy.deepcopy(df_label)
+        # sumlab['batch'] = sumlab.sentence_id.apply(lambda x: x.split('_')[0])
+        # sumlab['month'] = sumlab.sentence_id.apply(lambda x: re.sub("ALTERNATE", "", x.split('_')[1][1:])).astype(int)
+        
+        # sumlab.month.value_counts()
+        # lab_sum = sumlab.groupby(['PAT_ID', 'batch'])[[i for i in sumlab.columns if i not in ['sentence_id', 'sentence', 'sentence_in_note']]].sum().reset_index()
+        # sumdat = lab_sum.merge(sumdat, how = 'outer')
+
+        # ssrows = []
+        # b = 'AL00'
+        # sumdat.loc[sumdat.batch == b].shape
+
+        
         #############################
         # breaking out input files by fold
         seed = 8675309
@@ -316,7 +332,6 @@ def main():
                     print((df.loc[df.PAT_ID.isin(va), out_varnames]!=0).sum())
                     send_message_to_slack(f"Zeros at r{repeat} f{fold}")
                 # impute
-                from sklearn.impute import SimpleImputer
                 imputer = SimpleImputer(missing_values=np.nan, strategy='mean')                
                 strdat_imp_tr = imputer.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), str_varnames])
                 strdat_imp_va = imputer.transform(strdat.loc[strdat.PAT_ID.isin(va), str_varnames])
