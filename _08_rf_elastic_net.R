@@ -19,7 +19,7 @@ if (length(exp)==0) {
 
 #repeats & folds
 repeats <- seq(1, 3)
-folds <- seq(1, 10)
+folds <- seq(0, 9)
 #text features
 svd <- c('embed', '300', '1000')
 #include structured data?
