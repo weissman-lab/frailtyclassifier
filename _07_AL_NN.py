@@ -8,6 +8,7 @@ import re
 import pandas as pd
 import numpy as np
 import tensorflow as tf
+from sklearn.metrics import brier_score_loss
 from utils.makemodel import make_model
 
 
@@ -26,7 +27,7 @@ def test_nan_inf(tensor):
 
 #############
 # CONFIG ARGS
-batchstring = '03'
+batchstring = 'None'
 n_dense = 5
 n_units = 64
 dropout = .3
@@ -52,6 +53,8 @@ train_sent = df_tr['sentence']
 test_sent = df_va['sentence']
 
 str_varnames = [i for i in df_tr.columns if re.match("pca[0-9]",i)]
+
+df_tr.head()
 
 ###################
 # create model and vectorizer
@@ -111,7 +114,26 @@ history = model.fit(x = [tr_text, tr_struc],
                   sample_weight=case_weights_tensor_list,
                   callbacks=earlystopping)
 
-preds_va = model.predict([va_text, va_struc])
+################################
+# predictions and metrics
+va_preds = model.predict([va_text, va_struc])
+
+subtags = [f"{t}_{i}" for t in TAGS for i in ['neg', 'neut', 'pos']]
+
+va_preds_df = pd.DataFrame(tf.concat(va_preds, axis=1).numpy(), columns = subtags)
+va_preds_df.insert(0, 'sentence_id', df_va.sentence_id)
+
+
+case_weights.head()
+df_va.head()
+bmax = np.mean((yi - yhat_er) ** 2)  # brier is vector-valued, so we can differentiate for different classes
+h = ce(yi, pred[idx])
+b = np.mean((yi - pred[idx]) ** 2)
+scaled_entropy = 1 - h / hmax
+scaled_brier = 1 - b / bmax
+metrics[i] = dict(hmax=hmax, bmax=bmax, h=h, b=b,
+                  scaled_entropy=scaled_entropy,
+                  scaled_brier=scaled_brier)
 
 
 def scaled_brier(obs, pred):
@@ -119,6 +141,7 @@ def scaled_brier(obs, pred):
     denominator = brier_score_loss(obs, [np.mean(obs)] * len(obs))
     return (1 - (numerator / denominator))
 
+sbs = [scaled_brier(va_labels[i], va_preds[i]) for i in range(len(TAGS))]
 
 # collect the output
 outdict = dict(config = dict(batchstring = batchstring,
