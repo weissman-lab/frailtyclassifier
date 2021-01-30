@@ -29,7 +29,7 @@ def AL_CV(index = 0,
     ALdir = f"{outdir}saved_models/AL{batchstring}/"
     cv_savepath = f"{ALdir}cv_models"
     sheepish_mkdir(cv_savepath)
-    savename = f"{cv_savepath}model_pickle_cv_{index}.pkl"
+    savename = f"{cv_savepath}/model_pickle_cv_{index}.pkl"
     if savename in os.listdir(cv_savepath):
         return 
     else:
