@@ -5,7 +5,7 @@ import pandas as pd
 from configargparse import ArgParser
 import numpy as np
 from utils.fit import AL_CV
-from utils.misc import expand_grid
+from utils.misc import expand_grid, send_message_to_slack
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -45,7 +45,10 @@ def main():
     hp_grid = hp_grid.iloc[scram_idx, :]
     
     for i in range(hp_grid.shape[0]):
-        _ = AL_CV(*tuple(hp_grid.iloc[i]))
+        try:
+            _ = AL_CV(*tuple(hp_grid.iloc[i]))
+        except:
+            send_message_to_slack(f"problem with {hp_grid.index.iloc[i]}")
 
 if __name__ == "__main__":
     main()
