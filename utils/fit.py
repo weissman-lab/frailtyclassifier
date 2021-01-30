@@ -11,16 +11,27 @@ import datetime
 from utils.misc import write_pickle, sheepish_mkdir, test_nan_inf
 
 
-def AL_CV(index = 0,
-          batchstring = '03',
-          n_dense = 5,
-          n_units = 64,
-          dropout = .3,
-          l1_l2_pen = 1e-4,
-          use_case_weights = False,
-          repeat = 1,
-          fold = 0):
+def AL_CV(index,
+          batchstring,
+          n_dense,
+          n_units,
+          dropout,
+          l1_l2_pen,
+          use_case_weights,
+          repeat,
+          fold):
 
+    config_dict = dict(batchstring = batchstring,
+                       n_dense = n_dense,
+                       n_units = n_units,
+                       dropout = dropout,
+                       l1_l2_pen = l1_l2_pen,
+                       use_case_weights = use_case_weights,
+                       repeat = repeat,
+                       fold = fold)
+    
+    print(f"********************\nstarting:\n***********************{config_dict}")
+    
     #################
     SENTENCE_LENGTH = 20 # set standard sentence length. Inputs will be truncated or padded
     TAGS = ['Fall_risk', 'Msk_prob',  'Nutrition', 'Resp_imp']
