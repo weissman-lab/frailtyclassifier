@@ -48,7 +48,7 @@ def main():
         try:
             _ = AL_CV(*tuple(hp_grid.iloc[i]))
         except:
-            send_message_to_slack(f"problem with {hp_grid.index.iloc[i]}")
+            send_message_to_slack(f"problem with {hp_gr['idindex']iloc[i]}")
 
 if __name__ == "__main__":
     main()
