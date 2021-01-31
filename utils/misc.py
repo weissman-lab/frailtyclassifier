@@ -69,3 +69,14 @@ def test_nan_inf(tensor):
 
 if __name__ == "__main__":
     pass
+
+
+
+def logit(x):
+    from numpy import exp
+    return 1 / (1 + exp(-x))
+
+
+def inv_logit(x):
+    from numpy import log
+    return log(x / (1 - x))

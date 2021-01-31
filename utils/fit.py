@@ -8,7 +8,7 @@ import tensorflow as tf
 from sklearn.metrics import roc_auc_score, average_precision_score
 from utils.prefit import make_model
 import datetime
-from utils.misc import write_pickle, sheepish_mkdir, test_nan_inf
+from utils.misc import write_pickle, sheepish_mkdir, test_nan_inf, inv_logit
 
 
 def AL_CV(index,
@@ -21,8 +21,6 @@ def AL_CV(index,
           repeat,
           fold):
 
-
-    
     #################
     SENTENCE_LENGTH = 20 # set standard sentence length. Inputs will be truncated or padded
     TAGS = ['Fall_risk', 'Msk_prob',  'Nutrition', 'Resp_imp']
@@ -42,8 +40,9 @@ def AL_CV(index,
                            l1_l2_pen = l1_l2_pen,
                            use_case_weights = use_case_weights,
                            repeat = repeat,
-                           fold = fold)    
-        print(f"********************\nstarting:\n***********************{config_dict}")
+                           fold = fold,
+                           bias_init = True)    
+        print(f"********************\nstarting:\n***********************\n{config_dict}")
         ##################
         # load data
         df_tr = pd.read_csv(f"{ALdir}processed_data/trvadata/r{repeat}_f{fold}_tr_df.csv", index_col = 0)
@@ -104,10 +103,19 @@ def AL_CV(index,
         # test for constant columns in labels
         assert all([all(tf.reduce_mean(tf.cast(i, dtype = 'float32'), axis = 0) % 1 > 0) for i in tr_labels])
         assert all([all(tf.reduce_mean(tf.cast(i, dtype = 'float32'), axis = 0) % 1 > 0) for i in va_labels])
-        
+
+        #############################
+        # initialize the bias terms with the logits of the proportions
+        w = model.get_weights()
+        # set the bias terms to the proportions
+        for i, yi in enumerate(tr_labels):
+            props = inv_logit(tf.reduce_mean(yi, axis = 0).numpy())
+            pos = 7 - i * 2
+            w[-pos] = w[-pos] * 0 + props
+        model.set_weights(w)
+
         #############################
         # fit the model
-
         
         start_time = time.time()
         history = model.fit(x = [tr_text, tr_struc],
