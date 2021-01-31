@@ -21,16 +21,7 @@ def AL_CV(index,
           repeat,
           fold):
 
-    config_dict = dict(batchstring = batchstring,
-                       n_dense = n_dense,
-                       n_units = n_units,
-                       dropout = dropout,
-                       l1_l2_pen = l1_l2_pen,
-                       use_case_weights = use_case_weights,
-                       repeat = repeat,
-                       fold = fold)
-    
-    print(f"********************\nstarting:\n***********************{config_dict}")
+
     
     #################
     SENTENCE_LENGTH = 20 # set standard sentence length. Inputs will be truncated or padded
@@ -44,6 +35,15 @@ def AL_CV(index,
     if savename in os.listdir(cv_savepath):
         return 
     else:
+        config_dict = dict(batchstring = batchstring,
+                           n_dense = n_dense,
+                           n_units = n_units,
+                           dropout = dropout,
+                           l1_l2_pen = l1_l2_pen,
+                           use_case_weights = use_case_weights,
+                           repeat = repeat,
+                           fold = fold)    
+        print(f"********************\nstarting:\n***********************{config_dict}")
         ##################
         # load data
         df_tr = pd.read_csv(f"{ALdir}processed_data/trvadata/r{repeat}_f{fold}_tr_df.csv", index_col = 0)
