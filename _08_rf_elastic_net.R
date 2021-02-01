@@ -599,7 +599,7 @@ if ((nrow(mg1) == 0) == FALSE) {
   }
   
   fwrite(as.data.table(enet_error), 
-         paste0(outdir, 'exp', exp, '_enet_error_r', mg1$repeats[r], '.txt'))
+         paste0(outdir, 'exp', exp, '_enet_error.txt'))
 }
 
 invisible(gc(verbose = FALSE))
