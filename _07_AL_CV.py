@@ -45,10 +45,13 @@ def main():
     hp_grid = hp_grid.iloc[scram_idx, :]
     
     for i in range(hp_grid.shape[0]):
-        try:
-            _ = AL_CV(*tuple(hp_grid.iloc[i]))
-        except:
-            send_message_to_slack(f"problem with {hp_grid['index'].iloc[i]}")
+        if hp_grid.case_weights.iloc[i] == False: # Feb 1:  dropping case weights
+            try:
+                _ = AL_CV(*tuple(hp_grid.iloc[i]))
+            except:
+                send_message_to_slack(f"problem with {hp_grid['index'].iloc[i]}")
+        else:
+            pass
 
 if __name__ == "__main__":
     main()
