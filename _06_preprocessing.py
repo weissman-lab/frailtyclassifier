@@ -22,17 +22,12 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfTransformer
-from _99_project_module import send_message_to_slack, write_pickle, write_txt
+from utils.misc import send_message_to_slack, write_pickle, write_txt, sheepish_mkdir
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
 
-def sheepish_mkdir(path):
-    try:
-        os.mkdir(path)
-    except FileExistsError:
-        pass
 
 def hasher(x):
     hash_object = hashlib.sha512(x.encode('utf-8'))

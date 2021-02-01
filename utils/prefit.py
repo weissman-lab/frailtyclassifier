@@ -1,6 +1,5 @@
 
 
-import os
 import numpy as np
 from tensorflow import keras
 from tensorflow.keras.layers import Embedding, Masking, Input, Bidirectional, LSTM, Dense, Dropout, concatenate
