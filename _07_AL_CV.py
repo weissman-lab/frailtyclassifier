@@ -32,7 +32,7 @@ def main():
     hp_grid = {'batchstring': [batchstring],
                'n_dense': [1, 5],
                'n_units': [64, 256],
-               'dropout': [.1, .3],
+               'dropout': [.1, .5],
                'l1_l2': [0, 1e-4],
                'case_weights': [False, True],
                'repeat': [1,2,3],
