@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-from utils.organization import find_outdir
 
 if __name__ == "__main__":
     pass
@@ -15,6 +14,7 @@ def find_outdir():
     return(outdir)
 
 def summarize_train_test_split():
+    from utils.organization import find_outdir
     # def table_1_demos():
     outdir = find_outdir()
 

@@ -1,6 +1,6 @@
 import pandas as pd
 import os
-from utils.organization import find_outdir, summarize_train_test_split
+from utils.organization import find_outdir
 
 def table_1_demographics():
     '''
@@ -8,6 +8,7 @@ def table_1_demographics():
      1.) compares structured data to testing and training structured data
      2.) reports all structured data for the new AL batch for manual review
      '''
+    from utils.organization import summarize_train_test_split
     # set directories
     outdir = find_outdir()
     # summarize the labeled & embedded training notes and all test notes
