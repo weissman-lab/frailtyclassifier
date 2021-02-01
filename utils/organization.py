@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from utils.organization import find_outdir
 
 if __name__ == "__main__":
     pass
@@ -14,7 +15,6 @@ def find_outdir():
     return(outdir)
 
 def summarize_train_test_split():
-    from utils.organization import find_outdir
     # def table_1_demos():
     outdir = find_outdir()
 
@@ -34,9 +34,6 @@ def summarize_train_test_split():
     # conc_notes_df contains official list of eligible patients
     notes_in_cndf = [i for i in nle if
                           "_".join(i.split("_")[-2:]) in uidstr]
-
-    notes_excluded = [i for i in nle if
-                      "_".join(i.split("_")[-2:]) not in uidstr]
 
     # make df with labels from each note
     nle_pat_id = [str(i).split("_")[-1].split(".")[0] for i in notes_in_cndf]
@@ -142,103 +139,3 @@ def summarize_train_test_split():
 
     rough_test_notes.to_csv(f"{outdir}notes_labeled_embedded_SENTENCES/notes_test_rough.csv")
     nle_train.to_csv(f"{outdir}notes_labeled_embedded_SENTENCES/notes_train_official.csv")
-
-#
-# AL02 and AL01 have discrepancies
-#
-# batchstring='03'
-# ALdir = f"{outdir}/saved_models/AL{batchstring}"
-# notes_2018 = [i for i in
-#           os.listdir(outdir + "notes_labeled_embedded_SENTENCES/")
-#           if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
-# cndf = pd.read_pickle(f"{outdir}conc_notes_df.pkl")
-# cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
-# cndf['month'] = cndf.LATEST_TIME.dt.month + (
-#         cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
-# # generate 'note' label (used in webanno and notes_labeled_embedded)
-# cndf.month = cndf.month.astype(str)
-# uidstr = ("m" + cndf.month.astype(str) + "_" + cndf.PAT_ID + ".csv").tolist()
-# # conc_notes_df contains official list of eligible patients
-# notes_2018_in_cndf = [i for i in notes_2018 if
-#                       "_".join(i.split("_")[-2:]) in uidstr]
-# notes_excluded = [i for i in notes_2018 if
-#                   "_".join(i.split("_")[-2:]) not in uidstr]
-# assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
-# notes_2018_in_cndf.sort()
-# len([i for i in notes_2018 if 'AL02' in i])
-# # remove double-annotated notes
-# '''
-# 25 Jan 2021:  removing double-annotated notes, and notes from different
-# span of same patient.  Move the actual files so they don't get picked up later.
-# As such, the code below will only do culling once.
-# It will also move notes that were excluded in the July 2020 cull
-# '''
-# import re
-# from _06_preprocessing import hasher
-# pids = set([re.sub(".csv", "", i.split("_")[-1]) for i in notes_2018_in_cndf])
-# keepers = []
-# Nhashed = 0
-# for i in pids:
-#     notes_i = [j for j in notes_2018_in_cndf if i in j]
-#     if len(notes_i) >1:
-#         # check and see if there are notes from different batches.  Use the last one if so
-#         batchstrings = [k.split("_")[1] for k in notes_i]
-#         assert all(["AL" in k for k in batchstrings]), "not all double-coded notes are from an AL round."
-#         in_latest_batch = [k for k in notes_i if max(batchstrings) in k]
-#         # deal with a couple of manual cases
-#         if hasher(i) == 'faef3f1f1a76c57e42f9b35a662656096b4e2dfe15040a61a896b1de06ef1e0a45e61e7e9b26f9282047847854d2d1887d19cbf3041aff2130e102d65243e724':
-#             keepers.append(f'enote_AL01_v2_m2_{i}.csv')
-#             print(i)
-#             Nhashed +=1
-#         elif hasher(i) == 'e13eced415697e4f59bcc8e75659dcffa4182a8de44b976d5e1d8160407711d276e38946ec52ec366a3ad92f197d92e8d56c1bd4e9029103d17ac12944cc3bc5':
-#             keepers.append(f'enote_AL01_m2_{i}.csv')
-#             print(i)
-#             Nhashed +=1
-#         elif len(in_latest_batch) == 1:
-#             keepers.append(in_latest_batch[0])
-#         elif len(set([k.split("_")[-2] for k in in_latest_batch]))>1: # deal with different spans
-#             spans = [k.split("_")[-2] for k in in_latest_batch]
-#             latest_span = [k for k in in_latest_batch if max(spans) in k]
-#             assert len(latest_span) == 1
-#             keepers.append(latest_span[0])
-#         elif any(['v2' in k for k in in_latest_batch]): # deal with the case of the "v2" notes -- an outgrowth of confusion around the culling in July 2020
-#             v2_over_v1 = [k for k in in_latest_batch if 'v2' in k]
-#             assert len(v2_over_v1) == 1
-#             keepers.append(v2_over_v1[0])
-#         else:
-#             print('problem with culling')
-#             breakpoint()
-#     else:
-#         keepers.append(notes_i[0])
-#
-# droppers = [i for i in notes_2018_in_cndf if i not in keepers]
-# # make a little report on keepers and droppers
-# report = 'Keepers:\n'
-# for i in range(3):
-#     x = [j for j in keepers if f'AL0{str(i)}' in j]
-#     report += f"{len(x)} notes in AL0{i}\n"
-#
-# len([i for i in keepers if 'AL01' in i])
-#
-# x = [i for i in keepers if "AL0" not in i]
-# report += f"{len(x)} notes from initial random batches\n"
-# report += f"Total of {len(keepers)} notes keeping\n\n"
-# report += "Droppers\n"
-# for i in range(3):
-#     x = [j for j in droppers if f'AL0{str(i)}' in j]
-#     report += f"{len(x)} notes in AL0{i}\n"
-#
-# x = [i for i in droppers if "AL0" not in i]
-# report += f"{len(x)} notes from initial random batches\n"
-# report += f"Total of {len(droppers)} notes dropping"
-# report += "\n\nHere are the notes that got dropped, and their corresponding keeper:\n-----------------\n"
-# for i in droppers:
-#     p = re.sub(".csv", "", i.split("_")[-1])
-#     k = [j for j in keepers if p in j]
-#     report += f"Dropping: {i}\n"
-#     report += f"Keeping: {k[0]}\n---------\n"
-#
-# print(report)
-# write_txt(report, f"{ALdir}/keep_drop_report.txt")
-# assert (Nhashed == 2) | (len(droppers) == 0)
-# assert len(keepers) == len(pids)
