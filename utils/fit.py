@@ -27,9 +27,9 @@ def AL_CV(index,
     outdir = f"{os.getcwd()}/output/"
     datadir = f"{os.getcwd()}/data/"
     ALdir = f"{outdir}saved_models/AL{batchstring}/"
-    cv_savepath = f"{ALdir}cv_models"
+    cv_savepath = f"{ALdir}cv_models/"
     sheepish_mkdir(cv_savepath)
-    savename = f"{cv_savepath}/model_pickle_cv_{index}.pkl"
+    savename = f"model_pickle_cv_{index}.pkl"
     if savename in os.listdir(cv_savepath):
         return 
     else:
@@ -194,7 +194,7 @@ def AL_CV(index,
         print(report)
 
         
-        write_pickle(outdict, savename)
+        write_pickle(outdict, f"{cv_savepath}{savename}")
         return 0
 
 

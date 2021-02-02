@@ -30,7 +30,7 @@ def main():
     
     # hyperparameter grid
     hp_grid = {'batchstring': [batchstring],
-               'n_dense': [1, 5],
+               'n_dense': [1, 2],
                'n_units': [64, 256],
                'dropout': [.1, .5],
                'l1_l2': [0, 1e-4],
