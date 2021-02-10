@@ -61,14 +61,14 @@ def AL_CV(index,
 
         with mirrored_strategy.scope():
             model, vectorizer = make_model(emb_path = f"{datadir}w2v_oa_all_300d.bin",
-                               sentence_length = SENTENCE_LENGTH,
-                               meta_shape = len(str_varnames),
-                               tags = TAGS,
-                               train_sent = train_sent,
-                               l1_l2_pen = l1_l2_pen,
-                               n_units = n_units,
-                               n_dense = n_dense,
-                               dropout = dropout)
+                                           sentence_length = SENTENCE_LENGTH,
+                                           meta_shape = len(str_varnames),
+                                           tags = TAGS,
+                                           train_sent = train_sent,
+                                           l1_l2_pen = l1_l2_pen,
+                                           n_units = n_units,
+                                           n_dense = n_dense,
+                                           dropout = dropout)
             
             earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                              patience=25,

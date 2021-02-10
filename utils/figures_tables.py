@@ -2,6 +2,7 @@ import pandas as pd
 import os
 from utils.organization import find_outdir
 
+
 def table_1_demographics():
     '''
     Finds the directory of the new AL batch and:
@@ -77,6 +78,86 @@ def table_1_demographics():
         'train_test').mean().T
 
     return(all_str, new_AL_str)
+
+
+def lossplot(d, meanlen):
+    import matplotlib.pyplot as plt
+    from utils.misc import arraymaker
+    import numpy as np
+    fig = plt.figure(constrained_layout=True, figsize=(10,4))
+    gs = fig.add_gridspec(2, 4)
+    # overall
+    f_ax1 = fig.add_subplot(gs[:2, :2])
+    L = arraymaker(d, 'L')
+    mu = np.nanmean(L, axis = 0)
+    ciup = np.nanquantile(L, axis = 0, q = .975)
+    cidn = np.nanquantile(L, axis = 0, q = .025)
+    xg = list(range(len(mu)))
+    f_ax1.plot(xg, mu)
+    f_ax1.fill_between(xg, ciup, cidn,
+                        alpha=0.2,
+                         lw=2,
+                         edgecolor="k")
+    f_ax1.axvline(x = meanlen, linestyle = "--", color = 'black', label = "mean stop point")
+    f_ax1.legend()
+    f_ax1.set_title('Overall loss')
+    # fall Risk
+    f_ax2 = fig.add_subplot(gs[0, 2])
+    L = arraymaker(d, 'fL')
+    mu = np.nanmean(L, axis = 0)
+    ciup = np.nanquantile(L, axis = 0, q = .975)
+    cidn = np.nanquantile(L, axis = 0, q = .025)
+    xg = list(range(len(mu)))
+    f_ax2.plot(xg, mu)
+    f_ax2.fill_between(xg, ciup, cidn,
+                        alpha=0.2,
+                         lw=2,
+                         edgecolor="k")
+    f_ax2.axvline(x = meanlen, linestyle = "--", color = 'black', label = "mean stop point")
+    f_ax2.set_title('Fall risk loss')
+    # msk
+    f_ax3 = fig.add_subplot(gs[0, 3])
+    L = arraymaker(d, 'mL')
+    mu = np.nanmean(L, axis = 0)
+    ciup = np.nanquantile(L, axis = 0, q = .975)
+    cidn = np.nanquantile(L, axis = 0, q = .025)
+    xg = list(range(len(mu)))
+    f_ax3.plot(xg, mu)
+    f_ax3.fill_between(xg, ciup, cidn,
+                        alpha=0.2,
+                         lw=2,
+                         edgecolor="k")
+    f_ax3.axvline(x = meanlen, linestyle = "--", color = 'black', label = "mean stop point")
+    f_ax3.set_title('MSK prob loss')
+    # nut
+    f_ax4 = fig.add_subplot(gs[1, 2])
+    L = arraymaker(d, 'nL')
+    mu = np.nanmean(L, axis = 0)
+    ciup = np.nanquantile(L, axis = 0, q = .975)
+    cidn = np.nanquantile(L, axis = 0, q = .025)
+    xg = list(range(len(mu)))
+    f_ax4.plot(xg, mu)
+    f_ax4.fill_between(xg, ciup, cidn,
+                        alpha=0.2,
+                         lw=2,
+                         edgecolor="k")
+    f_ax4.axvline(x = meanlen, linestyle = "--", color = 'black', label = "mean stop point")
+    f_ax4.set_title('Resp Imp loss')
+    # resp_imp
+    f_ax5 = fig.add_subplot(gs[1, 3])
+    L = arraymaker(d, 'rL')
+    mu = np.nanmean(L, axis = 0)
+    ciup = np.nanquantile(L, axis = 0, q = .975)
+    cidn = np.nanquantile(L, axis = 0, q = .025)
+    xg = list(range(len(mu)))
+    f_ax5.plot(xg, mu)
+    f_ax5.fill_between(xg, ciup, cidn,
+                        alpha=0.2,
+                         lw=2,
+                         edgecolor="k")
+    f_ax5.axvline(x = meanlen, linestyle = "--", color = 'black', label = "mean stop point")
+    f_ax5.set_title('Nutrition loss')
+    return fig
 
 
 if __name__ == "__main__":

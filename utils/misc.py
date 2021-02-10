@@ -67,11 +67,6 @@ def test_nan_inf(tensor):
     if np.isinf(tensor).any():
         raise ValueError('Tensor contains inf.')
 
-if __name__ == "__main__":
-    pass
-
-
-
 def logit(x):
     from numpy import exp
     return 1 / (1 + exp(-x))
@@ -80,3 +75,42 @@ def logit(x):
 def inv_logit(x):
     from numpy import log
     return log(x / (1 - x))
+
+        
+def arraymaker(d, x):
+    import numpy as np
+    maxlen = max([len(i) for i in d[x]])
+    arr = []
+    for i in d[x]:
+        arr.append(np.pad(i, (0,maxlen-len(i)), constant_values = np.nan))
+    return np.stack(arr)
+
+
+def compselect(d, pct, seed=0):
+    from sklearn.decomposition import TruncatedSVD
+    import numpy as np
+    '''function returns the number of components accounting for `pct`% of variance'''
+    ncomp = d.shape[1]//2
+    while True:
+        pca = TruncatedSVD(n_components=ncomp, random_state=seed)
+        pca.fit(d)
+        cus = pca.explained_variance_ratio_.sum()
+        if cus < pct:
+            ncomp += ncomp//2
+        else:
+            ncomp = np.where((pca.explained_variance_ratio_.cumsum()>pct) == True)[0].min()
+            return ncomp
+
+
+def hasher(x):
+    import hashlib
+    hash_object = hashlib.sha512(x.encode('utf-8'))
+    hex_dig = hash_object.hexdigest()    
+    return hex_dig
+
+
+if __name__ == "__main__":
+    pass
+
+
+
