@@ -109,6 +109,16 @@ def hasher(x):
     return hex_dig
 
 
+
+def entropy(p):
+    '''
+    function assumes a square matrix with rows summing to 1
+    it returns a vector of entropies
+    '''
+    import numpy as np
+    return -np.sum(p*np.log(p) + (1-p) * np.log(1-p), axis = 1)
+
+
 if __name__ == "__main__":
     pass
 
