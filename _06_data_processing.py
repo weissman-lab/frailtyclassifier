@@ -67,8 +67,8 @@ class DataProcessor():
         
     def load_clean_aggregate(self, batchstring):
         notes_2018 = [i for i in
-                  os.listdir(self.outdir + "notes_labeled_embedded_SENTENCES/")
-                  if '.csv' in i and int(i.split("_")[-2][1:]) < 13]
+                      os.listdir(self.outdir + "notes_labeled_embedded_SENTENCES/")
+                      if '.csv' in i and "enote" in i and int(i.split("_")[-2][1:]) < 13]
         cndf = pd.read_pickle(f"{self.outdir}conc_notes_df.pkl")
         cndf = cndf.loc[cndf.LATEST_TIME < "2019-01-01"]
         cndf['month'] = cndf.LATEST_TIME.dt.month + (
