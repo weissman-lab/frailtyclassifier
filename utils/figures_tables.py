@@ -80,7 +80,7 @@ def table_1_demographics():
     return(all_str, new_AL_str)
 
 
-def lossplot(d, meanlen):
+def lossplot(d, meanlen, d_final = None):
     import matplotlib.pyplot as plt
     from utils.misc import arraymaker
     import numpy as np
@@ -93,7 +93,9 @@ def lossplot(d, meanlen):
     ciup = np.nanquantile(L, axis = 0, q = .975)
     cidn = np.nanquantile(L, axis = 0, q = .025)
     xg = list(range(len(mu)))
-    f_ax1.plot(xg, mu)
+    f_ax1.plot(xg, mu, label = 'CV mean')
+    if d_final is not None:
+        f_ax1.plot(xg[:len(d_final['L'])], d_final['L'], label = 'final training')
     f_ax1.fill_between(xg, ciup, cidn,
                         alpha=0.2,
                          lw=2,
@@ -109,6 +111,8 @@ def lossplot(d, meanlen):
     cidn = np.nanquantile(L, axis = 0, q = .025)
     xg = list(range(len(mu)))
     f_ax2.plot(xg, mu)
+    if d_final is not None:
+        f_ax2.plot(xg[:len(d_final['fL'])], d_final['fL'])
     f_ax2.fill_between(xg, ciup, cidn,
                         alpha=0.2,
                          lw=2,
@@ -123,6 +127,8 @@ def lossplot(d, meanlen):
     cidn = np.nanquantile(L, axis = 0, q = .025)
     xg = list(range(len(mu)))
     f_ax3.plot(xg, mu)
+    if d_final is not None:
+        f_ax3.plot(xg[:len(d_final['mL'])], d_final['mL'])
     f_ax3.fill_between(xg, ciup, cidn,
                         alpha=0.2,
                          lw=2,
@@ -137,6 +143,8 @@ def lossplot(d, meanlen):
     cidn = np.nanquantile(L, axis = 0, q = .025)
     xg = list(range(len(mu)))
     f_ax4.plot(xg, mu)
+    if d_final is not None:
+        f_ax4.plot(xg[:len(d_final['nL'])], d_final['nL'])
     f_ax4.fill_between(xg, ciup, cidn,
                         alpha=0.2,
                          lw=2,
@@ -151,6 +159,8 @@ def lossplot(d, meanlen):
     cidn = np.nanquantile(L, axis = 0, q = .025)
     xg = list(range(len(mu)))
     f_ax5.plot(xg, mu)
+    if d_final is not None:
+        f_ax5.plot(xg[:len(d_final['rL'])], d_final['rL'])
     f_ax5.fill_between(xg, ciup, cidn,
                         alpha=0.2,
                          lw=2,

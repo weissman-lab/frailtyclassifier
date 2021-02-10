@@ -1,6 +1,10 @@
 
+SENTENCE_LENGTH = 20 # set standard sentence length. Inputs will be truncated or padded
+
+TAGS = ['Fall_risk', 'Msk_prob',  'Nutrition', 'Resp_imp']
 
 OUT_VARNAMES = ['Msk_prob', 'Nutrition', 'Resp_imp', 'Fall_risk']
+
 STR_VARNAMES = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
                 'mean_sys_bp', 'mean_dia_bp', 'sd_sys_bp', 'sd_dia_bp',
                 'bmi_mean', 'bmi_slope', 'max_o2', 'spo2_worst', 'ALBUMIN',

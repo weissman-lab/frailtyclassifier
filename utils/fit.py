@@ -7,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.metrics import roc_auc_score, average_precision_score
 from utils.prefit import make_model
+from utils.constants import SENTENCE_LENGTH, TAGS
 import datetime
 from utils.misc import write_pickle, sheepish_mkdir, test_nan_inf, inv_logit
 
@@ -22,8 +23,6 @@ def AL_CV(index,
           fold):
 
     #################
-    SENTENCE_LENGTH = 20 # set standard sentence length. Inputs will be truncated or padded
-    TAGS = ['Fall_risk', 'Msk_prob',  'Nutrition', 'Resp_imp']
     outdir = f"{os.getcwd()}/output/"
     datadir = f"{os.getcwd()}/data/"
     ALdir = f"{outdir}saved_models/AL{batchstring}/"

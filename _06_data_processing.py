@@ -38,9 +38,6 @@ class DataProcessor():
         else:
             self.fold_definition = pd.read_csv(f"{self.ALdir}/processed_data/fold_definition.csv", index_col = 0)
         
-        
-    def fart(self):
-        print(self.ALdir)
     
     def establish_folds(self, seed=0, recurse = True):
         # this function ensures folds all have representation from each class
