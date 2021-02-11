@@ -716,7 +716,7 @@ for i in range(30):
     with open(f'{outdir}/notes_output/batch_10/{fi}', "w") as f:
         f.write(towrite)
 
-# 25 random notes from 2019
+# 200 random notes from 2019
 # batch 11
 import os
 os.mkdir(f'{outdir}/notes_output/batch_11/')
