@@ -119,6 +119,13 @@ def entropy(p):
     return -np.sum(p*np.log(p) + (1-p) * np.log(1-p), axis = 1)
 
 
+def nrow(x):
+    return x.shape[0]
+
+def ncol(x):
+    return x.shape[1]
+
+
 if __name__ == "__main__":
     pass
 

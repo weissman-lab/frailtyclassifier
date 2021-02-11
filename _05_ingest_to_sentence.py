@@ -10,7 +10,7 @@ import scispacy
 import spacy
 from configargparse import ArgParser
 from gensim.models import KeyedVectors
-from _99_project_module import read_txt, read_json, ncol
+from utils.misc import read_txt, read_json, ncol
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
