@@ -250,7 +250,8 @@ def logit(x):
 
 
 def inv_logit(x):
-    return np.log(x / (1 - x))
+    from numpy import log
+    return log(x / (1 - x))
 
 # take the file and filter it with the masking function
 def remove_headers(fi):

@@ -139,7 +139,8 @@ labdf.to_csv(f"{outdir}/labs_r_start.csv")
 
 
 ## Running R script & reading output
-os.system("Rscript ./_03_pull_structured_data_labs.R &")
+# assert 5 == 6, "This is broken, below.  For some reason, calling R this way doesn't yield the same result as calling R locally"
+# os.system("Rscript ./_03_pull_structured_data_labs.R &")
 
 labdf = pd.read_csv((f"{outdir}/labs_r_finish.csv"),
                  dtype={'PAT_ENC_CSN_ID': object, "PAT_ID": object, "COMMON_NAME": object, "VAL_NUM": np.float64},
@@ -183,7 +184,7 @@ rlabs = pool.map(recent_labs, range(nrow(df)), chunksize=1)
 print(time.time() - start)
 pool.close()
 
-# oh snap!  I forgot to put the coordinates in
+# put the coordinates in
 assert(len(rlabs) == nrow(df))
 for i in range(len(rlabs)):
     if type(rlabs[i]).__name__ == "dict":
@@ -200,3 +201,9 @@ labs_6m = pd.DataFrame(rlabs_fixed)
 
 
 labs_6m.to_pickle(f"{outdir}labs_6m.pkl")
+
+
+
+
+
+

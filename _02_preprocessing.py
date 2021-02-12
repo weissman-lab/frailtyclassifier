@@ -441,7 +441,6 @@ conc_notes_df = yy.merge(conc_notes_df)
 # save
 conc_notes_df.to_pickle(f'{outdir}conc_notes_df.pkl')
 conc_notes_df = pd.read_pickle(f'{outdir}conc_notes_df.pkl')
-
 conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
         conc_notes_df.LATEST_TIME.dt.year - min(conc_notes_df.LATEST_TIME.dt.year)) * 12
 months = list(set(conc_notes_df.month))
@@ -714,4 +713,24 @@ for i in range(30):
     else:
         fi = f"batch_10_alternate_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
     with open(f'{outdir}/notes_output/batch_10/{fi}', "w") as f:
+        f.write(towrite)
+
+# 200 random notes from 2019
+# batch 11
+import os
+os.mkdir(f'{outdir}/notes_output/batch_11/')
+subset = conc_notes_df.loc[conc_notes_df.LATEST_TIME.dt.year == 2019]
+previous = os.listdir(f"{outdir}notes_output/batch_01") + os.listdir(f"{outdir}notes_output/batch_02") + \
+           os.listdir(f"{outdir}notes_output/batch_03") + os.listdir(f"{outdir}notes_output/batch_04") + \
+           os.listdir(f"{outdir}notes_output/batch_05") + os.listdir(f"{outdir}notes_output/batch_06") + \
+           os.listdir(f"{outdir}notes_output/batch_07") + os.listdir(f"{outdir}notes_output/batch_08") + \
+           os.listdir(f"{outdir}notes_output/batch_09") + os.listdir(f"{outdir}notes_output/batch_10")
+previds = [re.sub(".txt","", x.split("_")[-1]) for x in previous if '.pkl' not in x]
+subsubset = subset.loc[~subset.PAT_ID.isin(previds)]
+np.random.seed(20201202)
+subsubsubset = subset.iloc[np.random.choice(subsubset.shape[0], 200, replace = False)]
+for i in range(200):
+    towrite = subsubsubset.combined_notes.iloc[i]
+    fi = f"batch_11_m{subsubsubset.month.iloc[i]}_{subsubsubset.PAT_ID.iloc[i]}.txt"
+    with open(f'{outdir}/notes_output/batch_11/{fi}', "w") as f:
         f.write(towrite)
