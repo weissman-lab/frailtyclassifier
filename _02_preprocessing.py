@@ -441,7 +441,6 @@ conc_notes_df = yy.merge(conc_notes_df)
 # save
 conc_notes_df.to_pickle(f'{outdir}conc_notes_df.pkl')
 conc_notes_df = pd.read_pickle(f'{outdir}conc_notes_df.pkl')
-
 conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
         conc_notes_df.LATEST_TIME.dt.year - min(conc_notes_df.LATEST_TIME.dt.year)) * 12
 months = list(set(conc_notes_df.month))
