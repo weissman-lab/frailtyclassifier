@@ -34,7 +34,7 @@ def main():
                'n_units': [64, 256],
                'dropout': [.1, .5],
                'l1_l2': [0, 1e-4],
-               'case_weights': [False, True],
+               'case_weights': [False],
                'repeat': [1,2,3],
                'fold': list(range(10))}
     hp_grid = expand_grid(hp_grid)
@@ -45,13 +45,10 @@ def main():
     hp_grid = hp_grid.iloc[scram_idx, :]
     
     for i in range(hp_grid.shape[0]):
-        if hp_grid.case_weights.iloc[i] == False: # Feb 1:  dropping case weights
-            try:
-                _ = AL_CV(*tuple(hp_grid.iloc[i]))
-            except:
-                send_message_to_slack(f"problem with {hp_grid['index'].iloc[i]}")
-        else:
-            pass
+        try:
+            _ = AL_CV(*tuple(hp_grid.iloc[i]))
+        except:
+            send_message_to_slack(f"problem with {hp_grid['index'].iloc[i]}")
 
 if __name__ == "__main__":
     main()

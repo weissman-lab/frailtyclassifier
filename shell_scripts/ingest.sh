@@ -15,7 +15,7 @@ outdir=./output/notes_labeled_embedded_SENTENCES/
 # done
 
 
-files=$(ls -d ./annotation/* | grep .zip | grep AL_01)
+files=$(ls -d ./annotation/* | grep .zip | grep AL_03)
 for f in $files
 do 
 	echo $f

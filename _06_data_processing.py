@@ -19,6 +19,7 @@ class DataProcessor():
     def __init__(self, batchstring):
         self.outdir = f"{os.getcwd()}/output/"
         self.ALdir = f"{self.outdir}/saved_models/AL{batchstring}"
+        self.batchstring = batchstring
         sheepish_mkdir(self.ALdir)
         # make files for the CSV output
         sheepish_mkdir(f"{self.ALdir}/processed_data/")
@@ -29,12 +30,13 @@ class DataProcessor():
         sheepish_mkdir(f"{self.ALdir}/processed_data/caseweights")
         sheepish_mkdir(f"{self.ALdir}/processed_data/sklearn_artifacts")
         if "data_dict.pkl" not in os.listdir(f"{self.ALdir}/processed_data/"):
-            self.data_dict = self.load_clean_aggregate(batchstring)
+            self.data_dict = self.load_clean_aggregate()
             write_pickle(self.data_dict, f"{self.ALdir}/processed_data/data_dict.pkl")
         else:
             self.data_dict = read_pickle(f"{self.ALdir}/processed_data/data_dict.pkl")
         if 'fold_definition.csv' not in os.listdir(f"{self.ALdir}/processed_data/"):
             self.fold_definition = self.establish_folds()
+            self.fold_definition.to_csv(f"{self.ALdir}/processed_data/fold_definition.csv")
         else:
             self.fold_definition = pd.read_csv(f"{self.ALdir}/processed_data/fold_definition.csv", index_col = 0)
         
@@ -62,7 +64,7 @@ class DataProcessor():
         return fold_definition
         
         
-    def load_clean_aggregate(self, batchstring):
+    def load_clean_aggregate(self):
         notes_2018 = [i for i in
                       os.listdir(self.outdir + "notes_labeled_embedded_SENTENCES/")
                       if '.csv' in i and "enote" in i and int(i.split("_")[-2][1:]) < 13]
@@ -80,7 +82,6 @@ class DataProcessor():
                           "_".join(i.split("_")[-2:]) not in uidstr]
         assert len(notes_2018_in_cndf) + len(notes_excluded) == len(notes_2018)
         notes_2018_in_cndf.sort()
-        len([i for i in notes_2018 if 'AL02' in i])
         # remove double-annotated notes
         '''
         25 Jan 2021:  removing double-annotated notes, and notes from different 
@@ -125,15 +126,15 @@ class DataProcessor():
                 keepers.append(notes_i[0])
         droppers = [i for i in notes_2018_in_cndf if i not in keepers]
         # make a little report on keepers and droppers
-        report = 'Keepers:\n'        
-        for i in range(3):
+        report = 'Keepers:\n'
+        for i in range(int(self.batchstring)):
             x = [j for j in keepers if f'AL0{str(i)}' in j]
             report += f"{len(x)} notes in AL0{i}\n" 
         x = [i for i in keepers if "AL0" not in i]
         report += f"{len(x)} notes from initial random batches\n"
         report += f"Total of {len(keepers)} notes keeping\n\n"
         report += "Droppers\n"
-        for i in range(3):
+        for i in range(int(self.batchstring)):
             x = [j for j in droppers if f'AL0{str(i)}' in j]
             report += f"{len(x)} notes in AL0{i}\n" 
         x = [i for i in droppers if "AL0" not in i]
@@ -480,6 +481,8 @@ class DataProcessor():
         print(f"Saved full data for training after CV")
 
 
+
+
 def main():
     p = ArgParser()
     p.add("-b", "--batchstring", help="batch string, i.e.: 00 or 01 or 02")
@@ -499,3 +502,4 @@ def main():
         
 if __name__ == '__main__':
     main()
+    # self = DataProcessor('04')
