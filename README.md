@@ -2,7 +2,7 @@
 
 ## Note ingestion
 
-To create data from curated webanno projects, use `shell_scripts/ingest.sh`.  Modify that script to point to whichever webanno zip my modifying the target of the grep statement, and ensue that the environment variables for the embeddings and the output directory are as intended.  Unless something changes (this was written 19 March 2021), those should be 
+To create data from curated webanno projects, use `shell_scripts/ingest.sh`.  Modify that script to point to whichever webanno zip by modifying the target of the grep statement, and ensure that the environment variables for the embeddings and the output directory are as intended.  Unless something changes (this was written 19 March 2021), those should be 
 
 ```
 embeddings=./data/w2v_oa_all_300d.bin

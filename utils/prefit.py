@@ -24,7 +24,7 @@ def make_model(emb_path,
                                    output_sequence_length=sentence_length,
                                    standardize=None)  # this is CRITICAL --
     # default will strip '_' and smash multi-word-expressions together
-    vectorizer.adapt(np.array(train_sent))
+    vectorizer.adapt(np.array(train_sent.fillna("")))
     cr_embed = KeyedVectors.load(emb_path,mmap='r')
     # get the vocabulary from our vectorized text
     vocab = vectorizer.get_vocabulary()
