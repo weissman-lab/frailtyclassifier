@@ -1,4 +1,5 @@
 
+import os
 from configargparse import ArgParser
 from utils.misc import sheepish_mkdir, send_message_to_slack
 from _09_AL_predict import BatchPredictor
