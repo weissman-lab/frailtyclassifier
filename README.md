@@ -73,3 +73,11 @@ This will spin up the number of machines specified in `terraform.tfvars` (not pa
 ## Fitting the final model
 
 This is done with `_08_AL_train.py`.  It only takes `<<batchstring>>` as an argument.  
+
+## Predicting unlabeled notes
+
+Done with `_09_AL_predict.py`.  It only takes `<<batchstring>>` as an argument.  Unlabeled notes are batched into 100 batches by the last 2 digits of their `PAT_ID`, and the script loops through the batches, saving json.bz2 data frames with the entropies of the notes predicted for.  As with cross-validation, this can be run in parallel on a cluster, using terraform.  Clobbering is avoided through a tokening system.
+
+## Pulling the subsequent AL batch
+
+Done with `_10_pull_best_notes.py`.  It only takes `<<batchstring>>` as an argument.  
