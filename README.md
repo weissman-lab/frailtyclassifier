@@ -72,4 +72,4 @@ This will spin up the number of machines specified in `terraform.tfvars` (not pa
 
 ## Fitting the final model
 
-This is done with `_08_AL_train.py`.  It only takes `<<batchstring>>` as an argument.
+This is done with `_08_AL_train.py`.  It only takes `<<batchstring>>` as an argument.  
