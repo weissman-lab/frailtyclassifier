@@ -21,14 +21,12 @@ def table_1_demographics():
     notes_test = pd.read_csv(
         f"{outdir}notes_labeled_embedded_SENTENCES/notes_test_rough.csv")
 
-    # ACD: THIS IS THE SECTION YOU MAY NEED TO EDIT
-    # Please make sure this section checks /notes_output/ for batches labeled 'AL',
-    # and then compares them to notes_train to see if they have already been
-    # labeled & embedded.
-    # check for a new AL batch:
-    new_AL_batches = [i for i in os.listdir(f"{outdir}notes_output/")
-                      if 'AL_' in i
-                      and ('AL' + str(i).split("_")[1]) not in list(notes_train.batch)]
+    # Check for a new AL batch: pull all rounds of AL from /saved_models/ then
+    # compare to notes_train to see if they have already been labeled & embedded.
+    new_AL_batches = [i for i in os.listdir(f"{outdir}saved_models/")
+                      if 'AL0' in i
+                      and '.txt' not in i
+                      and i not in [i.split("_")[0] for i in notes_train.batch]]
 
     assert len(new_AL_batches) > 0, "Could not find the new AL batch"
     print(f"New AL batch: {new_AL_batches}")
@@ -47,6 +45,7 @@ def table_1_demographics():
                                       batch=label_batch,
                                       filename=fname))
         notes_new_AL.append(pat_batch)
+
     notes_new_AL = pd.concat(notes_new_AL).reset_index(drop=True)
 
     # load structured data
@@ -58,10 +57,10 @@ def table_1_demographics():
     strdat_new_AL['train_test'] = 'new_AL'
     # summarize new AL batch
     drop_cols = ['sd_', 'MV_', 'train_test']
-    drop_cols = [i for i in all_str.columns if
+    drop_cols = [i for i in strdat_new_AL.columns if
                  any(xi in i for xi in drop_cols)]
 
-    new_AL_str = strdat_new_AL.loc[:, ~all_str.columns.isin(drop_cols)].sort_values(
+    new_AL_str = strdat_new_AL.loc[:, ~strdat_new_AL.columns.isin(drop_cols)].sort_values(
         by='PAT_ID')
 
     #merge with prior training & test data
@@ -76,6 +75,12 @@ def table_1_demographics():
     drop_cols = [i for i in all_str.columns if any(xi in i for xi in drop_cols)]
     all_str = all_str.loc[:, ~all_str.columns.isin(drop_cols)].groupby(
         'train_test').mean().T
+
+    #write out
+    all_str.to_csv(
+        f"{outdir}saved_models/{new_AL_batches[0]}/{new_AL_batches[0]}_StrucData_compare.csv")
+    new_AL_str.to_csv(
+        f"{outdir}saved_models/{new_AL_batches[0]}/{new_AL_batches[0]}_StrucData_summary.csv")
 
     return(all_str, new_AL_str)
 
