@@ -59,7 +59,6 @@ def table_1_demographics():
     drop_cols = ['sd_', 'MV_', 'train_test']
     drop_cols = [i for i in strdat_new_AL.columns if
                  any(xi in i for xi in drop_cols)]
-
     new_AL_str = strdat_new_AL.loc[:, ~strdat_new_AL.columns.isin(drop_cols)].sort_values(
         by='PAT_ID')
 
@@ -69,6 +68,13 @@ def table_1_demographics():
     strdat_test = strdat.merge(notes_test[['PAT_ID', 'month']])
     strdat_test['train_test'] = 'test'
     all_str = pd.concat([strdat_new_AL, strdat_train, strdat_test])
+
+    # check if new AL batch contains any duplicates (ok in training data if
+    # months are different, but not ideal)
+    dups = all_str[all_str.PAT_ID.isin([i for i in list(all_str.PAT_ID)
+                                 if list(all_str.PAT_ID).count(i) > 1
+                                 and i in list(strdat_new_AL.PAT_ID)])].shape[0]
+    print(f"{dups} duplicates in the new AL batch")
 
     # restrict columns
     drop_cols = ['PAT_ID', 'month', 'sd_', 'MV_']
