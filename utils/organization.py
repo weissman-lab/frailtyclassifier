@@ -7,7 +7,7 @@ if __name__ == "__main__":
 def find_outdir():
     # get the correct directories
     dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/",
-            "/media/drv2/andrewcd2/frailty/output/", "/share/gwlab/frailty/output/"]
+            "/media/drv2/andrewcd2/frailty/output/", "/gwshare/frailty/output/"]
     for d in dirs:
         if os.path.exists(d):
             outdir = d
