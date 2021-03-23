@@ -74,6 +74,7 @@ def table_1_demographics():
     dups = all_str[all_str.PAT_ID.isin([i for i in list(all_str.PAT_ID)
                                  if list(all_str.PAT_ID).count(i) > 1
                                  and i in list(strdat_new_AL.PAT_ID)])].shape[0]
+    assert dups > 0, "duplicates in the new AL batch"
     print(f"{dups} duplicates in the new AL batch")
 
     # restrict columns
