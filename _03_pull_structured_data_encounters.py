@@ -76,18 +76,40 @@ left join ZC_DISP_ENC_TYPE as zdet on pe.ENC_TYPE_C = zdet.DISP_ENC_TYPE_C
 else:
     encdf = pd.read_pickle(f"{datadir}encs_raw.pkl")
 
-## Output for cleaning in r
-encdf.to_csv(f"{outdir}/encs_r_start.csv")
+# Office visit
+office_visit = encdf[encdf.ENCOUNTER_TYPE.isin(
+    ['Appointment', 'Office Visit', 'Post Hospitalization', 'Post Emergency'])
+    & ~encdf.PATIENT_CLASS.isin(
+    ['Inpatient', 'Emergency', 'Radiation/Oncology-Recurring',
+     'Therapies-Recurring', 'Chemo Series', 'Day Surgery', 'Observation',
+     'AM Admit', 'Semi-Private/Med-Surg', 'Endo/Bronch', 'ICU',
+     'Hyperbaric-recurring', 'EP/CATH', 'Isolation', 'Partial Hospitalization',
+     'CCU (Beds 1-7 AND Beds on 4E S,Q,O)', 'CCU (SCCU Beds 8-13)',
+     'Rehab Inpatient', 'Gamma Knife'])]
+office_visit['office_visit'] = 1
+office_visit['ED_visit'] = 0
+office_visit['admission'] = 0
 
+# ED visits
+ED_visit = encdf[encdf.ENCOUNTER_TYPE.isin(
+    ['Hospital Encounter', 'Emergency Department'])
+    & encdf.PATIENT_CLASS.isin(
+    ['Emergency', 'Observation'])]
+ED_visit['ED_visit'] = 1
+ED_visit['office_visit'] = 0
+ED_visit['admission'] = 0
 
-## Running R script & reading output
-os.system("Rscript ./_03_pull_structured_data_encs.R &")
+# Hospital admissions
+admission = encdf[encdf.ENCOUNTER_TYPE.isin(
+    ['Hospital Encounter', 'Emergency Department'])
+    & encdf.PATIENT_CLASS.isin(
+    ['Inpatient', 'ICU', 'Semi-Private/Med-Surg', ""])]
+admission['admission'] = 1
+admission['office_visit'] = 0
+admission['ED_visit'] = 0
 
-# Read and set correct data types for reading
-encdf = pd.read_csv((f"{outdir}/encs_r_finish.csv"),
-                 dtype={'PAT_ID': object, 'PAT_ENC_CSN_ID': object, 'office_visit': np.float64, 
-                        'ED_visit': np.float64, 'admission': np.float64},
-                parse_dates = ["CONTACT_DATE", "ADT_ARRIVAL_TIME", "HOSP_ADMSN_TIME", "HOSP_DISCH_TIME"])
+# concat
+encdf = pd.concat([office_visit, ED_visit, admission], ignore_index=True)
 
 ## Aggregation
 '''
@@ -116,7 +138,6 @@ def recent_encs(i):
                 outdict['days_hospitalized'] = (edf.HOSP_DISCH_TIME - edf.HOSP_ADMSN_TIME).sum().total_seconds()/60/60/24
             else:
                 outdict['days_hospitalized'] = 0
-
             return outdict
         else:
             return
