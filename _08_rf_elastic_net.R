@@ -28,21 +28,21 @@ inc_struc = TRUE
 seed = 92120
 
 #set directories based on location
-dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/',
-         '/media/drv2/andrewcd2/frailty/output/',
-         '/gwshare/frailty/output/')
+dirs = c(paste0('/gwshare/frailty/output/saved_models/', exp, '/'),
+         '/Users/martijac/Documents/Frailty/frailty_classifier/output/',
+         '/media/drv2/andrewcd2/frailty/output/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     rootdir = dirs[d]
   }
 }
-datadir <- paste0(rootdir, 'saved_models/', exp, '/processed_data/')
+datadir <- paste0(rootdir, 'processed_data/')
 SVDdir <- paste0(datadir, 'svd/') 
 embeddingsdir <- paste0(datadir, 'embeddings/')
 trvadatadir <- paste0(datadir, 'trvadata/')
 cwdir <- paste0(datadir, 'caseweights/')
 #new output directory for each experiment:
-outdir <- paste0(rootdir, 'lin_trees_SENT/exp', exp, '/')
+outdir <- paste0(rootdir, 'lin_trees/')
 #directory for performance for each rf model:
 rf_modeldir <- paste0(outdir,'rf_models/')
 #directory for duration for each rf model:
