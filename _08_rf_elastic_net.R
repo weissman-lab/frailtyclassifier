@@ -14,7 +14,7 @@ registerDoParallel(detectCores())
 exp <- commandArgs(trailingOnly = TRUE)
 #test if there is an exp number argument: if not, return an error
 if (length(exp)==0) {
-  stop("Exp number must be specified as an argument", call.=FALSE)
+  stop("AL round must be specified as an argument", call.=FALSE)
 }
 
 #repeats & folds
@@ -30,13 +30,13 @@ seed = 92120
 #set directories based on location
 dirs = c('/Users/martijac/Documents/Frailty/frailty_classifier/output/',
          '/media/drv2/andrewcd2/frailty/output/',
-         '/share/gwlab/frailty/output/')
+         '/gwshare/frailty/output/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     rootdir = dirs[d]
   }
 }
-datadir <- paste0(rootdir, 'saved_models/AL03/processed_data/')
+datadir <- paste0(rootdir, 'saved_models/', exp, '/processed_data/')
 SVDdir <- paste0(datadir, 'svd/') 
 embeddingsdir <- paste0(datadir, 'embeddings/')
 trvadatadir <- paste0(datadir, 'trvadata/')
