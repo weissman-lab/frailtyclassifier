@@ -4,6 +4,7 @@ from configargparse import ArgParser
 from utils.misc import sheepish_mkdir, send_message_to_slack
 from _09_AL_predict import BatchPredictor
 
+
 def main():
     '''
     pulls `how_many` notes.  Assumes that the unlabled prediction in _09_AL_predict.py has been run for this batch
