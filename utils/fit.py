@@ -27,7 +27,7 @@ def AL_CV(index,
     ALdir = f"{outdir}saved_models/AL{batchstring}/"
     cv_savepath = f"{ALdir}cv_models/"
     sheepish_mkdir(cv_savepath)
-    savename = f"model_pickle_cv_{index}{tags if isinstance(tags, str) else ''}.pkl"
+    savename = f"model_pickle_cv_{index}{tags if isinstance(tags, str) else ''}.pkl" # append the aspect if singletasking
     tags = [tags] if isinstance(tags, str) else tags
     if savename in os.listdir(cv_savepath):
         return
