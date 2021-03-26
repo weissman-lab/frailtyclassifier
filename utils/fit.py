@@ -19,14 +19,16 @@ def AL_CV(index,
           l1_l2_pen,
           use_case_weights,
           repeat,
-          fold):
+          fold,
+          tags = TAGS):
     #################
     outdir = f"{os.getcwd()}/output/"
     datadir = f"{os.getcwd()}/data/"
     ALdir = f"{outdir}saved_models/AL{batchstring}/"
     cv_savepath = f"{ALdir}cv_models/"
     sheepish_mkdir(cv_savepath)
-    savename = f"model_pickle_cv_{index}.pkl"
+    savename = f"model_pickle_cv_{index}{tags if isinstance(tags, str) else ''}.pkl"
+    tags = [tags] if isinstance(tags, str) else tags
     if savename in os.listdir(cv_savepath):
         return
     else:
@@ -38,7 +40,7 @@ def AL_CV(index,
                            use_case_weights=use_case_weights,
                            repeat=repeat,
                            fold=fold,
-                           bias_init=True)
+                           tags=tags)
         print(f"********************\nstarting:\n***********************\n{config_dict}")
         ##################
         # load data
@@ -60,7 +62,7 @@ def AL_CV(index,
             model, vectorizer = make_model(emb_path=f"{datadir}w2v_oa_all_300d.bin",
                                            sentence_length=SENTENCE_LENGTH,
                                            meta_shape=len(str_varnames),
-                                           tags=TAGS,
+                                           tags=tags,
                                            train_sent=train_sent,
                                            l1_l2_pen=l1_l2_pen,
                                            n_units=n_units,
@@ -80,7 +82,7 @@ def AL_CV(index,
 
         tr_labels = []
         va_labels = []
-        for n in TAGS:
+        for n in tags:
             tr = tf.convert_to_tensor(df_tr[[f"{n}_neg", f"{n}_neut", f"{n}_pos"]], dtype='float32')
             va = tf.convert_to_tensor(df_va[[f"{n}_neg", f"{n}_neut", f"{n}_pos"]], dtype='float32')
             tr_labels.append(tr)
@@ -89,7 +91,7 @@ def AL_CV(index,
         tr_struc = tf.convert_to_tensor(df_tr[str_varnames], dtype='float32')
         va_struc = tf.convert_to_tensor(df_va[str_varnames], dtype='float32')
 
-        case_weights_tensor_list = [tf.convert_to_tensor(case_weights[t + "_cw"]) for t in TAGS]
+        case_weights_tensor_list = [tf.convert_to_tensor(case_weights[t + "_cw"]) for t in tags]
 
         test_nan_inf(tr_text)
         test_nan_inf(va_text)
@@ -107,7 +109,7 @@ def AL_CV(index,
         # set the bias terms to the proportions
         for i, yi in enumerate(tr_labels):
             props = inv_logit(tf.reduce_mean(yi, axis=0).numpy())
-            pos = 7 - i * 2
+            pos = 7 - i * 2 if len(tags) == 4 else 1 # the 1 is for single-task learning
             w[-pos] = w[-pos] * 0 + props
         model.set_weights(w)
 
@@ -129,7 +131,7 @@ def AL_CV(index,
         # predictions and metrics
         va_preds = model.predict([va_text, va_struc])
 
-        subtags = [f"{t}_{i}" for t in TAGS for i in ['neg', 'neut', 'pos']]
+        subtags = [f"{t}_{i}" for t in tags for i in ['neg', 'neut', 'pos']]
 
         va_preds = tf.concat(va_preds, axis=1).numpy()
         va_y = tf.concat(va_labels, axis=1).numpy()
@@ -139,13 +141,12 @@ def AL_CV(index,
         SST = np.sum((event_rate - va_y) ** 2, axis=0)
         brier_classwise = 1 - SSE / SST
         brier_aspectwise = [1 - np.mean(SSE[(i * 3):((i + 1) * 3)]) / np.mean(SST[(i * 3):((i + 1) * 3)]) for i in
-                            range(4)]
+                            range(len(tags))]
         brier_all = 1 - np.sum(SSE) / np.sum(SST)
 
         brier_classwise = {k: brier_classwise[i] for i, k in enumerate(subtags)}
-        brier_aspectwise = {k: brier_aspectwise[i] for i, k in enumerate(TAGS)}
+        brier_aspectwise = {k: brier_aspectwise[i] for i, k in enumerate(tags)}
 
-        [i for i in enumerate(subtags)]
         auroc = [{t: roc_auc_score(va_y[:, i], va_preds[:, i])} for i, t in enumerate(subtags)]
         auprc = [{t: average_precision_score(va_y[:, i], va_preds[:, i])} for i, t in enumerate(subtags)]
 
@@ -163,7 +164,8 @@ def AL_CV(index,
                            l1_l2_pen=l1_l2_pen,
                            use_case_weights=use_case_weights,
                            repeat=repeat,
-                           fold=fold)
+                           fold=fold,
+                           tags=tags)
         outdict = dict(config=config_dict,
                        history=history.history,
                        va_preds=va_preds_df,
