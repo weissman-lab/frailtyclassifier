@@ -8,7 +8,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score
 from utils.prefit import make_model
 from utils.constants import SENTENCE_LENGTH, TAGS
 import datetime
-from utils.misc import write_pickle, sheepish_mkdir, test_nan_inf, inv_logit
+from utils.misc import write_pickle, sheepish_mkdir, test_nan_inf, inv_logit, write_txt
 
 
 def AL_CV(index,
@@ -28,10 +28,14 @@ def AL_CV(index,
     cv_savepath = f"{ALdir}cv_models/"
     sheepish_mkdir(cv_savepath)
     savename = f"model_pickle_cv_{index}{tags if isinstance(tags, str) else ''}.pkl" # append the aspect if singletasking
+    tokname = re.sub("model_pickle", "antiClobberToken", savename)
+    tokname = re.sub("pkl", "txt", tokname)
     tags = [tags] if isinstance(tags, str) else tags
-    if savename in os.listdir(cv_savepath):
+    if (savename in os.listdir(cv_savepath)) or (tokname in os.listdir(cv_savepath)):
         return
     else:
+        write_txt("I am a token.  Why must we anthropomorphize everything?",
+                  f"{cv_savepath}{tokname}")
         config_dict = dict(batchstring=batchstring,
                            n_dense=n_dense,
                            n_units=n_units,
@@ -193,6 +197,7 @@ def AL_CV(index,
         print(report)
 
         write_pickle(outdict, f"{cv_savepath}{savename}")
+        os.remove(f"{cv_savepath}{tokname}")
         return 0
 
 
