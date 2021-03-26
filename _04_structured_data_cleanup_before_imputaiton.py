@@ -1,10 +1,11 @@
 import os
-import multiprocessing as mp
 import numpy as np
 import pandas as pd
 import copy
+import re
 from _99_project_module import (get_clarity_conn, get_from_clarity_then_save,
                                 query_filtered_with_temp_tables)
+
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -15,8 +16,13 @@ def main():
 
     start = True
     # output data for R
-    for i in [i for i in os.listdir(outdir) if "_6m" in i]:
-        x = pd.read_pickle(f"{outdir}{i}")
+    pkl6 = [i for i in os.listdir(outdir) if "_6m.pkl" in i]
+    for i in pkl6:
+        try:
+            x = pd.read_json(f"{outdir}{re.sub('pkl', 'json', i)}")
+        except:
+            x = pd.read_pickle(f"{outdir}{i}")
+            x.to_json(f"./output/{re.sub('pkl', 'json', i)}")
         x = x.drop(columns="PAT_ENC_CSN_ID")
         if start is True:
             start = False
@@ -24,6 +30,7 @@ def main():
         else:
             strdat = strdat.merge(x, how='outer')
         print(strdat.shape)
+
 
     # elixhauser
     elix = pd.read_csv(f"{outdir}elixhauser_scores.csv")
@@ -34,7 +41,7 @@ def main():
     strdat = strdat.merge(elix, how='outer')
 
     # n_comorb from conc_notes_df
-    conc_notes_df = pd.read_pickle(f'{outdir}conc_notes_df.pkl')
+    conc_notes_df = pd.read_pickle(f'./output/conc_notes_df.pkl')
     conc_notes_df['month'] = conc_notes_df.LATEST_TIME.dt.month + (
             conc_notes_df.LATEST_TIME.dt.year - 2018) * 12
     mm = conc_notes_df[['PAT_ID', 'month', 'n_comorb']]
@@ -133,7 +140,10 @@ def main():
     strdat_all = pd.concat([strdat.loc[:, ~strdat.columns.isin(dumcols)],
                             dums,
                             strdat_MV], axis=1)
-    strdat_all.to_csv(f"{outdir}structured_data_merged_cleaned.csv")
+    strdat_all.to_csv(f"./output/structured_data_merged_cleaned.csv")
 
 if __name__ == "__main__":
     main()
+
+
+

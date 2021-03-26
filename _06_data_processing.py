@@ -65,6 +65,11 @@ class DataProcessor():
         
         
     def load_clean_aggregate(self):
+        '''
+        This method will use the batchstring and the file
+        `./output/notes_labeled_embedded_SENTENCES/notes_train_official.csv`
+        to subset the notes to notes that were added to the pipeline before the batch indicated in the batchstring
+        '''
         notes_2018 = [i for i in
                       os.listdir(self.outdir + "notes_labeled_embedded_SENTENCES/")
                       if '.csv' in i and "enote" in i and int(i.split("_")[-2][1:]) < 13]
@@ -164,11 +169,23 @@ class DataProcessor():
             os.rename(fra, till)
         assert all([i in os.listdir(enote_dir) for i in keepers])
         assert all([i in os.listdir(drop_dir) for i in droppers])
+        master_notelist = pd.read_csv('./output/notes_labeled_embedded_SENTENCES/notes_train_official.csv',
+                                      index_col = 0)
+        assert all([i in master_notelist.filename.tolist() for i in keepers])
+        assert all([i in keepers for i in master_notelist.filename.tolist()])
+
+        # subset using batchstring
+        subbatch = [i if int(re.sub("AL", "", i.split("_")[1]))<int(self.batchstring) else None for i in keepers if "_AL" in i]
+        subbatch = [i for i in subbatch if i is not None]
+        subbatch += [i for i in keepers if "batch" in i]
+        pids = set([re.sub(".csv", "", i.split("_")[-1]) for i in subbatch])
+
+
         ##################
         # load the files
         df = pd.concat([pd.read_csv(f"{self.outdir}notes_labeled_embedded_SENTENCES/{i}", 
                                     index_col = 0,
-                                    dtype=dict(PAT_ID=str)) for i in keepers])
+                                    dtype=dict(PAT_ID=str)) for i in subbatch])
         df = df.drop(columns = ['sent_start', 'length'])
         ###########
         # Load and process structured data
@@ -503,3 +520,5 @@ def main():
 if __name__ == '__main__':
     main()
     # self = DataProcessor('04')
+
+
