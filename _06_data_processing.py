@@ -1,4 +1,3 @@
-
 from configargparse import ArgParser
 import pandas as pd
 import numpy as np
@@ -35,35 +34,39 @@ class DataProcessor():
         else:
             self.data_dict = read_pickle(f"{self.ALdir}/processed_data/data_dict.pkl")
         if 'fold_definition.csv' not in os.listdir(f"{self.ALdir}/processed_data/"):
-            self.fold_definition = self.establish_folds()
+            try:
+                self.fold_definition = self.establish_folds()
+            except RecursionError:
+                print("Could not construct 10 folds with all class labels!")
+                self.fold_definition = self.establish_folds(recurse = False)
             self.fold_definition.to_csv(f"{self.ALdir}/processed_data/fold_definition.csv")
         else:
-            self.fold_definition = pd.read_csv(f"{self.ALdir}/processed_data/fold_definition.csv", index_col = 0)
-        
-    
-    def establish_folds(self, seed=0, recurse = True):
+            self.fold_definition = pd.read_csv(f"{self.ALdir}/processed_data/fold_definition.csv", index_col=0)
+
+    def establish_folds(self, seed=0, recurse=True):
         # this function ensures folds all have representation from each class
         # dump stuff to local scope for cleaner code:
         pids = self.data_dict['pids']
         df_label = self.data_dict['df_label']
         np.random.seed(seed)
         folds = [i % 10 for i in range(len(pids))]
-        fold_definition = pd.DataFrame(dict(PAT_ID = pids)) # start a data frame for documenting which notes are in each fold
-        for repeat in [1,2,3]:
-            folds = np.random.choice(folds, len(folds), replace = False)
-            fold_definition[f"repeat{repeat}"] = folds        
+        fold_definition = pd.DataFrame(
+            dict(PAT_ID=pids))  # start a data frame for documenting which notes are in each fold
+        for repeat in [1, 2, 3]:
+            folds = np.random.choice(folds, len(folds), replace=False)
+            fold_definition[f"repeat{repeat}"] = folds
             for fold in range(10):
                 # print(f"starting fold {fold}, repeat {repeat}")
                 tr = [pids[i] for i, j in enumerate(folds) if j != fold]
-                va = [pids[i] for i, j in enumerate(folds) if j == fold]                    
-                if any(df_label.loc[df_label.PAT_ID.isin(va)].nunique() == 1) | any(df_label.loc[df_label.PAT_ID.isin(tr)].nunique() == 1):
+                va = [pids[i] for i, j in enumerate(folds) if j == fold]
+                if any(df_label.loc[df_label.PAT_ID.isin(va)].nunique() == 1) | any(
+                        df_label.loc[df_label.PAT_ID.isin(tr)].nunique() == 1):
                     print(f"Seed {seed} didn't work.  Incrementing.")
-                    if recurse: 
-                        return self.establish_folds(seed+1)
+                    if recurse:
+                        return self.establish_folds(seed + 1)
         print(f'Worked at seed {seed}')
         return fold_definition
-        
-        
+
     def load_clean_aggregate(self):
         '''
         This method will use the batchstring and the file
@@ -99,28 +102,31 @@ class DataProcessor():
         Nhashed = 0
         for i in pids:
             notes_i = [j for j in notes_2018_in_cndf if i in j]
-            if len(notes_i) >1:
+            if len(notes_i) > 1:
                 # check and see if there are notes from different batches.  Use the last one if so
                 batchstrings = [k.split("_")[1] for k in notes_i]
                 assert all(["AL" in k for k in batchstrings]), "not all double-coded notes are from an AL round."
                 in_latest_batch = [k for k in notes_i if max(batchstrings) in k]
                 # deal with a couple of manual cases
-                if hasher(i) == 'faef3f1f1a76c57e42f9b35a662656096b4e2dfe15040a61a896b1de06ef1e0a45e61e7e9b26f9282047847854d2d1887d19cbf3041aff2130e102d65243e724':
+                if hasher(
+                        i) == 'faef3f1f1a76c57e42f9b35a662656096b4e2dfe15040a61a896b1de06ef1e0a45e61e7e9b26f9282047847854d2d1887d19cbf3041aff2130e102d65243e724':
                     keepers.append(f'enote_AL01_v2_m2_{i}.csv')
                     print(i)
-                    Nhashed +=1
-                elif hasher(i) == 'e13eced415697e4f59bcc8e75659dcffa4182a8de44b976d5e1d8160407711d276e38946ec52ec366a3ad92f197d92e8d56c1bd4e9029103d17ac12944cc3bc5':
+                    Nhashed += 1
+                elif hasher(
+                        i) == 'e13eced415697e4f59bcc8e75659dcffa4182a8de44b976d5e1d8160407711d276e38946ec52ec366a3ad92f197d92e8d56c1bd4e9029103d17ac12944cc3bc5':
                     keepers.append(f'enote_AL01_m2_{i}.csv')
                     print(i)
-                    Nhashed +=1
+                    Nhashed += 1
                 elif len(in_latest_batch) == 1:
                     keepers.append(in_latest_batch[0])
-                elif len(set([k.split("_")[-2] for k in in_latest_batch]))>1: # deal with different spans
+                elif len(set([k.split("_")[-2] for k in in_latest_batch])) > 1:  # deal with different spans
                     spans = [k.split("_")[-2] for k in in_latest_batch]
                     latest_span = [k for k in in_latest_batch if max(spans) in k]
                     assert len(latest_span) == 1
                     keepers.append(latest_span[0])
-                elif any(['v2' in k for k in in_latest_batch]): # deal with the case of the "v2" notes -- an outgrowth of confusion around the culling in July 2020
+                elif any(['v2' in k for k in
+                          in_latest_batch]):  # deal with the case of the "v2" notes -- an outgrowth of confusion around the culling in July 2020
                     v2_over_v1 = [k for k in in_latest_batch if 'v2' in k]
                     assert len(v2_over_v1) == 1
                     keepers.append(v2_over_v1[0])
@@ -134,14 +140,14 @@ class DataProcessor():
         report = 'Keepers:\n'
         for i in range(int(self.batchstring)):
             x = [j for j in keepers if f'AL0{str(i)}' in j]
-            report += f"{len(x)} notes in AL0{i}\n" 
+            report += f"{len(x)} notes in AL0{i}\n"
         x = [i for i in keepers if "AL0" not in i]
         report += f"{len(x)} notes from initial random batches\n"
         report += f"Total of {len(keepers)} notes keeping\n\n"
         report += "Droppers\n"
         for i in range(int(self.batchstring)):
             x = [j for j in droppers if f'AL0{str(i)}' in j]
-            report += f"{len(x)} notes in AL0{i}\n" 
+            report += f"{len(x)} notes in AL0{i}\n"
         x = [i for i in droppers if "AL0" not in i]
         report += f"{len(x)} notes from initial random batches\n"
         report += f"Total of {len(droppers)} notes dropping"
@@ -156,7 +162,8 @@ class DataProcessor():
         assert (Nhashed == 2) | (len(droppers) == 0)
         assert len(keepers) == len(pids)
         if any(droppers):
-            msg = "The following notes are getting moved/dropped because of duplication:" + "\n".join(droppers) + f"\n\nthere are {len(droppers)} of them"
+            msg = "The following notes are getting moved/dropped because of duplication:" + "\n".join(
+                droppers) + f"\n\nthere are {len(droppers)} of them"
             send_message_to_slack(msg)
         enote_dir = f"{self.outdir}/notes_labeled_embedded_SENTENCES"
         drop_dir = f"{enote_dir}/dropped_notes"
@@ -170,33 +177,33 @@ class DataProcessor():
         assert all([i in os.listdir(enote_dir) for i in keepers])
         assert all([i in os.listdir(drop_dir) for i in droppers])
         master_notelist = pd.read_csv('./output/notes_labeled_embedded_SENTENCES/notes_train_official.csv',
-                                      index_col = 0)
+                                      index_col=0)
         assert all([i in master_notelist.filename.tolist() for i in keepers])
         assert all([i in keepers for i in master_notelist.filename.tolist()])
 
         # subset using batchstring
-        subbatch = [i if int(re.sub("AL", "", i.split("_")[1]))<int(self.batchstring) else None for i in keepers if "_AL" in i]
+        subbatch = [i if int(re.sub("AL", "", i.split("_")[1])) < int(self.batchstring) else None for i in keepers if
+                    "_AL" in i]
         subbatch = [i for i in subbatch if i is not None]
         subbatch += [i for i in keepers if "batch" in i]
         pids = set([re.sub(".csv", "", i.split("_")[-1]) for i in subbatch])
 
-
         ##################
         # load the files
-        df = pd.concat([pd.read_csv(f"{self.outdir}notes_labeled_embedded_SENTENCES/{i}", 
-                                    index_col = 0,
+        df = pd.concat([pd.read_csv(f"{self.outdir}notes_labeled_embedded_SENTENCES/{i}",
+                                    index_col=0,
                                     dtype=dict(PAT_ID=str)) for i in subbatch])
-        df = df.drop(columns = ['sent_start', 'length'])
+        df = df.drop(columns=['sent_start', 'length'])
         ###########
         # Load and process structured data
-        strdat = pd.read_csv(f"{self.outdir}structured_data_merged_cleaned.csv", 
-                             index_col = 0)    
-        strdat = strdat.drop(columns = ['RACE', 'LANGUAGE', 'MV_RACE', 'MV_LANGUAGE'])
-        strdat = strdat.merge(df[['PAT_ID', 'month']].drop_duplicates())    
+        strdat = pd.read_csv(f"{self.outdir}structured_data_merged_cleaned.csv",
+                             index_col=0)
+        strdat = strdat.drop(columns=['RACE', 'LANGUAGE', 'MV_RACE', 'MV_LANGUAGE'])
+        strdat = strdat.merge(df[['PAT_ID', 'month']].drop_duplicates())
         # set a unique sentence id that does not reset to 0 with each note
         # first prepend zeros to the sentence numbers so that the sorting works out
-        sent_str = df.sentence.apply(lambda x: "".join(["0" for i in range(6-len(str(x)))])+str(x))
-        df.insert(2, 'sentence_id', df.note+"_sent"+sent_str)
+        sent_str = df.sentence.apply(lambda x: "".join(["0" for i in range(6 - len(str(x)))]) + str(x))
+        df.insert(2, 'sentence_id', df.note + "_sent" + sent_str)
         df.rename(columns={'sentence': 'sentence_in_note'}, inplace=True)
         # dummies for labels
         y_dums = pd.concat(
@@ -217,7 +224,7 @@ class DataProcessor():
             Resp_imp_pos=('Resp_imp_1', max),
             any_Fall_risk_neg=('Fall_risk_-1', max),
             Fall_risk_pos=('Fall_risk_1', max),
-        )    
+        )
         # need to set the group as the index, then reset it (unclear why this is not
         # equivalent to 'as_index=False')
         df_label = df_label.reset_index(drop=False)
@@ -230,31 +237,31 @@ class DataProcessor():
                 ((df_label[f"{n}_pos"] != 1) & (df_label[f"{n}_neg"] != 1)), 1, 0)
         # drop extra columns
         df_label = df_label.loc[:, ~df_label.columns.str.startswith('any_')].copy()
-        df_label.insert(loc = 0, column = 'PAT_ID', value = df_label.sentence_id.apply(lambda x: x.split("_")[-2]))
+        df_label.insert(loc=0, column='PAT_ID', value=df_label.sentence_id.apply(lambda x: x.split("_")[-2]))
         assert all([i in list(pids) for i in list(df_label.PAT_ID.unique())])
         assert all([i in list(df_label.PAT_ID.unique()) for i in list(pids)])
         # summarize embeddings (element-wise min/max/mean) for each sentence
         mu = df.groupby(['PAT_ID', 'sentence_id'])[[i for i in df.columns if 'identity' in i]].mean().reset_index()
         mx = df.groupby(['PAT_ID', 'sentence_id'])[[i for i in df.columns if 'identity' in i]].max().reset_index()
         mn = df.groupby(['PAT_ID', 'sentence_id'])[[i for i in df.columns if 'identity' in i]].min().reset_index()
-        mu = mu.rename(columns = {i:re.sub('identity', 'mean', i) for i in mu.columns})
-        mx = mx.rename(columns = {i:re.sub('identity', 'max', i) for i in mx.columns})
-        mn = mn.rename(columns = {i:re.sub('identity', 'min', i) for i in mn.columns})
+        mu = mu.rename(columns={i: re.sub('identity', 'mean', i) for i in mu.columns})
+        mx = mx.rename(columns={i: re.sub('identity', 'max', i) for i in mx.columns})
+        mn = mn.rename(columns={i: re.sub('identity', 'min', i) for i in mn.columns})
         emb = mu.merge(mx.merge(mn))
         assert emb.shape[0] == mu.shape[0]
-        assert emb.shape[1] == 902 # 300D embeddings
+        assert emb.shape[1] == 902  # 300D embeddings
         assert all([i in list(pids) for i in list(emb.PAT_ID.unique())])
         assert all([i in list(emb.PAT_ID.unique()) for i in list(pids)])
         assert all(df_label.sentence_id.isin(emb.sentence_id))
         assert all(emb.sentence_id.isin(df_label.sentence_id))
-        
+
         # # generate summary stats by batch
         # # for each batch, compute the mean, sd, quartiles of variable
         # # first summarize the label data for merging onto the structured data
         # sumlab = copy.deepcopy(df_label)
         # sumlab['batch'] = sumlab.sentence_id.apply(lambda x: x.split('_')[0])
         # sumlab['month'] = sumlab.sentence_id.apply(lambda x: re.sub("ALTERNATE", "", x.split('_')[1][1:])).astype(int)
-        
+
         # sumlab.month.value_counts()
         # lab_sum = sumlab.groupby(['PAT_ID', 'batch'])[[i for i in sumlab.columns if i not in ['sentence_id', 'sentence', 'sentence_in_note']]].sum().reset_index()
         # sumdat = lab_sum.merge(sumdat, how = 'outer')
@@ -262,29 +269,27 @@ class DataProcessor():
         # ssrows = []
         # b = 'AL00'
         # sumdat.loc[sumdat.batch == b].shape
-        
+
         pids = list(pids)
         pids.sort()
-        
-        return dict(strdat=strdat, 
-                    df_label=df_label, 
-                    emb=emb, 
-                    pids=pids)       
 
-                        
+        return dict(strdat=strdat,
+                    df_label=df_label,
+                    emb=emb,
+                    pids=pids)
 
     def process_fold(self,
-                     fold, 
+                     fold,
                      repeat):
         # dump some variables from the data dict into local scope for easier code
         strdat = self.data_dict['strdat']
         emb = self.data_dict['emb']
         df_label = self.data_dict['df_label']
         #
-        tr = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] != repeat, 'PAT_ID'].tolist()    
-        va = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == repeat, 'PAT_ID'].tolist()    
+        tr = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] != repeat, 'PAT_ID'].tolist()
+        va = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == repeat, 'PAT_ID'].tolist()
         # impute
-        imputer = SimpleImputer(missing_values=np.nan, strategy='mean')                
+        imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
         strdat_imp_tr = imputer.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), STR_VARNAMES])
         strdat_imp_va = imputer.transform(strdat.loc[strdat.PAT_ID.isin(va), STR_VARNAMES])
         # PCA for structured data.  Scale, then fit PCA, then scale output
@@ -304,24 +309,24 @@ class DataProcessor():
         sklearn_dict['pca'] = pca
         sklearn_dict['scaler_out'] = scaler_out
         # data frames for merging
-        str_tr = pd.concat([pd.DataFrame(dict(PAT_ID = tr)), 
+        str_tr = pd.concat([pd.DataFrame(dict(PAT_ID=tr)),
                             pd.DataFrame(tr_rot_scaled,
-                                         columns = ['pca' + str(i) for i in range(ncomp)])], 
-                           axis = 1)
-        str_va = pd.concat([pd.DataFrame(dict(PAT_ID = va)), 
+                                         columns=['pca' + str(i) for i in range(ncomp)])],
+                           axis=1)
+        str_va = pd.concat([pd.DataFrame(dict(PAT_ID=va)),
                             pd.DataFrame(va_rot_scaled,
-                                         columns = ['pca' + str(i) for i in range(ncomp)])], 
-                           axis = 1)
+                                         columns=['pca' + str(i) for i in range(ncomp)])],
+                           axis=1)
         dflab = copy.deepcopy(df_label)
         # add case weights into the main dflab
         for i in OUT_VARNAMES:
-            prevalence_tr = (dflab.loc[dflab.PAT_ID.isin(tr), f"{i}_neut"] ==0).mean()
-            val = (dflab[f"{i}_neut"] ==0)*1/prevalence_tr + (dflab[f"{i}_neut"] !=0)*1/(1-prevalence_tr)
-            val = val/val.mean()
+            prevalence_tr = (dflab.loc[dflab.PAT_ID.isin(tr), f"{i}_neut"] == 0).mean()
+            val = (dflab[f"{i}_neut"] == 0) * 1 / prevalence_tr + (dflab[f"{i}_neut"] != 0) * 1 / (1 - prevalence_tr)
+            val = val / val.mean()
             val.value_counts()
-            assert (sum(val) - len(val))<.01
-            dflab.insert(loc = 0, column = f'{i}_cw', value = val)
-        cwdf = dflab.loc[dflab.PAT_ID.isin(tr), ['sentence_id']+[i+"_cw" for i in OUT_VARNAMES]]
+            assert (sum(val) - len(val)) < .01
+            dflab.insert(loc=0, column=f'{i}_cw', value=val)
+        cwdf = dflab.loc[dflab.PAT_ID.isin(tr), ['sentence_id'] + [i + "_cw" for i in OUT_VARNAMES]]
         # merge the structured data onto the main df, and cut into training and test sets
         df_tr = dflab.loc[dflab.PAT_ID.isin(tr)].merge(str_tr)
         assert df_tr.shape[0] == dflab.loc[dflab.PAT_ID.isin(tr)].shape[0]
@@ -366,10 +371,10 @@ class DataProcessor():
         f_va_svd300 = pd.DataFrame(svd_300.transform(f_va_tfidf))
         f_va_svd1000 = pd.DataFrame(svd_1000.transform(f_va_tfidf))
         # add sentence ID to all of the TFIDF data frames
-        f_tr_svd300.insert(0, value = tfidf_ids_tr, column = 'sentence_id')
-        f_tr_svd1000.insert(0, value = tfidf_ids_tr, column = 'sentence_id')
-        f_va_svd300.insert(0, value = tfidf_ids_va, column = 'sentence_id')
-        f_va_svd1000.insert(0, value = tfidf_ids_va, column = 'sentence_id')
+        f_tr_svd300.insert(0, value=tfidf_ids_tr, column='sentence_id')
+        f_tr_svd1000.insert(0, value=tfidf_ids_tr, column='sentence_id')
+        f_va_svd300.insert(0, value=tfidf_ids_va, column='sentence_id')
+        f_va_svd1000.insert(0, value=tfidf_ids_va, column='sentence_id')
         # sorting
         embeddings_tr = embeddings_tr.sort_values('sentence_id')
         embeddings_va = embeddings_va.sort_values('sentence_id')
@@ -377,7 +382,7 @@ class DataProcessor():
         f_tr_svd1000 = f_tr_svd1000.sort_values('sentence_id')
         f_va_svd300 = f_va_svd300.sort_values('sentence_id')
         f_va_svd1000 = f_va_svd1000.sort_values('sentence_id')
-        #checking
+        # checking
         assert all(df_tr.sentence_id.values == embeddings_tr.sentence_id.values)
         assert all(df_va.sentence_id.values == embeddings_va.sentence_id.values)
         assert all(df_tr.sentence_id.values == f_tr_svd300.sentence_id.values)
@@ -405,13 +410,12 @@ class DataProcessor():
         write_pickle(sklearn_dict, f"{self.ALdir}/processed_data/sklearn_artifacts/r{repeat}_f{fold}sklearn_dict.pkl")
         print(f"Saved data from repeat {repeat}, fold {fold}")
 
-
     def process_full_training_set(self):
         strdat = self.data_dict['strdat']
         emb = self.data_dict['emb']
         df_label = self.data_dict['df_label']
         pids = self.data_dict['pids']
-        imputer = SimpleImputer(missing_values=np.nan, strategy='mean')                
+        imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
         strdat_imp = imputer.fit_transform(strdat[STR_VARNAMES])
         scaler_in = StandardScaler()
         scaled = scaler_in.fit_transform(strdat_imp)
@@ -425,19 +429,19 @@ class DataProcessor():
         sklearn_dict['scaler_in'] = scaler_in
         sklearn_dict['pca'] = pca
         sklearn_dict['scaler_out'] = scaler_out
-        str_all = pd.concat([pd.DataFrame(dict(PAT_ID = pids)), 
+        str_all = pd.concat([pd.DataFrame(dict(PAT_ID=pids)),
                              pd.DataFrame(rot_scaled,
-                                          columns = ['pca' + str(i) for i in range(ncomp)])], 
-                            axis = 1)
+                                          columns=['pca' + str(i) for i in range(ncomp)])],
+                            axis=1)
         dflab = copy.deepcopy(df_label)
         # add case weights into the main dflab
         for i in OUT_VARNAMES:
-            prevalence = (dflab[f"{i}_neut"] ==0).mean()
-            val = (dflab[f"{i}_neut"] ==0)*1/prevalence + (dflab[f"{i}_neut"] !=0)*1/(1-prevalence)
-            val = val/val.mean()
-            assert (sum(val) - len(val))<.01
-            dflab.insert(loc = 0, column = f'{i}_cw', value = val)
-        cwdf = dflab[['sentence_id']+[i+"_cw" for i in OUT_VARNAMES]]
+            prevalence = (dflab[f"{i}_neut"] == 0).mean()
+            val = (dflab[f"{i}_neut"] == 0) * 1 / prevalence + (dflab[f"{i}_neut"] != 0) * 1 / (1 - prevalence)
+            val = val / val.mean()
+            assert (sum(val) - len(val)) < .01
+            dflab.insert(loc=0, column=f'{i}_cw', value=val)
+        cwdf = dflab[['sentence_id'] + [i + "_cw" for i in OUT_VARNAMES]]
         # merge the structured data onto the main df, and cut into training and test sets
         df = dflab.merge(str_all)
         assert df.shape[0] == dflab.shape[0]
@@ -471,13 +475,13 @@ class DataProcessor():
         f_svd300 = pd.DataFrame(svd_300.fit_transform(f_tfidf))
         f_svd1000 = pd.DataFrame(svd_1000.fit_transform(f_tfidf))
         # add sentence ID to all of the TFIDF data frames
-        f_svd300.insert(0, value = tfidf_ids, column = 'sentence_id')
-        f_svd1000.insert(0, value = tfidf_ids, column = 'sentence_id')
+        f_svd300.insert(0, value=tfidf_ids, column='sentence_id')
+        f_svd1000.insert(0, value=tfidf_ids, column='sentence_id')
         # sorting
         embeddings = embeddings.sort_values('sentence_id')
         f_svd300 = f_svd300.sort_values('sentence_id')
         f_svd1000 = f_svd1000.sort_values('sentence_id')
-        #checking
+        # checking
         assert all(df.sentence_id.values == embeddings.sentence_id.values)
         assert all(df.sentence_id.values == f_svd300.sentence_id.values)
         assert all(df.sentence_id.values == f_svd1000.sentence_id.values)
@@ -498,27 +502,24 @@ class DataProcessor():
         print(f"Saved full data for training after CV")
 
 
-
-
 def main():
     p = ArgParser()
     p.add("-b", "--batchstring", help="batch string, i.e.: 00 or 01 or 02")
-    p.add("--do_folds", action = 'store_true', help="process the data for all the folds")
-    p.add("--do_full", action = 'store_true', help="process the full dataset for training")
+    p.add("--do_folds", action='store_true', help="process the data for all the folds")
+    p.add("--do_full", action='store_true', help="process the full dataset for training")
     options = p.parse_args()
     batchstring = options.batchstring
-    
+
     processor = DataProcessor(batchstring)
     if options.do_folds == True:
-        for repeat in [1,2,3]:
+        for repeat in [1, 2, 3]:
             for fold in range(10):
-                processor.process_fold(repeat = repeat, fold = fold)
+                processor.process_fold(repeat=repeat, fold=fold)
 
     if options.do_full == True:
         processor.process_full_training_set()
-        
+
+
 if __name__ == '__main__':
     main()
     # self = DataProcessor('04')
-
-
