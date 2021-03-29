@@ -129,10 +129,10 @@ def table_1_demographics():
 
     #table 1 - summary stats
     tab1_mean = all_str[all_str.train_test == 'train'][mean_cols].mean()
-    tab1_se = all_str[all_str.train_test == 'train'][mean_cols].sem()
-    tab1_mean = pd.concat([tab1_mean, tab1_se],
+    tab1_sd = all_str[all_str.train_test == 'train'][mean_cols].std()
+    tab1_mean = pd.concat([tab1_mean, tab1_sd],
                           axis=1,
-                          keys=['mean', 'se'])
+                          keys=['mean', 'sd'])
 
     tab1_median = all_str[all_str.train_test == 'train'][median_cols].median()
     tab1_iqr25 = all_str[all_str.train_test == 'train'][median_cols].quantile(0.25)
