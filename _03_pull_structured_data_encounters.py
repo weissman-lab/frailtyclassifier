@@ -78,7 +78,7 @@ else:
 
 # Office visit
 office_visit = encdf[encdf.ENCOUNTER_TYPE.isin(
-    ['Appointment', 'Office Visit', 'Post Hospitalization', 'Post Emergency'])
+    ['Office Visit', 'Post Hospitalization', 'Post Emergency'])
     & ~encdf.PATIENT_CLASS.isin(
     ['Inpatient', 'Emergency', 'Radiation/Oncology-Recurring',
      'Therapies-Recurring', 'Chemo Series', 'Day Surgery', 'Observation',
@@ -103,7 +103,8 @@ ED_visit['admission'] = 0
 admission = encdf[encdf.ENCOUNTER_TYPE.isin(
     ['Hospital Encounter', 'Emergency Department'])
     & encdf.PATIENT_CLASS.isin(
-    ['Inpatient', 'ICU', 'Semi-Private/Med-Surg', ""])]
+    ['Inpatient', 'ICU', 'Semi-Private/Med-Surg', ""])
+    & encdf.HOSP_ADMSN_TIME.notnull()]
 admission['admission'] = 1
 admission['office_visit'] = 0
 admission['ED_visit'] = 0
