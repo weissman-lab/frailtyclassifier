@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 from utils.organization import find_outdir
+import numpy as np
 
 
 def table_1_demographics():
@@ -8,6 +9,7 @@ def table_1_demographics():
     Finds the directory of the new AL batch and:
      1.) compares structured data to testing and training structured data
      2.) reports all structured data for the new AL batch for manual review
+     3.) make table 1
      '''
     from utils.organization import summarize_train_test_split
     # set directories
@@ -77,19 +79,79 @@ def table_1_demographics():
     assert dups < 1, "duplicates in the new AL batch"
     print(f"{dups} duplicates in the new AL batch")
 
-    # restrict columns
+    # drop extra columns
     drop_cols = ['PAT_ID', 'month', 'sd_', 'MV_']
     drop_cols = [i for i in all_str.columns if any(xi in i for xi in drop_cols)]
-    all_str = all_str.loc[:, ~all_str.columns.isin(drop_cols)].groupby(
-        'train_test').mean().T
+    all_str = all_str.loc[:, ~all_str.columns.isin(drop_cols)]
 
-    #write out
-    all_str.to_csv(
+    #mean, sd
+    mean_cols = ['AGE', 'mean_sys_bp', 'mean_dia_bp', 'bmi_mean', 'bmi_slope',
+                 'spo2_worst', 'ALBUMIN',  'CALCIUM', 'CO2', 'HEMATOCRIT',
+                 'HEMOGLOBIN', 'LDL', 'MCHC', 'MCV',  'POTASSIUM', 'PROTEIN',
+                 'RDW', 'SODIUM', 'WBC', 'MAGNESIUM', 'TRANSFERRIN',
+                 'TRANSFERRIN_SAT', 'PHOSPHATE', 'elixhauser']
+    #median, IQR
+    median_cols = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
+                   'max_o2', 'ALKALINE_PHOSPHATASE',
+                   'AST', 'BILIRUBIN', 'BUN', 'CREATININE', 'PLATELETS',
+                   'n_ALBUMIN', 'n_ALKALINE_PHOSPHATASE', 'n_AST', 'n_BILIRUBIN',
+                   'n_BUN', 'n_CALCIUM', 'n_CO2', 'n_CREATININE', 'n_HEMATOCRIT',
+                   'n_HEMOGLOBIN', 'n_LDL', 'n_MCHC', 'n_MCV', 'n_PLATELETS',
+                   'n_POTASSIUM', 'n_PROTEIN', 'n_RDW', 'n_SODIUM', 'n_WBC',
+                   'n_FERRITIN', 'n_IRON', 'n_MAGNESIUM', 'n_TRANSFERRIN',
+                   'n_TRANSFERRIN_SAT', 'n_PT', 'n_PHOSPHATE', 'n_PTT', 'FERRITIN',
+                   'IRON', 'PT', 'PTT', 'n_unique_meds', 'n_comorb']
+    #n, %
+    n_cols = ['Race_white', 'Race_black', 'Race_other', 'Language_english',
+              'Language_spanish', 'SEX_Female', 'SEX_Male',
+              'MARITAL_STATUS_Divorced', 'MARITAL_STATUS_Married',
+              'MARITAL_STATUS_Other', 'MARITAL_STATUS_Single',
+              'MARITAL_STATUS_Widowed', 'EMPY_STAT_Disabled',
+              'EMPY_STAT_Full Time', 'EMPY_STAT_Not Employed', 'EMPY_STAT_Other',
+              'EMPY_STAT_Part Time', 'EMPY_STAT_Retired']
+
+    #new dums
+    all_str['Race_white'] = np.where(all_str.RACE == 'White', 1, 0)
+    all_str['Race_black'] = np.where(all_str.RACE == 'Black', 1, 0)
+    all_str['Race_other'] = np.where(all_str.RACE == 'Other', 1, 0)
+    all_str['Language_english'] = np.where(all_str.LANGUAGE == 'English', 1, 0)
+    all_str['Language_spanish'] = np.where(all_str.LANGUAGE == 'Spanish', 1, 0)
+
+    #save comparison of new AL, train, test
+    all_mean = all_str[mean_cols + ['train_test']].groupby('train_test').mean().T
+    all_median = all_str[median_cols + ['train_test']].groupby('train_test').median().T
+    all_n = all_str[n_cols + ['train_test']].groupby('train_test').sum().T
+    all_str2 = pd.concat([all_mean, all_median, all_n])
+    all_str2.to_csv(
         f"{outdir}saved_models/{new_AL_batches[0]}/{new_AL_batches[0]}_StrucData_compare.csv")
     new_AL_str.to_csv(
         f"{outdir}saved_models/{new_AL_batches[0]}/{new_AL_batches[0]}_StrucData_summary.csv")
 
-    return(all_str, new_AL_str)
+    #table 1 - summary stats
+    tab1_mean = all_str[all_str.train_test == 'train'][mean_cols].mean()
+    tab1_se = all_str[all_str.train_test == 'train'][mean_cols].sem()
+    tab1_mean = pd.concat([tab1_mean, tab1_se],
+                          axis=1,
+                          keys=['mean', 'se'])
+
+    tab1_median = all_str[all_str.train_test == 'train'][median_cols].median()
+    tab1_iqr25 = all_str[all_str.train_test == 'train'][median_cols].quantile(0.25)
+    tab1_iqr75 = all_str[all_str.train_test == 'train'][median_cols].quantile(0.75)
+    tab1_median = pd.concat([tab1_median, tab1_iqr25, tab1_iqr75],
+                            axis=1,
+                            keys=['median', 'IQR_25', 'IQR_75'])
+
+    tab1_n = all_str[all_str.train_test == 'train'][n_cols].sum()
+    tab1_percent = all_str[all_str.train_test == 'train'][n_cols].sum() / all_str[all_str.train_test == 'train'][n_cols].count()
+    tab1_n = pd.concat([tab1_n, tab1_percent],
+                          axis=1,
+                          keys=['n', 'percent'])
+
+    #save table 1
+    table_1 = pd.concat([tab1_mean, tab1_median, tab1_n])
+    table_1.to_csv(f"{outdir}figures_tables/table_1.csv")
+
+    return(table_1, all_str, new_AL_str)
 
 
 def lossplot(d, meanlen, d_final = None):
