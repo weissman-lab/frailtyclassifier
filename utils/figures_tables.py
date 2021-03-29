@@ -161,7 +161,7 @@ def table_1_demographics():
         return(pd.concat([tab1_mean, tab1_median, tab1_n]))
 
     tab1_train = summ_stat(all_str[all_str.train_test == 'train'])
-    tab1_test = summ_stat(all_str[all_str.train_test == 'train'])
+    tab1_test = summ_stat(all_str[all_str.train_test == 'test'])
 
     tab1_train[tab1_train.index.isin(['AGE', 'Race_white', 'SEX_Female',
                                       'f_n_encs', 'f_days_hospitalized',
