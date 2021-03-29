@@ -79,6 +79,19 @@ def table_1_demographics():
     assert dups < 1, "duplicates in the new AL batch"
     print(f"{dups} duplicates in the new AL batch")
 
+    ######## quick fix ###########
+    # fix encounters in structured_data_merged_cleaned.csv with encs_6m.pkl.
+    # Later, will be re-run to update structured_data_merged_cleaned.csv
+    print('WARNING: QUICK FIX ENCOUNTERS')
+    fix_encs = pd.read_pickle(f"{outdir}encs_6m.pkl")
+    fix_encs['f_n_encs'] = fix_encs['n_encs']
+    fix_encs['f_n_ed_visits'] = fix_encs['n_ed_visits']
+    fix_encs['f_n_admissions'] = fix_encs['n_admissions']
+    fix_encs['f_days_hospitalized'] = fix_encs['days_hospitalized']
+    fix_encs = fix_encs.drop(
+        ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized'], axis =1)
+    all_str = all_str.merge(fix_encs, 'left', on = ['PAT_ID', 'month'])
+
     # drop extra columns
     drop_cols = ['PAT_ID', 'month', 'sd_', 'MV_']
     drop_cols = [i for i in all_str.columns if any(xi in i for xi in drop_cols)]
@@ -91,8 +104,8 @@ def table_1_demographics():
                  'RDW', 'SODIUM', 'WBC', 'MAGNESIUM', 'TRANSFERRIN',
                  'TRANSFERRIN_SAT', 'PHOSPHATE', 'elixhauser']
     #median, IQR
-    median_cols = ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized',
-                   'max_o2', 'ALKALINE_PHOSPHATASE',
+    median_cols = ['f_n_encs', 'f_n_ed_visits', 'f_n_admissions',
+                   'f_days_hospitalized', 'max_o2', 'ALKALINE_PHOSPHATASE',
                    'AST', 'BILIRUBIN', 'BUN', 'CREATININE', 'PLATELETS',
                    'n_ALBUMIN', 'n_ALKALINE_PHOSPHATASE', 'n_AST', 'n_BILIRUBIN',
                    'n_BUN', 'n_CALCIUM', 'n_CO2', 'n_CREATININE', 'n_HEMATOCRIT',
@@ -128,30 +141,38 @@ def table_1_demographics():
         f"{outdir}saved_models/{new_AL_batches[0]}/{new_AL_batches[0]}_StrucData_summary.csv")
 
     #table 1 - summary stats
-    tab1_mean = all_str[all_str.train_test == 'train'][mean_cols].mean()
-    tab1_sd = all_str[all_str.train_test == 'train'][mean_cols].std()
-    tab1_mean = pd.concat([tab1_mean, tab1_sd],
-                          axis=1,
-                          keys=['mean', 'sd'])
+    def summ_stat(train_test):
+        tab1_mean = train_test[mean_cols].mean()
+        tab1_sd = train_test[mean_cols].std()
+        tab1_mean = pd.concat([tab1_mean, tab1_sd],
+                              axis=1,
+                              keys=['mean', 'sd'])
+        tab1_median = train_test[median_cols].median()
+        tab1_iqr25 = train_test[median_cols].quantile(0.25)
+        tab1_iqr75 = train_test[median_cols].quantile(0.75)
+        tab1_median = pd.concat([tab1_median, tab1_iqr25, tab1_iqr75],
+                                axis=1,
+                                keys=['median', 'IQR_25', 'IQR_75'])
+        tab1_n = train_test[n_cols].sum()
+        tab1_percent = train_test[n_cols].sum() / train_test[n_cols].count()
+        tab1_n = pd.concat([tab1_n, tab1_percent],
+                           axis=1,
+                           keys=['n', 'percent'])
+        return(pd.concat([tab1_mean, tab1_median, tab1_n]))
 
-    tab1_median = all_str[all_str.train_test == 'train'][median_cols].median()
-    tab1_iqr25 = all_str[all_str.train_test == 'train'][median_cols].quantile(0.25)
-    tab1_iqr75 = all_str[all_str.train_test == 'train'][median_cols].quantile(0.75)
-    tab1_median = pd.concat([tab1_median, tab1_iqr25, tab1_iqr75],
-                            axis=1,
-                            keys=['median', 'IQR_25', 'IQR_75'])
+    tab1_train = summ_stat(all_str[all_str.train_test == 'train'])
+    tab1_test = summ_stat(all_str[all_str.train_test == 'train'])
 
-    tab1_n = all_str[all_str.train_test == 'train'][n_cols].sum()
-    tab1_percent = all_str[all_str.train_test == 'train'][n_cols].sum() / all_str[all_str.train_test == 'train'][n_cols].count()
-    tab1_n = pd.concat([tab1_n, tab1_percent],
-                          axis=1,
-                          keys=['n', 'percent'])
+    tab1_train[tab1_train.index.isin(['AGE', 'Race_white', 'SEX_Female',
+                                      'f_n_encs', 'f_days_hospitalized',
+                                      'n_unique_meds', 'n_comorb', 'elixhauser'])].\
+        to_csv(f"{outdir}figures_tables/table_1_train.csv")
+    tab1_test[tab1_test.index.isin(['AGE', 'Race_white', 'SEX_Female',
+                                      'f_n_encs', 'f_days_hospitalized',
+                                      'n_unique_meds', 'n_comorb', 'elixhauser'])].\
+        to_csv(f"{outdir}figures_tables/table_1_test.csv")
 
-    #save table 1
-    table_1 = pd.concat([tab1_mean, tab1_median, tab1_n])
-    table_1.to_csv(f"{outdir}figures_tables/table_1.csv")
-
-    return(table_1, all_str, new_AL_str)
+    return(tab1_train, tab1_test, all_str, new_AL_str)
 
 
 def lossplot(d, meanlen, d_final = None):
