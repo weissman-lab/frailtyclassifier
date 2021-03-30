@@ -17,7 +17,7 @@ for batch in batches:
     #ID single- and multi-task NN
     multi = [pkl for pkl in pkls if not any(s in pkl for s in TAGS)]
     single = [pkl for pkl in pkls if any(s in pkl for s in TAGS)]
-    for pkl in multi:
+    for pkl in pkls:
         x = read_pickle(f"{pklpath}{pkl}")
         d = x['config']
         d = {**d, **x['brier_classwise']}
@@ -27,6 +27,14 @@ for batch in batches:
         d['ran_when'] = x['ran_when']
         xd.append(d)
     multi = pd.DataFrame(xd)
+    if pkl in single:
+        multi.groupby(
+            ['n_dense', 'n_units', 'dropout', 'l1_l2_pen', 'use_case_weights',
+             'repeat', 'fold'],
+            as_index=False).first()
+        multi['model'] = 'NN_single'
+    else:
+        multi['model'] = 'NN_multi'
     multi.shape
     # mean of multi-class scaled briers for all aspects
     multi['brier_mean_aspects'] = multi.loc[:,['Fall_risk', 'Msk_prob', 'Nutrition', 'Resp_imp']].mean(axis = 1)
@@ -48,44 +56,8 @@ for batch in batches:
                                  axis=1)
     multi_agg_aspect['batch'] = batch
     mult_b.append(multi_agg_aspect)
-    sd = []
-    for pkl in single:
-        x = read_pickle(f"{pklpath}{pkl}")
-        d = x['config']
-        d = {**d, **x['brier_classwise']}
-        d = {**d, **x['brier_aspectwise']}
-        d['brier_all'] = x['brier_all']
-        d['runtime'] = x['runtime']
-        d['ran_when'] = x['ran_when']
-        sd.append(d)
-    single = pd.DataFrame(sd)
-    single.shape
-    # summarize by repeat/fold
-    single_collapse = single.groupby(
-        ['n_dense', 'n_units', 'dropout', 'l1_l2_pen', 'use_case_weights',
-         'repeat', 'fold'],
-        as_index=False).first()
-    single_collapse['brier_mean_aspects'] = single_collapse.loc[:,
-                                  ['Fall_risk', 'Msk_prob', 'Nutrition',
-                                   'Resp_imp']].mean(axis=1)
-    single_mean_aspect = single_collapse[m_col].groupby(
-            ['n_dense', 'n_units', 'dropout', 'l1_l2_pen', 'use_case_weights'],
-            as_index=False).mean()
-    single_se_aspect =  single_collapse[m_col].groupby(
-        ['n_dense', 'n_units', 'dropout', 'l1_l2_pen', 'use_case_weights'],
-        as_index=False).sem()
-    single_agg_aspect = pd.concat([single_mean_aspect.add_suffix('_mean'),
-                                  single_se_aspect.add_suffix('_se')],
-                                 axis=1)
-    single_agg_aspect['batch'] = batch
-    single_b.append(single_agg_aspect)
 
 #write out
-mtask = pd.concat(mult_b).sort_values(by='brier_mean_aspects_mean',
+lc_nn = pd.concat(mult_b).sort_values(by='brier_mean_aspects_mean',
                                 ascending=False).reset_index()
-mtask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_mtask.csv")
-
-#write out
-stask = pd.concat(single_b).sort_values(by='brier_mean_aspects_mean',
-                                ascending=False).reset_index()
-stask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_stask.csv")
+lc_nn.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_nn.csv")
