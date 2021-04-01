@@ -1,6 +1,7 @@
 
 
 import os
+import traceback
 import pandas as pd
 from configargparse import ArgParser
 import numpy as np
@@ -42,7 +43,8 @@ def main():
         try:
             _ = AL_CV(*tuple(hp_grid.iloc[i]))
         except:
-            send_message_to_slack(f"problem with {hp_grid['index'].iloc[i]}")
+            err = traceback.format_exc()
+            send_message_to_slack(f"problem with {hp_grid['index'].iloc[i]}\n{err}")
 
     # single task
     hp_grid = {'batchstring': [batchstring],
@@ -65,7 +67,8 @@ def main():
         try:
             _ = AL_CV(*tuple(hp_grid.iloc[i]))
         except:
-            send_message_to_slack(f"problem with {hp_grid['index'].iloc[i]}")
+            err = traceback.format_exc()
+            send_message_to_slack(f"problem with {hp_grid['index'].iloc[i]}\n{err}")
 
 
 if __name__ == "__main__":
