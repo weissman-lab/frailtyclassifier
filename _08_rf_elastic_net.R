@@ -24,8 +24,6 @@ folds <- seq(0, 9)
 svd <- c('embed', '300', '1000')
 #include structured data?
 inc_struc = TRUE
-#set seed
-seed = 92120
 
 #set directories based on location
 dirs = c(paste0('/gwshare/frailty/output/saved_models/', exp, '/'),
