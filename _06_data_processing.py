@@ -286,6 +286,8 @@ class DataProcessor():
         df_label = self.data_dict['df_label']
         tr = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] != fold, 'PAT_ID'].tolist()
         va = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == fold, 'PAT_ID'].tolist()
+        print("here is the validation set:")
+        print(self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == fold])
         # impute
         imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
         strdat_imp_tr = imputer.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), STR_VARNAMES])
