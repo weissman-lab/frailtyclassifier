@@ -45,7 +45,6 @@ class DataProcessor():
 
     def establish_folds(self, seed=0, recurse=True):
         # this function ensures folds all have representation from each class
-        # dump stuff to local scope for cleaner code:
         pids = self.data_dict['pids']
         df_label = self.data_dict['df_label']
         np.random.seed(seed)
@@ -285,9 +284,8 @@ class DataProcessor():
         strdat = self.data_dict['strdat']
         emb = self.data_dict['emb']
         df_label = self.data_dict['df_label']
-        #
-        tr = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] != repeat, 'PAT_ID'].tolist()
-        va = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == repeat, 'PAT_ID'].tolist()
+        tr = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] != fold, 'PAT_ID'].tolist()
+        va = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == fold, 'PAT_ID'].tolist()
         # impute
         imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
         strdat_imp_tr = imputer.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), STR_VARNAMES])
