@@ -1,8 +1,15 @@
-FROM tensorflow/tensorflow:latest-gpu-jupyter
-RUN pip install pandas numpy 'spacy==2.3.5' scispacy scikit-learn scipy configargparse 'gensim==3.8.3' sqlalchemy pymssql pyyaml
-RUN python -m spacy download en_core_web_sm
-RUN pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.3.0/en_core_sci_md-0.3.0.tar.gz
+FROM r-base
+RUN R -e "install.packages('data.table',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('PRROC',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('glmnet',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('dplyr',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('tidyr',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('foreach',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('doParallel',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('ranger',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('rbenchmark',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 WORKDIR /usr/src/app
 COPY . .
-CMD ["dockertest.py"]
-ENTRYPOINT ["python"]
+CMD ["myscript.R"]
+ENTRYPOINT ["Rscript"]
+
