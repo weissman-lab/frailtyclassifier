@@ -313,8 +313,7 @@ for (r in 1:nrow(mg3)){
                          sample.fraction = mg3$sample_frac[r],
                          case.weights = cw,
                          oob.error = FALSE,
-                         importance = 'impurity',
-                         seed = seed)
+                         importance = 'impurity')
     }, replications = 1
     )
     #save benchmarking
