@@ -26,7 +26,8 @@ svd <- c('embed', '300', '1000')
 inc_struc = TRUE
 
 #set directories based on location
-dirs = c(paste0('/gwshare/frailty/output/saved_models/', exp, '/'),
+dirs = c(paste0('./output/saved_models/', exp, '/'),
+         '/gwshare/frailty/output/saved_models/', exp, '/'),
          '/Users/martijac/Documents/Frailty/frailty_classifier/output/',
          '/media/drv2/andrewcd2/frailty/output/')
 for (d in 1:length(dirs)) {
