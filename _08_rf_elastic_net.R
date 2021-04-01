@@ -612,6 +612,9 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
       #remove objects & garbage collection
       rm(x_train, x_validation, y_train, y_validation, frail_logit, benchmark, 
          alpha_preds, preds_save, preds_s, preds, hyper_grid)
+      
+      #delete clobber
+      file.remove(fname_clobber)
     }}
     },
     
@@ -638,36 +641,52 @@ fwrite(as.data.table(enet_error),
 invisible(gc(verbose = FALSE))
 
 
-#RANDOM FOREST - summary
-#Summarize performance for all completed RF models
-rf_output <- grep('_hypergrid_', list.files(rf_modeldir), value = TRUE)
-rf_output <- lapply(paste0(rf_modeldir, rf_output), fread)
-rf_output <- rbindlist(rf_output)
-fwrite(rf_output, paste0(outdir, 'exp', exp, '_rf_performance.csv'))
-#Summarize benchmarking for all completed RF models
-rf_bench <- grep('_duration_hyper_', list.files(rf_durationdir), value = TRUE)
-rf_bench <- lapply(paste0(rf_durationdir, rf_bench), fread)
-rf_bench <- rbindlist(rf_bench)
-fwrite(rf_bench, paste0(outdir, 'exp', exp, '_rf_cpu_time.csv'))
-#Summarize variable importance
-rf_importance <- grep('_importance_r', list.files(rf_importancedir), value = TRUE)
-rf_importance <- lapply(paste0(rf_importancedir, rf_importance), fread)
-rf_importance <- rbindlist(rf_importance, fill = TRUE)
-fwrite(rf_importance, paste0(outdir, 'exp', exp, '_rf_importance.csv'))
+#Summarize RF after all models are complete
+mg3 <- mg3 %>%
+  mutate(filename = 
+           paste0('exp', exp, '_hypergrid_r', repeats, '_f', fold, '_',
+                  frail_lab, '_svd_', svd, '_mtry', mtry, '_sfrac',
+                  sample_frac_l, '_cw_',  as.integer(case_weights), '.csv')) %>%
+  filter(!filename %in% list.files(rf_modeldir))
+if (nrow(mg3) == 0) {
+  #Summarize performance for all completed RF models
+  rf_output <- grep('_hypergrid_', list.files(rf_modeldir), value = TRUE)
+  rf_output <- lapply(paste0(rf_modeldir, rf_output), fread)
+  rf_output <- rbindlist(rf_output)
+  fwrite(rf_output, paste0(outdir, 'exp', exp, '_rf_performance.csv'))
+  #Summarize benchmarking for all completed RF models
+  rf_bench <- grep('_duration_hyper_', list.files(rf_durationdir), value = TRUE)
+  rf_bench <- lapply(paste0(rf_durationdir, rf_bench), fread)
+  rf_bench <- rbindlist(rf_bench)
+  fwrite(rf_bench, paste0(outdir, 'exp', exp, '_rf_cpu_time.csv'))
+  #Summarize variable importance
+  rf_importance <- grep('_importance_r', list.files(rf_importancedir), value = TRUE)
+  rf_importance <- lapply(paste0(rf_importancedir, rf_importance), fread)
+  rf_importance <- rbindlist(rf_importance, fill = TRUE)
+  fwrite(rf_importance, paste0(outdir, 'exp', exp, '_rf_importance.csv'))
+}
 
-#ELASTIC NET - summary
-#Summarize performance for all completed enet models
-enet_output <- grep('_hypergrid_', list.files(enet_modeldir), value = TRUE)
-enet_output <- lapply(paste0(enet_modeldir, enet_output), fread)
-enet_output <- rbindlist(enet_output)
-fwrite(enet_output, paste0(outdir, 'exp', exp, '_enet_performance.csv'))
-#Summarize benchmarking for all completed enet models
-enet_bench <- grep('_duration_hyper_', list.files(enet_durationdir), value = TRUE)
-enet_bench <- lapply(paste0(enet_durationdir, enet_bench), fread)
-enet_bench <- rbindlist(enet_bench)
-fwrite(enet_bench, paste0(outdir, 'exp', exp, '_enet_cpu_time.csv'))
-#Summarize coefficients
-enet_coefs <- grep('_coefs_r', list.files(enet_coefsdir), value = TRUE)
-enet_coefs <- lapply(paste0(enet_coefsdir, enet_coefs), fread)
-enet_coefs <- rbindlist(enet_coefs, fill = TRUE)
-fwrite(enet_coefs, paste0(outdir, 'exp', exp, '_enet_coefs.csv'))
+#Summarize enet after all models are complete
+mg1 <- mg1 %>%
+  mutate(filename = 
+           paste0('exp', exp, '_hypergrid_r', mg1$repeats[r], '_f', fold, '_',
+                  frail_lab, '_svd_', svd, '_alpha', alpha_l, '_cw',
+                  as.integer(case_weights), '.csv')) %>%
+  filter(!filename %in% list.files(enet_modeldir))
+if (nrow(mg1) == 0) {
+  #Summarize performance for all completed enet models
+  enet_output <- grep('_hypergrid_', list.files(enet_modeldir), value = TRUE)
+  enet_output <- lapply(paste0(enet_modeldir, enet_output), fread)
+  enet_output <- rbindlist(enet_output)
+  fwrite(enet_output, paste0(outdir, 'exp', exp, '_enet_performance.csv'))
+  #Summarize benchmarking for all completed enet models
+  enet_bench <- grep('_duration_hyper_', list.files(enet_durationdir), value = TRUE)
+  enet_bench <- lapply(paste0(enet_durationdir, enet_bench), fread)
+  enet_bench <- rbindlist(enet_bench)
+  fwrite(enet_bench, paste0(outdir, 'exp', exp, '_enet_cpu_time.csv'))
+  #Summarize coefficients
+  enet_coefs <- grep('_coefs_r', list.files(enet_coefsdir), value = TRUE)
+  enet_coefs <- lapply(paste0(enet_coefsdir, enet_coefs), fread)
+  enet_coefs <- rbindlist(enet_coefs, fill = TRUE)
+  fwrite(enet_coefs, paste0(outdir, 'exp', exp, '_enet_coefs.csv'))
+}
