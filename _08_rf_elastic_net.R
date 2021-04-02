@@ -261,7 +261,6 @@ mg3 <- mg3[sample(nrow(mg3)),]
 
 #run RF
 for (r in 1:nrow(mg3)){
-    
   #check if hyperparams already completed
   fname_completed <- paste0(rf_modeldir, 'exp', exp, '_hypergrid_r', mg3$repeats[r], '_f',
                             mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
@@ -280,7 +279,7 @@ for (r in 1:nrow(mg3)){
   
   #write to prevent clobber
   fwrite(data.frame(clb = 1), fname_clobber)
-
+    print(paste0(c("starting", fname_completed)))
     #get matching training and validation labels
     x_train <- get(
       paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_s_', mg3$svd[r], '_x_train'))
