@@ -27,9 +27,9 @@ inc_struc = TRUE
 
 #set directories based on location
 dirs = c(paste0('./output/saved_models/', exp, '/'),
-         '/gwshare/frailty/output/saved_models/', exp, '/'),
-         '/Users/martijac/Documents/Frailty/frailty_classifier/output/',
-         '/media/drv2/andrewcd2/frailty/output/')
+         paste0('/gwshare/frailty/output/saved_models/', exp, '/'),
+'/Users/martijac/Documents/Frailty/frailty_classifier/output/',
+'/media/drv2/andrewcd2/frailty/output/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
     rootdir = dirs[d]
@@ -454,7 +454,8 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
                               mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r]), '.csv')
       
       if (file.exists(fname_clobber) == FALSE) {
-      
+      print(paste0(c("starting", fname_completed)))
+
       #write to prevent clobber
       fwrite(data.frame(clb = 1), fname_clobber)
       
