@@ -105,8 +105,10 @@ multi_scaled_Brier <- function(predictions, observations) {
 
 #repeated k-fold cross validation
 for (p in 1:length(repeats)) {
+  print(paste0('repeat', p))
   #load data in parallel
   for (d in 1:length(folds)) {
+    print(paste0('fold', d))
     # load labels and structured data
     assign(paste0('r', repeats[p], '_f', folds[d], '_tr'),
            fread(paste0(trvadatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv')))
@@ -121,6 +123,7 @@ for (p in 1:length(repeats)) {
       stop("caseweights do not match training data")
   }
   for (s in 1:length(svd)) {
+    print(paste0('svd', s))
     if (svd[s] == 'embed') {
       train <- foreach (d = 1:length(folds)) %dopar% {
         # load embeddings for each fold (drop index)
