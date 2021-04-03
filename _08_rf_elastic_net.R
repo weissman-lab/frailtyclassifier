@@ -11,24 +11,25 @@ registerDoParallel(detectCores())
 
 
 #Experiment number from cmd line:
-exp <- commandArgs(trailingOnly = TRUE)
+batchstring <- commandArgs(trailingOnly = TRUE)
 #test if there is an exp number argument: if not, return an error
-if (length(exp)==0) {
+if (length(batchstring)==0) {
   stop("AL round must be specified as an argument", call.=FALSE)
 }
-
+batchstring = "AL01"
 #repeats & folds
-repeats <- seq(1, 3)
-folds <- seq(0, 9)
+REPEATS <- seq(1, 3)
+FOLDS <- seq(0, 9)
 #text features
-svd <- c('embed', '300', '1000')
+SVD <- c('embed', '300', '1000')
 #include structured data?
-inc_struc = TRUE
+INC_STRUC = TRUE
 
 #set directories based on location
-dirs = c(paste0('./output/saved_models/', exp, '/'),
-         paste0('/gwshare/frailty/output/saved_models/', exp, '/'),
+dirs = c(paste0('./output/saved_models/', batchstring, '/'),
+         paste0('/gwshare/frailty/output/saved_models/', batchstring, '/'),
 '/Users/martijac/Documents/Frailty/frailty_classifier/output/',
+paste0('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/', batchstring, '/'),
 '/media/drv2/andrewcd2/frailty/output/')
 for (d in 1:length(dirs)) {
   if (dir.exists(dirs[d])) {
@@ -103,152 +104,131 @@ multi_scaled_Brier <- function(predictions, observations) {
          multi_Brier(event_rate_matrix, observations))
 }
 
-#repeated k-fold cross validation
-for (p in 1:length(repeats)) {
-  print(paste0('repeat', p))
-  #load data in parallel
-  for (d in 1:length(folds)) {
-    print(paste0('fold', d))
-    # load labels and structured data
-    assign(paste0('r', repeats[p], '_f', folds[d], '_tr'),
-           fread(paste0(trvadatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv')))
-    assign(paste0('r', repeats[p], '_f', folds[d], '_va'),
-           fread(paste0(trvadatadir, 'r', repeats[p], '_f', folds[d], '_va_df.csv')))
-    # load case weights
-    assign(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'), fread(
-      paste0(cwdir, 'r', repeats[p], '_f', folds[d], '_tr_caseweights.csv')))
-    # check for matching
-    if ((nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'))) == 
-         nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr')))) == FALSE)
-      stop("caseweights do not match training data")
+# load_labels_caseweights <- function(p, d){
+#   # load labels and structured data
+#   assign(paste0('r', repeats[p], '_f', folds[d], '_tr'),
+#          fread(paste0(trvadatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv')),
+#          pos = 1)
+#   assign(paste0('r', repeats[p], '_f', folds[d], '_va'),
+#          fread(paste0(trvadatadir, 'r', repeats[p], '_f', folds[d], '_va_df.csv')),
+#          pos = 1)
+#   # load case weights
+#   assign(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'), fread(
+#     paste0(cwdir, 'r', repeats[p], '_f', folds[d], '_tr_caseweights.csv')),
+#     pos = 1)
+#   if ((nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'))) ==
+#        nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr')))) == FALSE)
+#     stop("caseweights do not match training data")
+# }
+
+load_labels_caseweights <- function(rep, fold){
+  tr <- fread(paste0(trvadatadir, 'r', rep, '_f', fold, '_tr_df.csv'))
+  va <- fread(paste0(trvadatadir, 'r', rep, '_f', fold, '_va_df.csv'))
+  cw <- fread(paste0(cwdir, 'r', rep, '_f', fold, '_tr_caseweights.csv'))
+  if (nrow(tr) != nrow(cw)){
+    stop("caseweights do not match training data")    
   }
-  for (s in 1:length(svd)) {
-    print(paste0('svd', s))
-    if (svd[s] == 'embed') {
-      train <- foreach (d = 1:length(folds)) %dopar% {
-        # load embeddings for each fold (drop index)
-        embeddings_tr <- fread(
-          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_tr_embed_min_max_mean_SENT.csv'),
-          drop = 1)
-        pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
-        emb_cols <- grep('min_|max_|mean_', colnames(embeddings_tr), value = TRUE)
-        pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
-        # test that embeddings match structured data
-        if (identical(pca_tr$sentence_id, embeddings_tr$sentence_id) == FALSE)
-          stop("embeddings do not match training data")
-        #embeddings without vs with structured data
-        if (inc_struc == FALSE) {
-          #get only embeddings columns
-          embeddings_tr <- data.matrix(embeddings_tr[, ..emb_cols])
-        } else {
-          # concatenate embeddings with structured data
-          embeddings_tr <- data.matrix(cbind(embeddings_tr[, ..emb_cols], pca_tr[, ..pca_cols]))
-        }
-        return(embeddings_tr)
-      }
-      validation <- foreach (d = 1:length(folds)) %dopar% {
-        # load embeddings for each fold (drop index)
-        embeddings_va <- fread(
-          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_va_embed_min_max_mean_SENT.csv'),
-          drop = 1)
-        pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
-        emb_cols <- grep('min_|max_|mean_', colnames(embeddings_va), value = TRUE)
-        pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
-        # test that embeddings match structured data
-        if (identical(pca_va$sentence_id, embeddings_va$sentence_id) == FALSE)
-          stop("embeddings do not match validation data")
-        #embeddings without vs with structured data
-        if (inc_struc == FALSE) {
-          #get only embeddings columns
-          embeddings_va <- data.matrix(embeddings_va[, ..emb_cols])
-        } else {
-          # concatenate embeddings with structured data
-          embeddings_va <- data.matrix(cbind(embeddings_va[, ..emb_cols], pca_va[, ..pca_cols]))
-        }
-        return(embeddings_va)
-      }
-    } else {
-      train <- foreach (d = 1:length(folds)) %dopar% {
-        #get svd and structured data for each fold
-        svd_tr <- fread(
-          paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'),
-          skip = 1,
-          drop = 1)
-        colnames(svd_tr) <- c('sentence_id', paste0('svd', seq(1:as.integer(svd[s]))))
-        pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
-        svd_cols <- grep('svd', colnames(svd_tr), value = TRUE)
-        pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
-        #test that svd match structured data
-        if (identical(pca_tr$sentence_id, svd_tr$sentence_id) == FALSE)
-          stop("embeddings do not match validation data")
-        #svd without vs with structured data
-        if (inc_struc == FALSE) {
-          #load only the svd columns
-          svd_tr <- data.matrix(svd_tr[, ..svd_cols])
-        } else {
-          #concatenate svd with structured data
-          svd_tr <- data.matrix(cbind(svd_tr[, ..svd_cols], pca_tr[, ..pca_cols]))
-        }
-        return(svd_tr)
-      }
-      validation <- foreach (d = 1:length(folds)) %dopar% {
-        #get svd and structured data for each fold
-        svd_va <- fread(
-          paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_va_svd', svd[s], '.csv'),
-          skip = 1,
-          drop = 1)
-        colnames(svd_va) <- c('sentence_id', paste0('svd', seq(1:as.integer(svd[s]))))
-        pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
-        svd_cols <- grep('svd', colnames(svd_va), value = TRUE)
-        pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
-        #test that svd match structured data
-        if (identical(pca_va$sentence_id, svd_va$sentence_id) == FALSE)
-          stop("embeddings do not match validation data")
-        #svd without vs with structured data
-        if (inc_struc == FALSE) {
-          #load only the svd columns
-          svd_va <- data.matrix(svd_va[, ..svd_cols])
-        } else {
-          #concatenate svd with structured data
-          svd_va <- data.matrix(cbind(svd_va[, ..svd_cols], pca_va[, ..pca_cols]))
-        }
-        return(svd_va)
-      }
-    }
-    assign(paste0('r', repeats[p], '_s_', svd[s], '_x_train'), train)
-    assign(paste0('r', repeats[p], '_s_', svd[s], '_x_validation'),
-           validation)
-  }
-  #foreach output is in list format
-  #rename each element of the list as a df
-  for (s in 1:length(svd)) {
-    for (d in 1:length(folds)) {
-      assign(paste0('r', repeats[p], '_f', folds[d], '_s_', svd[s], '_x_train'),
-             get(paste0('r', repeats[p], '_s_', svd[s], '_x_train'))[[d]])
-      assign(paste0('r', repeats[p], '_f', folds[d], '_s_', svd[s], '_x_validation'),
-             get(paste0(
-               'r', repeats[p], '_s_', svd[s], '_x_validation'
-             ))[[d]])
-    }
-  }
-  
-  #clear lists of dfs
-  for (s in 1:length(svd)) {
-    rm(list = paste0('r', repeats[p], '_s_', svd[s], '_x_train'))
-    rm(list = paste0('r', repeats[p], '_s_', svd[s], '_x_validation'))
-  }
-  invisible(gc(verbose = FALSE))
+  return(list(tr = tr, va = va, cw = cw))
 }
 
+
+
+
+load_x_embeddings <- function(rep, fold, lab_cw){
+  embeddings_tr <- fread(paste0(embeddingsdir, 'r', rep, '_f', fold, '_tr_embed_min_max_mean_SENT.csv'))
+  pca_tr <- lab_cw$tr
+  emb_cols <- grep('min_|max_|mean_', colnames(embeddings_tr), value = TRUE)
+  pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+  # test that embeddings match structured data
+  if (identical(pca_tr$sentence_id, embeddings_tr$sentence_id) == FALSE)
+    stop("embeddings do not match training data")
+  #embeddings without vs with structured data
+  if (INC_STRUC == FALSE) {
+    #get only embeddings columns
+    embeddings_tr <- data.matrix(embeddings_tr[, ..emb_cols])
+  } else {
+    # concatenate embeddings with structured data
+    embeddings_tr <- data.matrix(cbind(embeddings_tr[, ..emb_cols], pca_tr[, ..pca_cols]))
+  }
+  embeddings_va <- fread(paste0(embeddingsdir, 'r', rep, '_f', fold, '_va_embed_min_max_mean_SENT.csv'), drop = 1)
+  pca_va <- lab_cw$va
+  emb_cols <- grep('min_|max_|mean_', colnames(embeddings_va), value = TRUE)
+  pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+  # test that embeddings match structured data
+  if (identical(pca_va$sentence_id, embeddings_va$sentence_id) == FALSE)
+    stop("embeddings do not match validation data")
+  #embeddings without vs with structured data
+  if (INC_STRUC == FALSE) {
+    #get only embeddings columns
+    embeddings_va <- data.matrix(embeddings_va[, ..emb_cols])
+  } else {
+    # concatenate embeddings with structured data
+    embeddings_va <- data.matrix(cbind(embeddings_va[, ..emb_cols], pca_va[, ..pca_cols]))
+  }
+  outlist <- list(tr = embeddings_tr,
+                  va = embeddings_va)
+  return(outlist)
+}
+
+load_x_svd <- function(rep, fold, lab_cw, svd_dim){
+  svd_tr <- fread(paste0(SVDdir, 'r', rep, '_f', fold, '_tr_svd', svd_dim, '.csv'),
+                          skip = 1,
+                          drop = 1)
+  colnames(svd_tr) <- c('sentence_id', paste0('svd', seq(1:as.integer(svd_dim))))
+  pca_tr <- lab_cw$tr
+  svd_cols <- grep('svd', colnames(svd_tr), value = TRUE)
+  pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+  #test that svd match structured data
+  if (identical(pca_tr$sentence_id, svd_tr$sentence_id) == FALSE)
+    stop("embeddings do not match validation data")
+  #svd without vs with structured data
+  if (INC_STRUC == FALSE) {
+    #load only the svd columns
+    svd_tr <- data.matrix(svd_tr[, ..svd_cols])
+  } else {
+    #concatenate svd with structured data
+    svd_tr <- data.matrix(cbind(svd_tr[, ..svd_cols], pca_tr[, ..pca_cols]))
+  }
+  svd_va <- fread(paste0(SVDdir, 'r', rep, '_f', fold, '_va_svd', svd_dim, '.csv'),
+                  skip = 1,
+                  drop = 1)
+  colnames(svd_va) <- c('sentence_id', paste0('svd', seq(1:as.integer(svd_dim))))
+  pca_va <- lab_cw$va
+  svd_cols <- grep('svd', colnames(svd_va), value = TRUE)
+  pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+  #test that svd match structured data
+  if (identical(pca_va$sentence_id, svd_va$sentence_id) == FALSE)
+    stop("embeddings do not match validation data")
+  #svd without vs with structured data
+  if (INC_STRUC == FALSE) {
+    #load only the svd columns
+    svd_va <- data.matrix(svd_va[, ..svd_cols])
+  } else {
+    #concatenate svd with structured data
+    svd_va <- data.matrix(cbind(svd_va[, ..svd_cols], pca_va[, ..pca_cols]))
+  }
+  outlist <- list(tr = embeddings_tr,
+                  va = embeddings_va)
+  return(outlist)
+}
+  
+load_x <- function(rep, fold, lab_cw, svd_dim = NULL){
+  if (is.null(svd_dim) | svd_dim == "embed"){
+    return(load_x_embeddings(rep, fold, lab_cw))
+  } else {
+    return(load_x_svd(rep, fold, lab_cw, svd_dim))
+  }
+}
+  
 ############################## RANDOM FOREST ##############################
 
 #tuning grid
 mg3 <- expand_grid(
-  repeats = repeats,
-  fold = folds,
-  svd = svd,
+  rep = REPEATS,
+  fold = FOLDS,
+  svd = SVD,
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-  ntree       = 400,
+  ntree       = 2,
   mtry        = signif(seq(7, 45, length.out = 3), 2),
   sample_frac = signif(seq(0.6, 1, length.out = 3), 1),
   case_weights = c(TRUE, FALSE)
@@ -262,173 +242,181 @@ mg3 <- mutate(mg3, sample_frac_l = ifelse(sample_frac == 0.6, 6,
 #randomize grid
 mg3 <- mg3[sample(nrow(mg3)),]
 
-#run RF
-for (r in 1:nrow(mg3)){
-  #check if hyperparams already completed
-  fname_completed <- paste0(rf_modeldir, 'exp', exp, '_hypergrid_r', mg3$repeats[r], '_f',
-                            mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
-                            '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r],
-                            '_cw_',  as.integer(mg3$case_weights[r]), '.csv')
-  
-  if (file.exists(fname_completed) == FALSE) {
-    
-  #check clobber
-  fname_clobber <- paste0(rf_clobberdir, 'exp', exp, '_clobber_r', mg3$repeats[r], '_f',
-                          mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
-                          '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r],
-                          '_cw_',  as.integer(mg3$case_weights[r]), '.csv')
-  
-  if (file.exists(fname_clobber) == FALSE) {
-  
-  #write to prevent clobber
-  fwrite(data.frame(clb = 1), fname_clobber)
-    print(paste0(c("starting", fname_completed)))
-    #get matching training and validation labels
-    x_train <- get(
-      paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_s_', mg3$svd[r], '_x_train'))
-    x_validation <- get(
-      paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_s_', mg3$svd[r], '_x_validation'))
-    y_cols <- c(paste0(mg3$frail_lab[r], '_neut'),
-                paste0(mg3$frail_lab[r], '_pos'),
-                paste0(mg3$frail_lab[r], '_neg'))
-    y_train <- get(paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_tr'))[, ..y_cols] %>%
-      as_tibble() %>%
-      mutate(factr = ifelse(.[[1]] == 1, 1,
-                            ifelse(.[[2]] == 1, 2,
-                                   ifelse(.[[3]] == 1, 3, NA))))
-    y_train_factor <- as.factor(y_train$factr)
-    y_validation <- get(paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_va'))[, ..y_cols]
-    #get matching case weights
-    if (mg3$case_weights[r] == FALSE) {
-      cw <- NULL
-    } else {
-      cw <- get(
-        paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_tr_cw'))[[paste0(mg3$frail_lab[r], '_cw')]]
-    }
-    #measure CPU time for rf
-    benchmark <- benchmark("rf" = {
-      frail_rf <- ranger(y = y_train_factor,
-                         x = x_train,
-                         num.threads = detectCores(),
-                         probability = TRUE,
-                         num.trees = mg3$ntree[r],
-                         mtry = mg3$mtry[r],
-                         sample.fraction = mg3$sample_frac[r],
-                         case.weights = cw,
-                         oob.error = FALSE,
-                         importance = 'impurity')
-    }, replications = 1
-    )
-    #save benchmarking
-    fwrite(benchmark, 
-           paste0(rf_durationdir, 'exp', exp, '_duration_hyper_r', mg3$repeats[r],
-                  '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
-                  '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '_cw_',
-                  as.integer(mg3$case_weights[r]), '.csv'))
-    #save variable importance
-    importance <- importance(frail_rf)
-    i_names <- names(importance)
-    importance <- transpose(as.data.table(importance))
-    colnames(importance) <- i_names
-    importance$cv_repeat <- mg3$repeats[r]
-    importance$fold <- mg3$fold[r]
-    importance$SVD <- mg3$svd[r]
-    importance$mtry <- mg3$mtry[r]
-    importance$sample_frac <- mg3$sample_frac[r]
-    importance$case_weights <- mg3$case_weights[r]
-    fwrite(importance, 
-           paste0(rf_importancedir, 'exp', exp, '_importance_r', mg3$repeats[r],
-                  '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
-                  '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], 
-                  '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
-    #make predictions on validation fold
-    preds <- predict(frail_rf, data=x_validation)$predictions
-    colnames(preds) <- y_cols
-    preds_save <- as.data.table(preds)
-    preds_save$sentence_id <- get(
-      paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_va'))$sentence_id
-    #save predictions
-    fwrite(as.data.table(preds_save), 
-           paste0(rf_predsdir, 'exp', exp, '_preds_r', mg3$repeats[r], '_f',
-                  mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
-                  '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r],
-                  '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
-    #label each row
-    hyper_grid <- data.frame(frail_lab = mg3$frail_lab[r])
-    hyper_grid$cv_repeat <- mg3$repeats[r]
-    hyper_grid$fold <- mg3$fold[r]
-    hyper_grid$SVD <- mg3$svd[r]
-    hyper_grid$mtry <- mg3$mtry[r]
-    hyper_grid$sample_frac <- mg3$sample_frac[r]
-    hyper_grid$case_weights <- mg3$case_weights[r]
-    hyper_grid$bscore_neut <- NA
-    hyper_grid$bscore_pos <- NA
-    hyper_grid$bscore_neg <- NA
-    hyper_grid$sbrier_neut <- NA
-    hyper_grid$sbrier_pos <- NA
-    hyper_grid$sbrier_neg <- NA
-    hyper_grid$bscore_multi <- NA
-    hyper_grid$sbrier_multi <- NA
-    hyper_grid$PR_AUC_neut <- NA
-    hyper_grid$PR_AUC_pos <- NA
-    hyper_grid$PR_AUC_neg <- NA
-    hyper_grid$ROC_AUC_neut <- NA
-    hyper_grid$ROC_AUC_pos <- NA
-    hyper_grid$ROC_AUC_neg <- NA
-    #check for missing values in preds and relevant obs in validation set
-    if (((sum(is.na(preds)) > 0) == FALSE) &
-        ((sum(y_validation[[2]]) > 0) == TRUE) & 
-        ((sum(y_validation[[3]]) > 0) == TRUE))  {
-      #single class Brier scores
-      hyper_grid$bscore_neut <- Brier(preds[, 1], y_validation[[1]], 1)
-      hyper_grid$bscore_pos <- Brier(preds[, 2], y_validation[[2]], 1)
-      hyper_grid$bscore_neg <- Brier(preds[, 3], y_validation[[3]], 1)
-      #single class scaled Brier scores
-      hyper_grid$sbrier_neut <- scaled_Brier(preds[, 1], y_validation[[1]], 1)
-      hyper_grid$sbrier_pos <- scaled_Brier(preds[, 2], y_validation[[2]], 1)
-      hyper_grid$sbrier_neg <- scaled_Brier(preds[, 3], y_validation[[3]], 1)
-      #multiclass brier score
-      hyper_grid$bscore_multi <- multi_Brier(preds, y_validation)
-      #multiclass scaled brier score
-      hyper_grid$sbrier_multi <- multi_scaled_Brier(preds, y_validation)
-      #Precision-recall area under the curve
-      hyper_grid$PR_AUC_neut <- pr.curve(scores.class0 = preds[, 1],
-                                         weights.class0 = y_validation[[1]])$auc.integral
-      hyper_grid$PR_AUC_pos <- pr.curve(scores.class0 = preds[, 2],
-                                        weights.class0 = y_validation[[2]])$auc.integral
-      hyper_grid$PR_AUC_neg <- pr.curve(scores.class0 = preds[, 3],
-                                        weights.class0 = y_validation[[3]])$auc.integral
-      #Receiver operating characteristic area under the curve
-      hyper_grid$ROC_AUC_neut <- roc.curve(scores.class0 = preds[, 1],
-                                           weights.class0 = y_validation[[1]])$auc
-      hyper_grid$ROC_AUC_pos <- roc.curve(scores.class0 = preds[, 2],
-                                          weights.class0 = y_validation[[2]])$auc
-      hyper_grid$ROC_AUC_neg <- roc.curve(scores.class0 = preds[, 3],
-                                          weights.class0 = y_validation[[3]])$auc
-    }
-    #save hyper_grid for each rf run
-    fwrite(hyper_grid, 
-           paste0(rf_modeldir, 'exp', exp, '_hypergrid_r', mg3$repeats[r], '_f',
-                  mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
-                  '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r],
-                  '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
-    invisible(invisible(gc(verbose = FALSE)))
-    
-    #delete clobber
-    file.remove(fname_clobber)
-    }
+rf <- function(rep, fold, frail_lab, svd, ntree, mtry, sample_frac, case_weights, sample_frac_l){
+  # fold = 2
+  # rep = 2
+  # frail_lab = 'Msk_prob'
+  # svd = 'embed'
+  # ntree = 400
+  # mtry = 7
+  # case_weights = FALSE
+  # sample_frac = 1
+  # sample_frac_l = 10
+  print(paste0(c("starting",match.call()), collapse = " "))
+  fname_completed <- paste0(rf_modeldir, 
+                            'exp', 
+                            batchstring, 
+                            '_hypergrid_r', 
+                            rep, 
+                            '_f',
+                            fold, 
+                            '_', 
+                            frail_lab, 
+                            '_svd_', 
+                            svd,
+                            '_mtry_', 
+                            mtry, 
+                            '_sfrac_', 
+                            sample_frac_l,
+                            '_cw_',  
+                            as.integer(case_weights), 
+                            '.csv')  
+  if (file.exists(fname_completed)){
+    return(NULL)
   }
+  #write to prevent clobber
+  fname_clobber <- gsub(rf_modeldir, rf_clobberdir, fname_completed)
+  fname_clobber <- gsub("_hypergrid_", "_clobber_", fname_clobber)
+  fwrite(data.frame(clb = 1), fname_clobber)
+  #get matching training and validation labels
+  lab_cw <- load_labels_caseweights(fold = fold, rep = rep)
+  y_cols <- c(paste0(frail_lab, '_neut'),
+              paste0(frail_lab, '_pos'),
+              paste0(frail_lab, '_neg'))
+  y_train <- lab_cw$tr[, ..y_cols] %>%
+              as_tibble() %>%
+              mutate(factr = ifelse(.[[1]] == 1, 1,
+                                    ifelse(.[[2]] == 1, 2,
+                                           ifelse(.[[3]] == 1, 3, NA))))
+  y_train_factor <- as.factor(y_train$factr)
+  y_validation <- lab_cw$va[, ..y_cols]
+  # load X
+  X <- load_x(rep, fold, lab_cw, svd)
+  if (case_weights == TRUE){
+    cw <- lab_cw$cw
+  } else {
+    cw <- NULL
+  }
+  benchmark <- benchmark("rf" = {
+    frail_rf <- ranger(y = y_train_factor,
+                       x = X$tr,
+                       num.threads = detectCores(),
+                       probability = TRUE,
+                       num.trees = ntree,
+                       mtry = mtry,
+                       sample.fraction = sample_frac,
+                       case.weights = cw,
+                       oob.error = FALSE,
+                       importance = 'impurity')
+  }, replications = 1)
+  #save benchmarking
+  fname_duration <- gsub(rf_modeldir, rf_durationdir, fname_completed)
+  fname_duration <- gsub("_hypergrid_", "_duration_hyper_", fname_duration)  
+  fwrite(benchmark, fname_duration)
+
+  #save variable importance
+  importance <- importance(frail_rf)
+  i_names <- names(importance)
+  importance <- transpose(as.data.table(importance))
+  colnames(importance) <- i_names
+  importance$cv_repeat <- rep
+  importance$fold <- fold
+  importance$SVD <- svd
+  importance$mtry <- mtry
+  importance$sample_frac <- sample_frac
+  importance$case_weights <- case_weights
+  fname_importance <- gsub(rf_modeldir, rf_importancedir, fname_completed)
+  fname_importance <- gsub("_hypergrid_", "_importance_", fname_importance)  
+  fwrite(importance, fname_importance)
+
+  #make predictions on validation fold
+  preds <- predict(frail_rf, data=X$va)$predictions
+  colnames(preds) <- y_cols
+  preds_save <- as.data.table(preds)
+  preds_save$sentence_id <- lab_cw$va$sentence_id
+  #save predictions
+  fname_preds <- gsub(rf_modeldir, rf_importancedir, fname_completed)
+  fname_preds <- gsub("_hypergrid_", "_preds_", fname_preds)  
+  fwrite(as.data.table(preds_save), fname_preds)
+  #label each row
+  hyper_grid <- data.frame(frail_lab = frail_lab)
+  hyper_grid$cv_repeat <- rep
+  hyper_grid$fold <- fold
+  hyper_grid$SVD <- svd
+  hyper_grid$mtry <- mtry
+  hyper_grid$sample_frac <- sample_frac
+  hyper_grid$case_weights <- case_weights
+  hyper_grid$bscore_neut <- NA
+  hyper_grid$bscore_pos <- NA
+  hyper_grid$bscore_neg <- NA
+  hyper_grid$sbrier_neut <- NA
+  hyper_grid$sbrier_pos <- NA
+  hyper_grid$sbrier_neg <- NA
+  hyper_grid$bscore_multi <- NA
+  hyper_grid$sbrier_multi <- NA
+  hyper_grid$PR_AUC_neut <- NA
+  hyper_grid$PR_AUC_pos <- NA
+  hyper_grid$PR_AUC_neg <- NA
+  hyper_grid$ROC_AUC_neut <- NA
+  hyper_grid$ROC_AUC_pos <- NA
+  hyper_grid$ROC_AUC_neg <- NA
+  if (((sum(is.na(preds)) > 0) == FALSE) &
+      ((sum(y_validation[[2]]) > 0) == TRUE) & 
+      ((sum(y_validation[[3]]) > 0) == TRUE))  {
+    #single class Brier scores
+    hyper_grid$bscore_neut <- Brier(preds[, 1], y_validation[[1]], 1)
+    hyper_grid$bscore_pos <- Brier(preds[, 2], y_validation[[2]], 1)
+    hyper_grid$bscore_neg <- Brier(preds[, 3], y_validation[[3]], 1)
+    #single class scaled Brier scores
+    hyper_grid$sbrier_neut <- scaled_Brier(preds[, 1], y_validation[[1]], 1)
+    hyper_grid$sbrier_pos <- scaled_Brier(preds[, 2], y_validation[[2]], 1)
+    hyper_grid$sbrier_neg <- scaled_Brier(preds[, 3], y_validation[[3]], 1)
+    #multiclass brier score
+    hyper_grid$bscore_multi <- multi_Brier(preds, y_validation)
+    #multiclass scaled brier score
+    hyper_grid$sbrier_multi <- multi_scaled_Brier(preds, y_validation)
+    #Precision-recall area under the curve
+    hyper_grid$PR_AUC_neut <- pr.curve(scores.class0 = preds[, 1],
+                                       weights.class0 = y_validation[[1]])$auc.integral
+    hyper_grid$PR_AUC_pos <- pr.curve(scores.class0 = preds[, 2],
+                                      weights.class0 = y_validation[[2]])$auc.integral
+    hyper_grid$PR_AUC_neg <- pr.curve(scores.class0 = preds[, 3],
+                                      weights.class0 = y_validation[[3]])$auc.integral
+    #Receiver operating characteristic area under the curve
+    hyper_grid$ROC_AUC_neut <- roc.curve(scores.class0 = preds[, 1],
+                                         weights.class0 = y_validation[[1]])$auc
+    hyper_grid$ROC_AUC_pos <- roc.curve(scores.class0 = preds[, 2],
+                                        weights.class0 = y_validation[[2]])$auc
+    hyper_grid$ROC_AUC_neg <- roc.curve(scores.class0 = preds[, 3],
+                                        weights.class0 = y_validation[[3]])$auc
+  }
+  #save hyper_grid for each rf run
+  fname_hyper <- gsub(rf_modeldir, rf_importancedir, fname_completed)
+  fname_hyper <- gsub("_hypergrid_", "_hypergrid_", fname_hyper)  
+  fwrite(as.data.table(preds_save), fname_preds)
+  fwrite(hyper_grid, fname_completed)
+  invisible(invisible(gc(verbose = FALSE)))
+  
+  #delete clobber
+  file.remove(fname_clobber)
+  print(paste0(c("finished",match.call()), collapse = " "))
 }
+
+for (r in 1:nrow(mg3)){
+  do.call(rf, as.list(mg3[r,]))
+}
+
+
 
 ############################## REGRESSION ##############################
 
 #set sequence of lambda values to test
-lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
+LAMBDA_SEQ <- signif(c(10^seq(2, -5, length.out = 25)), 4)
 #tuning grid
 mg1 <- expand_grid(
-  repeats = repeats,
-  fold = folds,
-  svd = svd,
+  repeats = REPEATS,
+  fold = FOLDS,
+  svd = SVD,
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
   alpha = c(0.9, 0.5, 0.1),
   case_weights = c(TRUE, FALSE)
@@ -445,14 +433,14 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
   tc_error <- tryCatch(
     {
     #check if hyperparams already completed
-    fname_completed <- paste0(enet_modeldir, 'exp', exp, '_hypergrid_r', mg1$repeats[r], '_f',
+    fname_completed <- paste0(enet_modeldir, 'exp', batchstring, '_hypergrid_r', mg1$repeats[r], '_f',
                               mg1$fold[r], '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha',
                               mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r]), '.csv')
     
     if (file.exists(fname_completed) == FALSE) {
       
       #check clobber
-      fname_clobber <- paste0(enet_clobberdir, 'exp', exp, '_clobber_r', mg1$repeats[r], '_f',
+      fname_clobber <- paste0(enet_clobberdir, 'exp', batchstring, '_clobber_r', mg1$repeats[r], '_f',
                               mg1$fold[r], '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha',
                               mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r]), '.csv')
       
@@ -495,7 +483,7 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
       )
       #save benchmarking
       fwrite(benchmark, 
-             paste0(enet_durationdir, 'exp', exp, '_duration_hyper_r',
+             paste0(enet_durationdir, 'exp', batchstring, '_duration_hyper_r',
                     mg1$repeats[r], '_f', mg1$fold[r], '_', mg1$frail_lab[r], '_svd_',
                     mg1$svd[r], '_alpha', mg1$alpha_l[r], '_cw',
                     as.integer(mg1$case_weights[r]), '.txt'))
@@ -513,7 +501,7 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
         coefs_save$alpha <- mg1$alpha[r]
         coefs_save$case_weights <- mg1$case_weights[r]
         fwrite(coefs_save, 
-               paste0(enet_coefsdir, 'exp', exp, '_coefs_r', mg1$repeats[r], '_f',
+               paste0(enet_coefsdir, 'exp', batchstring, '_coefs_r', mg1$repeats[r], '_f',
                       mg1$fold[r], '_', y_cols[c], '_svd_', mg1$svd[r], '_alpha',
                       mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r]), '.csv'))
       }
@@ -532,7 +520,7 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
       }
       preds_save <- rbindlist(preds_s)
       fwrite(preds_save, 
-             paste0(enet_predsdir, 'exp', exp, '_preds_r', mg1$repeats[r], '_f', 
+             paste0(enet_predsdir, 'exp', batchstring, '_preds_r', mg1$repeats[r], '_f', 
                     mg1$fold[r], '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], 
                     '_alpha', mg1$alpha_l[r], '_cw', 
                     as.integer(mg1$case_weights[r]), '.csv'))
@@ -607,7 +595,7 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
       
       #save hyper_grid for each glmnet run
       fwrite(hyper_grid, 
-             paste0(enet_modeldir, 'exp', exp, '_hypergrid_r', mg1$repeats[r], '_f',
+             paste0(enet_modeldir, 'exp', batchstring, '_hypergrid_r', mg1$repeats[r], '_f',
                     mg1$fold[r], '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha',
                     mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r]), '.csv'))
       #remove objects & garbage collection
@@ -623,13 +611,13 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
     #foreach to reliably output the real error message AND where it occurred
     error = function(cond) {
       return(
-        paste0('error in: exp', exp, '_r', mg1$repeats[r], '_f', mg1$fold[r], '_', 
+        paste0('error in: exp', batchstring, '_r', mg1$repeats[r], '_f', mg1$fold[r], '_', 
                mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha', mg1$alpha_l[r], 
                '_cw', as.integer(mg1$case_weights[r])))
     },
     warning = function(cond) {
       return(
-        paste0('warning in: exp', exp, '_r', mg1$repeats[r], '_f', mg1$fold[r], 
+        paste0('warning in: exp', batchstring, '_r', mg1$repeats[r], '_f', mg1$fold[r], 
                '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha', 
                mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r])))
     })
@@ -637,7 +625,7 @@ enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
 }
 
 fwrite(as.data.table(enet_error), 
-       paste0(outdir, 'exp', exp, '_enet_error.txt'))
+       paste0(outdir, 'exp', batchstring, '_enet_error.txt'))
 
 invisible(gc(verbose = FALSE))
 
@@ -645,7 +633,7 @@ invisible(gc(verbose = FALSE))
 #Summarize RF after all models are complete
 mg3 <- mg3 %>%
   mutate(filename = 
-           paste0('exp', exp, '_hypergrid_r', repeats, '_f', fold, '_',
+           paste0('exp', batchstring, '_hypergrid_r', repeats, '_f', fold, '_',
                   frail_lab, '_svd_', svd, '_mtry', mtry, '_sfrac',
                   sample_frac_l, '_cw_',  as.integer(case_weights), '.csv')) %>%
   filter(!filename %in% list.files(rf_modeldir))
@@ -654,23 +642,23 @@ if (nrow(mg3) == 0) {
   rf_output <- grep('_hypergrid_', list.files(rf_modeldir), value = TRUE)
   rf_output <- lapply(paste0(rf_modeldir, rf_output), fread)
   rf_output <- rbindlist(rf_output)
-  fwrite(rf_output, paste0(outdir, 'exp', exp, '_rf_performance.csv'))
+  fwrite(rf_output, paste0(outdir, 'exp', batchstring, '_rf_performance.csv'))
   #Summarize benchmarking for all completed RF models
   rf_bench <- grep('_duration_hyper_', list.files(rf_durationdir), value = TRUE)
   rf_bench <- lapply(paste0(rf_durationdir, rf_bench), fread)
   rf_bench <- rbindlist(rf_bench)
-  fwrite(rf_bench, paste0(outdir, 'exp', exp, '_rf_cpu_time.csv'))
+  fwrite(rf_bench, paste0(outdir, 'exp', batchstring, '_rf_cpu_time.csv'))
   #Summarize variable importance
   rf_importance <- grep('_importance_r', list.files(rf_importancedir), value = TRUE)
   rf_importance <- lapply(paste0(rf_importancedir, rf_importance), fread)
   rf_importance <- rbindlist(rf_importance, fill = TRUE)
-  fwrite(rf_importance, paste0(outdir, 'exp', exp, '_rf_importance.csv'))
+  fwrite(rf_importance, paste0(outdir, 'exp', batchstring, '_rf_importance.csv'))
 }
 
 #Summarize enet after all models are complete
 mg1 <- mg1 %>%
   mutate(filename = 
-           paste0('exp', exp, '_hypergrid_r', mg1$repeats[r], '_f', fold, '_',
+           paste0('exp', batchstring, '_hypergrid_r', mg1$repeats[r], '_f', fold, '_',
                   frail_lab, '_svd_', svd, '_alpha', alpha_l, '_cw',
                   as.integer(case_weights), '.csv')) %>%
   filter(!filename %in% list.files(enet_modeldir))
@@ -679,15 +667,382 @@ if (nrow(mg1) == 0) {
   enet_output <- grep('_hypergrid_', list.files(enet_modeldir), value = TRUE)
   enet_output <- lapply(paste0(enet_modeldir, enet_output), fread)
   enet_output <- rbindlist(enet_output)
-  fwrite(enet_output, paste0(outdir, 'exp', exp, '_enet_performance.csv'))
+  fwrite(enet_output, paste0(outdir, 'exp', batchstring, '_enet_performance.csv'))
   #Summarize benchmarking for all completed enet models
   enet_bench <- grep('_duration_hyper_', list.files(enet_durationdir), value = TRUE)
   enet_bench <- lapply(paste0(enet_durationdir, enet_bench), fread)
   enet_bench <- rbindlist(enet_bench)
-  fwrite(enet_bench, paste0(outdir, 'exp', exp, '_enet_cpu_time.csv'))
+  fwrite(enet_bench, paste0(outdir, 'exp', batchstring, '_enet_cpu_time.csv'))
   #Summarize coefficients
   enet_coefs <- grep('_coefs_r', list.files(enet_coefsdir), value = TRUE)
   enet_coefs <- lapply(paste0(enet_coefsdir, enet_coefs), fread)
   enet_coefs <- rbindlist(enet_coefs, fill = TRUE)
-  fwrite(enet_coefs, paste0(outdir, 'exp', exp, '_enet_coefs.csv'))
+  fwrite(enet_coefs, paste0(outdir, 'exp', batchstring, '_enet_coefs.csv'))
 }
+
+
+
+
+# 
+# 
+# #run RF
+# for (r in 1:nrow(mg3)){
+#   #check if hyperparams already completed
+#   fname_completed <- paste0(rf_modeldir, 'exp', batchstring, '_hypergrid_r', mg3$repeats[r], '_f',
+#                             mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
+#                             '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r],
+#                             '_cw_',  as.integer(mg3$case_weights[r]), '.csv')
+#   
+#   if (file.exists(fname_completed) == FALSE) {
+#     
+#   #check clobber
+#   fname_clobber <- paste0(rf_clobberdir, 'exp', batchstring, '_clobber_r', mg3$repeats[r], '_f',
+#                           mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
+#                           '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r],
+#                           '_cw_',  as.integer(mg3$case_weights[r]), '.csv')
+#   
+#   if (file.exists(fname_clobber) == FALSE) {
+#   
+#   #write to prevent clobber
+#   fwrite(data.frame(clb = 1), fname_clobber)
+#     print(paste0(c("starting", fname_completed)))
+#     #get matching training and validation labels
+#     x_train <- get(
+#       paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_s_', mg3$svd[r], '_x_train'))
+#     x_validation <- get(
+#       paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_s_', mg3$svd[r], '_x_validation'))
+#     y_cols <- c(paste0(mg3$frail_lab[r], '_neut'),
+#                 paste0(mg3$frail_lab[r], '_pos'),
+#                 paste0(mg3$frail_lab[r], '_neg'))
+#     y_train <- get(paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_tr'))[, ..y_cols] %>%
+#       as_tibble() %>%
+#       mutate(factr = ifelse(.[[1]] == 1, 1,
+#                             ifelse(.[[2]] == 1, 2,
+#                                    ifelse(.[[3]] == 1, 3, NA))))
+#     y_train_factor <- as.factor(y_train$factr)
+#     y_validation <- get(paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_va'))[, ..y_cols]
+#     #get matching case weights
+#     if (mg3$case_weights[r] == FALSE) {
+#       cw <- NULL
+#     } else {
+#       cw <- get(
+#         paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_tr_cw'))[[paste0(mg3$frail_lab[r], '_cw')]]
+#     }
+#     #measure CPU time for rf
+#     benchmark <- benchmark("rf" = {
+#       frail_rf <- ranger(y = y_train_factor,
+#                          x = x_train,
+#                          num.threads = detectCores(),
+#                          probability = TRUE,
+#                          num.trees = mg3$ntree[r],
+#                          mtry = mg3$mtry[r],
+#                          sample.fraction = mg3$sample_frac[r],
+#                          case.weights = cw,
+#                          oob.error = FALSE,
+#                          importance = 'impurity')
+#     }, replications = 1
+#     )
+#     #save benchmarking
+#     fwrite(benchmark, 
+#            paste0(rf_durationdir, 'exp', batchstring, '_duration_hyper_r', mg3$repeats[r],
+#                   '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
+#                   '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], '_cw_',
+#                   as.integer(mg3$case_weights[r]), '.csv'))
+#     #save variable importance
+#     importance <- importance(frail_rf)
+#     i_names <- names(importance)
+#     importance <- transpose(as.data.table(importance))
+#     colnames(importance) <- i_names
+#     importance$cv_repeat <- mg3$repeats[r]
+#     importance$fold <- mg3$fold[r]
+#     importance$SVD <- mg3$svd[r]
+#     importance$mtry <- mg3$mtry[r]
+#     importance$sample_frac <- mg3$sample_frac[r]
+#     importance$case_weights <- mg3$case_weights[r]
+#     fwrite(importance, 
+#            paste0(rf_importancedir, 'exp', batchstring, '_importance_r', mg3$repeats[r],
+#                   '_f', mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
+#                   '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r], 
+#                   '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
+#     #make predictions on validation fold
+#     preds <- predict(frail_rf, data=x_validation)$predictions
+#     colnames(preds) <- y_cols
+#     preds_save <- as.data.table(preds)
+#     preds_save$sentence_id <- get(
+#       paste0('r', mg3$repeats[r], '_f', mg3$fold[r], '_va'))$sentence_id
+#     #save predictions
+#     fwrite(as.data.table(preds_save), 
+#            paste0(rf_predsdir, 'exp', batchstring, '_preds_r', mg3$repeats[r], '_f',
+#                   mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
+#                   '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r],
+#                   '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
+#     #label each row
+#     hyper_grid <- data.frame(frail_lab = mg3$frail_lab[r])
+#     hyper_grid$cv_repeat <- mg3$repeats[r]
+#     hyper_grid$fold <- mg3$fold[r]
+#     hyper_grid$SVD <- mg3$svd[r]
+#     hyper_grid$mtry <- mg3$mtry[r]
+#     hyper_grid$sample_frac <- mg3$sample_frac[r]
+#     hyper_grid$case_weights <- mg3$case_weights[r]
+#     hyper_grid$bscore_neut <- NA
+#     hyper_grid$bscore_pos <- NA
+#     hyper_grid$bscore_neg <- NA
+#     hyper_grid$sbrier_neut <- NA
+#     hyper_grid$sbrier_pos <- NA
+#     hyper_grid$sbrier_neg <- NA
+#     hyper_grid$bscore_multi <- NA
+#     hyper_grid$sbrier_multi <- NA
+#     hyper_grid$PR_AUC_neut <- NA
+#     hyper_grid$PR_AUC_pos <- NA
+#     hyper_grid$PR_AUC_neg <- NA
+#     hyper_grid$ROC_AUC_neut <- NA
+#     hyper_grid$ROC_AUC_pos <- NA
+#     hyper_grid$ROC_AUC_neg <- NA
+#     #check for missing values in preds and relevant obs in validation set
+#     if (((sum(is.na(preds)) > 0) == FALSE) &
+#         ((sum(y_validation[[2]]) > 0) == TRUE) & 
+#         ((sum(y_validation[[3]]) > 0) == TRUE))  {
+#       #single class Brier scores
+#       hyper_grid$bscore_neut <- Brier(preds[, 1], y_validation[[1]], 1)
+#       hyper_grid$bscore_pos <- Brier(preds[, 2], y_validation[[2]], 1)
+#       hyper_grid$bscore_neg <- Brier(preds[, 3], y_validation[[3]], 1)
+#       #single class scaled Brier scores
+#       hyper_grid$sbrier_neut <- scaled_Brier(preds[, 1], y_validation[[1]], 1)
+#       hyper_grid$sbrier_pos <- scaled_Brier(preds[, 2], y_validation[[2]], 1)
+#       hyper_grid$sbrier_neg <- scaled_Brier(preds[, 3], y_validation[[3]], 1)
+#       #multiclass brier score
+#       hyper_grid$bscore_multi <- multi_Brier(preds, y_validation)
+#       #multiclass scaled brier score
+#       hyper_grid$sbrier_multi <- multi_scaled_Brier(preds, y_validation)
+#       #Precision-recall area under the curve
+#       hyper_grid$PR_AUC_neut <- pr.curve(scores.class0 = preds[, 1],
+#                                          weights.class0 = y_validation[[1]])$auc.integral
+#       hyper_grid$PR_AUC_pos <- pr.curve(scores.class0 = preds[, 2],
+#                                         weights.class0 = y_validation[[2]])$auc.integral
+#       hyper_grid$PR_AUC_neg <- pr.curve(scores.class0 = preds[, 3],
+#                                         weights.class0 = y_validation[[3]])$auc.integral
+#       #Receiver operating characteristic area under the curve
+#       hyper_grid$ROC_AUC_neut <- roc.curve(scores.class0 = preds[, 1],
+#                                            weights.class0 = y_validation[[1]])$auc
+#       hyper_grid$ROC_AUC_pos <- roc.curve(scores.class0 = preds[, 2],
+#                                           weights.class0 = y_validation[[2]])$auc
+#       hyper_grid$ROC_AUC_neg <- roc.curve(scores.class0 = preds[, 3],
+#                                           weights.class0 = y_validation[[3]])$auc
+#     }
+#     #save hyper_grid for each rf run
+#     fwrite(hyper_grid, 
+#            paste0(rf_modeldir, 'exp', batchstring, '_hypergrid_r', mg3$repeats[r], '_f',
+#                   mg3$fold[r], '_', mg3$frail_lab[r], '_svd_', mg3$svd[r],
+#                   '_mtry_', mg3$mtry[r], '_sfrac_', mg3$sample_frac_l[r],
+#                   '_cw_',  as.integer(mg3$case_weights[r]), '.csv'))
+#     invisible(invisible(gc(verbose = FALSE)))
+#     
+#     #delete clobber
+#     file.remove(fname_clobber)
+#     }
+#   }
+# }
+
+
+# 
+# xx <- function(){
+#   yy <- try("a"+1, silent = TRUE)
+#   print('hello')
+# }
+# 
+# xx()
+# 
+# load_svd_embed(p, d, s){
+#   embeddings_tr <- fread(
+#     paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_tr_embed_min_max_mean_SENT.csv'),
+#     drop = 1)
+#   pca_tr <- try(get(paste0('r', repeats[p], '_f', folds[d], '_tr')),
+#                 silent = TRUE)
+#   if ('try-error' %in% class(pca_tr)){
+#     load_labels_caseweights(p, d)
+#     pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
+#   }
+#   emb_cols <- grep('min_|max_|mean_', colnames(embeddings_tr), value = TRUE)
+#   pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+#   # test that embeddings match structured data
+#   if (identical(pca_tr$sentence_id, embeddings_tr$sentence_id) == FALSE)
+#     stop("embeddings do not match training data")
+#   #embeddings without vs with structured data
+#   if (inc_struc == FALSE) {
+#     #get only embeddings columns
+#     embeddings_tr <- data.matrix(embeddings_tr[, ..emb_cols])
+#   } else {
+#     # concatenate embeddings with structured data
+#     embeddings_tr <- data.matrix(cbind(embeddings_tr[, ..emb_cols], pca_tr[, ..pca_cols]))
+#   }
+#   embeddings_va <- fread(
+#     paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_va_embed_min_max_mean_SENT.csv'),
+#     drop = 1)
+#   pca_va <- try(get(paste0('r', repeats[p], '_f', folds[d], '_va')),
+#                 silent = TRUE)
+#   if ('try-error' %in% class(pca_va)){
+#     load_labels_caseweights(p, d)
+#     pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
+#   }
+#   emb_cols <- grep('min_|max_|mean_', colnames(embeddings_va), value = TRUE)
+#   pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+#   # test that embeddings match structured data
+#   if (identical(pca_va$sentence_id, embeddings_va$sentence_id) == FALSE)
+#     stop("embeddings do not match validation data")
+#   #embeddings without vs with structured data
+#   if (inc_struc == FALSE) {
+#     #get only embeddings columns
+#     embeddings_va <- data.matrix(embeddings_va[, ..emb_cols])
+#   } else {
+#     # concatenate embeddings with structured data
+#     embeddings_va <- data.matrix(cbind(embeddings_va[, ..emb_cols], pca_va[, ..pca_cols]))
+#   }
+#   assign(paste0('r', repeats[p], '_f', folds[d], '_s_', svd[s], '_x_train'),
+#          get(paste0('r', repeats[p], '_s_', svd[s], '_x_train'))[[d]],
+#          pos = 1)
+#   assign(paste0('r', repeats[p], '_f', folds[d], '_s_', svd[s], '_x_validation'),
+#          get(paste0(
+#            'r', repeats[p], '_s_', svd[s], '_x_validation'
+#          ))[[d]],
+#          pos = 1)
+# }
+# 
+
+
+# 
+# #repeated k-fold cross validation
+# for (p in 1:length(repeats)) {
+#   print(paste0('repeat', p))
+#   #load data in parallel
+#   for (d in 1:length(folds)) {
+#     print(paste0('fold', d))
+#     # load labels and structured data
+#     assign(paste0('r', repeats[p], '_f', folds[d], '_tr'),
+#            fread(paste0(trvadatadir, 'r', repeats[p], '_f', folds[d], '_tr_df.csv')))
+#     assign(paste0('r', repeats[p], '_f', folds[d], '_va'),
+#            fread(paste0(trvadatadir, 'r', repeats[p], '_f', folds[d], '_va_df.csv')))
+#     # load case weights
+#     assign(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'), fread(
+#       paste0(cwdir, 'r', repeats[p], '_f', folds[d], '_tr_caseweights.csv')))
+#     # check for matching
+#     if ((nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr_cw'))) == 
+#          nrow(get(paste0('r', repeats[p], '_f', folds[d], '_tr')))) == FALSE)
+#       stop("caseweights do not match training data")
+#   }
+#   for (s in 1:length(svd)) {
+#     print(paste0('svd', s))
+#     if (svd[s] == 'embed') {
+#       train <- foreach (d = 1:length(folds)) %dopar% {
+#         # load embeddings for each fold (drop index)
+#         embeddings_tr <- fread(
+#           paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_tr_embed_min_max_mean_SENT.csv'),
+#           drop = 1)
+#         pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
+#         emb_cols <- grep('min_|max_|mean_', colnames(embeddings_tr), value = TRUE)
+#         pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+#         # test that embeddings match structured data
+#         if (identical(pca_tr$sentence_id, embeddings_tr$sentence_id) == FALSE)
+#           stop("embeddings do not match training data")
+#         #embeddings without vs with structured data
+#         if (inc_struc == FALSE) {
+#           #get only embeddings columns
+#           embeddings_tr <- data.matrix(embeddings_tr[, ..emb_cols])
+#         } else {
+#           # concatenate embeddings with structured data
+#           embeddings_tr <- data.matrix(cbind(embeddings_tr[, ..emb_cols], pca_tr[, ..pca_cols]))
+#         }
+#         return(embeddings_tr)
+#       }
+#       validation <- foreach (d = 1:length(folds)) %dopar% {
+#         # load embeddings for each fold (drop index)
+#         embeddings_va <- fread(
+#           paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_va_embed_min_max_mean_SENT.csv'),
+#           drop = 1)
+#         pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
+#         emb_cols <- grep('min_|max_|mean_', colnames(embeddings_va), value = TRUE)
+#         pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+#         # test that embeddings match structured data
+#         if (identical(pca_va$sentence_id, embeddings_va$sentence_id) == FALSE)
+#           stop("embeddings do not match validation data")
+#         #embeddings without vs with structured data
+#         if (inc_struc == FALSE) {
+#           #get only embeddings columns
+#           embeddings_va <- data.matrix(embeddings_va[, ..emb_cols])
+#         } else {
+#           # concatenate embeddings with structured data
+#           embeddings_va <- data.matrix(cbind(embeddings_va[, ..emb_cols], pca_va[, ..pca_cols]))
+#         }
+#         return(embeddings_va)
+#       }
+#     } else {
+#       train <- foreach (d = 1:length(folds)) %dopar% {
+#         #get svd and structured data for each fold
+#         svd_tr <- fread(
+#           paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_tr_svd', svd[s], '.csv'),
+#           skip = 1,
+#           drop = 1)
+#         colnames(svd_tr) <- c('sentence_id', paste0('svd', seq(1:as.integer(svd[s]))))
+#         pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
+#         svd_cols <- grep('svd', colnames(svd_tr), value = TRUE)
+#         pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+#         #test that svd match structured data
+#         if (identical(pca_tr$sentence_id, svd_tr$sentence_id) == FALSE)
+#           stop("embeddings do not match validation data")
+#         #svd without vs with structured data
+#         if (inc_struc == FALSE) {
+#           #load only the svd columns
+#           svd_tr <- data.matrix(svd_tr[, ..svd_cols])
+#         } else {
+#           #concatenate svd with structured data
+#           svd_tr <- data.matrix(cbind(svd_tr[, ..svd_cols], pca_tr[, ..pca_cols]))
+#         }
+#         return(svd_tr)
+#       }
+#       validation <- foreach (d = 1:length(folds)) %dopar% {
+#         #get svd and structured data for each fold
+#         svd_va <- fread(
+#           paste0(SVDdir, 'r', repeats[p], '_f', folds[d], '_va_svd', svd[s], '.csv'),
+#           skip = 1,
+#           drop = 1)
+#         colnames(svd_va) <- c('sentence_id', paste0('svd', seq(1:as.integer(svd[s]))))
+#         pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
+#         svd_cols <- grep('svd', colnames(svd_va), value = TRUE)
+#         pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+#         #test that svd match structured data
+#         if (identical(pca_va$sentence_id, svd_va$sentence_id) == FALSE)
+#           stop("embeddings do not match validation data")
+#         #svd without vs with structured data
+#         if (inc_struc == FALSE) {
+#           #load only the svd columns
+#           svd_va <- data.matrix(svd_va[, ..svd_cols])
+#         } else {
+#           #concatenate svd with structured data
+#           svd_va <- data.matrix(cbind(svd_va[, ..svd_cols], pca_va[, ..pca_cols]))
+#         }
+#         return(svd_va)
+#       }
+#     }
+#     assign(paste0('r', repeats[p], '_s_', svd[s], '_x_train'), train)
+#     assign(paste0('r', repeats[p], '_s_', svd[s], '_x_validation'),
+#            validation)
+#   }
+#   #foreach output is in list format
+#   #rename each element of the list as a df
+#   for (s in 1:length(svd)) {
+#     for (d in 1:length(folds)) {
+#       assign(paste0('r', repeats[p], '_f', folds[d], '_s_', svd[s], '_x_train'),
+#              get(paste0('r', repeats[p], '_s_', svd[s], '_x_train'))[[d]])
+#       assign(paste0('r', repeats[p], '_f', folds[d], '_s_', svd[s], '_x_validation'),
+#              get(paste0(
+#                'r', repeats[p], '_s_', svd[s], '_x_validation'
+#              ))[[d]])
+#     }
+#   }
+#   
+#   #clear lists of dfs
+#   for (s in 1:length(svd)) {
+#     rm(list = paste0('r', repeats[p], '_s_', svd[s], '_x_train'))
+#     rm(list = paste0('r', repeats[p], '_s_', svd[s], '_x_validation'))
+#   }
+#   invisible(gc(verbose = FALSE))
+# }
