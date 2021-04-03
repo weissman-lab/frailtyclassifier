@@ -142,7 +142,7 @@ rf <- function(rep, fold, frail_lab, svd, ntree, mtry, sample_frac, case_weights
   # load X
   X <- load_x(rep, fold, lab_cw, svd)
   if (case_weights == TRUE){
-    cw <- lab_cw$cw[,grep(frail_lab, colnames(lab_cw$cw), value = TRUE)]
+    cw <- as.data.frame(lab_cw$cw)[,grep(frail_lab, colnames(lab_cw$cw), value = TRUE)]
   } else {
     cw <- NULL
   }
