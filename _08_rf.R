@@ -17,6 +17,7 @@ batchstring <- commandArgs(trailingOnly = TRUE)
 if (length(batchstring)==0) {
   stop("AL round must be specified as an argument", call.=FALSE)
 }
+# batchstring = "AL01"
 #repeats & folds
 REPEATS <- seq(1, 3)
 FOLDS <- seq(0, 9)
@@ -77,145 +78,30 @@ dir.create(enet_predsdir)
 dir.create(enet_clobberdir)
 
 
-# Brier score
-Brier <- function(predictions, observations, positive_class) {
-  obs = as.numeric(observations == positive_class)
-  mean((predictions - obs)^2)
-}
-
-# scaled Brier score
-scaled_Brier <- function(predictions, observations, positive_class) {
-  1 - (Brier(predictions, observations, positive_class) / 
-         Brier(mean(observations), observations, positive_class))
-}
-
-# multiclass Brier score
-multi_Brier <- function(predictions, observations) {
-  mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
-}
-
-# multiclass scaled Brier score
-multi_scaled_Brier <- function(predictions, observations) {
-  event_rate_matrix <- matrix(colMeans(observations), 
-                              ncol = length(colMeans(observations)), 
-                              nrow = nrow(observations),
-                              byrow = TRUE)
-  1 - (multi_Brier(predictions, observations) / 
-         multi_Brier(event_rate_matrix, observations))
-}
-
-
-
-load_labels_caseweights <- function(rep, fold){
-  tr <- fread(paste0(trvadatadir, 'r', rep, '_f', fold, '_tr_df.csv'))
-  va <- fread(paste0(trvadatadir, 'r', rep, '_f', fold, '_va_df.csv'))
-  cw <- fread(paste0(cwdir, 'r', rep, '_f', fold, '_tr_caseweights.csv'))
-  if (nrow(tr) != nrow(cw)){
-    stop("caseweights do not match training data")    
-  }
-  return(list(tr = tr, va = va, cw = cw))
-}
-
-
-
-
-load_x_embeddings <- function(rep, fold, lab_cw){
-  embeddings_tr <- fread(paste0(embeddingsdir, 'r', rep, '_f', fold, '_tr_embed_min_max_mean_SENT.csv'))
-  pca_tr <- lab_cw$tr
-  emb_cols <- grep('min_|max_|mean_', colnames(embeddings_tr), value = TRUE)
-  pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
-  # test that embeddings match structured data
-  if (identical(pca_tr$sentence_id, embeddings_tr$sentence_id) == FALSE)
-    stop("embeddings do not match training data")
-  #embeddings without vs with structured data
-  if (INC_STRUC == FALSE) {
-    #get only embeddings columns
-    embeddings_tr <- data.matrix(embeddings_tr[, ..emb_cols])
-  } else {
-    # concatenate embeddings with structured data
-    embeddings_tr <- data.matrix(cbind(embeddings_tr[, ..emb_cols], pca_tr[, ..pca_cols]))
-  }
-  embeddings_va <- fread(paste0(embeddingsdir, 'r', rep, '_f', fold, '_va_embed_min_max_mean_SENT.csv'), drop = 1)
-  pca_va <- lab_cw$va
-  emb_cols <- grep('min_|max_|mean_', colnames(embeddings_va), value = TRUE)
-  pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
-  # test that embeddings match structured data
-  if (identical(pca_va$sentence_id, embeddings_va$sentence_id) == FALSE)
-    stop("embeddings do not match validation data")
-  #embeddings without vs with structured data
-  if (INC_STRUC == FALSE) {
-    #get only embeddings columns
-    embeddings_va <- data.matrix(embeddings_va[, ..emb_cols])
-  } else {
-    # concatenate embeddings with structured data
-    embeddings_va <- data.matrix(cbind(embeddings_va[, ..emb_cols], pca_va[, ..pca_cols]))
-  }
-  outlist <- list(tr = embeddings_tr,
-                  va = embeddings_va)
-  return(outlist)
-}
-
-load_x_svd <- function(rep, fold, lab_cw, svd_dim){
-  svd_tr <- fread(paste0(SVDdir, 'r', rep, '_f', fold, '_tr_svd', svd_dim, '.csv'),
-                  skip = 1,
-                  drop = 1)
-  colnames(svd_tr) <- c('sentence_id', paste0('svd', seq(1:as.integer(svd_dim))))
-  pca_tr <- lab_cw$tr
-  svd_cols <- grep('svd', colnames(svd_tr), value = TRUE)
-  pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
-  #test that svd match structured data
-  if (identical(pca_tr$sentence_id, svd_tr$sentence_id) == FALSE)
-    stop("embeddings do not match validation data")
-  #svd without vs with structured data
-  if (INC_STRUC == FALSE) {
-    #load only the svd columns
-    svd_tr <- data.matrix(svd_tr[, ..svd_cols])
-  } else {
-    #concatenate svd with structured data
-    svd_tr <- data.matrix(cbind(svd_tr[, ..svd_cols], pca_tr[, ..pca_cols]))
-  }
-  svd_va <- fread(paste0(SVDdir, 'r', rep, '_f', fold, '_va_svd', svd_dim, '.csv'),
-                  skip = 1,
-                  drop = 1)
-  colnames(svd_va) <- c('sentence_id', paste0('svd', seq(1:as.integer(svd_dim))))
-  pca_va <- lab_cw$va
-  svd_cols <- grep('svd', colnames(svd_va), value = TRUE)
-  pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
-  #test that svd match structured data
-  if (identical(pca_va$sentence_id, svd_va$sentence_id) == FALSE)
-    stop("embeddings do not match validation data")
-  #svd without vs with structured data
-  if (INC_STRUC == FALSE) {
-    #load only the svd columns
-    svd_va <- data.matrix(svd_va[, ..svd_cols])
-  } else {
-    #concatenate svd with structured data
-    svd_va <- data.matrix(cbind(svd_va[, ..svd_cols], pca_va[, ..pca_cols]))
-  }
-  outlist <- list(tr = embeddings_tr,
-                  va = embeddings_va)
-  return(outlist)
-}
-
-load_x <- function(rep, fold, lab_cw, svd_dim = NULL){
-  if (is.null(svd_dim) | svd_dim == "embed"){
-    return(load_x_embeddings(rep, fold, lab_cw))
-  } else {
-    return(load_x_svd(rep, fold, lab_cw, svd_dim))
+# load module
+#set directories based on location
+locs = c("/Users/crandrew/projects/GW_PAIR_frailty_classifier/utils/rf_enet_functions.R",
+         '/gwshare/frailty/utils/rf_enet_functions.R',
+         '/Users/martijac/Documents/Frailty/frailty_classifier/utils/rf_enet_functions.R"/')
+for (loc in locs) {
+  if (file.exists(loc)) {
+    print('loading shared functions')
+    source(loc)
   }
 }
 
 rf <- function(rep, fold, frail_lab, svd, ntree, mtry, sample_frac, case_weights, sample_frac_l){
   # fold = 2
   # rep = 2
-  # frail_lab = 'Msk_prob'
-  # svd = 'embed'
-  # ntree = 400
+  # frail_lab = 'Resp_imp'
+  # svd = '1000'
+  # ntree = 2
   # mtry = 7
   # case_weights = FALSE
   # sample_frac = 1
   # sample_frac_l = 10
-  print(paste0(c("starting",match.call()), collapse = " "))
+  mc <- match.call()
+  print(paste0(c("starting",mc[2:length(mc)]), collapse = " "))
   fname_completed <- paste0(rf_modeldir, 
                             'exp', 
                             batchstring, 
@@ -256,10 +142,11 @@ rf <- function(rep, fold, frail_lab, svd, ntree, mtry, sample_frac, case_weights
   # load X
   X <- load_x(rep, fold, lab_cw, svd)
   if (case_weights == TRUE){
-    cw <- lab_cw$cw
+    cw <- lab_cw$cw[,grep(frail_lab, colnames(lab_cw$cw), value = TRUE)]
   } else {
     cw <- NULL
   }
+  
   benchmark <- benchmark("rf" = {
     frail_rf <- ranger(y = y_train_factor,
                        x = X$tr,
@@ -362,7 +249,7 @@ rf <- function(rep, fold, frail_lab, svd, ntree, mtry, sample_frac, case_weights
   
   #delete clobber
   file.remove(fname_clobber)
-  print(paste0(c("finished",match.call()), collapse = " "))
+  print(paste0(c("finished",mc[2:length(mc)]), collapse = " "))
 }
 
 ############################## RANDOM FOREST ##############################
@@ -373,7 +260,7 @@ mg3 <- expand_grid(
   fold = FOLDS,
   svd = SVD,
   frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-  ntree       = 2,
+  ntree       = 400,
   mtry        = signif(seq(7, 45, length.out = 3), 2),
   sample_frac = signif(seq(0.6, 1, length.out = 3), 1),
   case_weights = c(TRUE, FALSE)
