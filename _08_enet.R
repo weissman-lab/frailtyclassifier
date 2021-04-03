@@ -84,6 +84,7 @@ dir.create(enet_clobberdir)
 #set directories based on location
 locs = c("/Users/crandrew/projects/GW_PAIR_frailty_classifier/utils/rf_enet_functions.R",
          '/gwshare/frailty/utils/rf_enet_functions.R',
+         './utils/rf_enet_functions.R',
          '/Users/martijac/Documents/Frailty/frailty_classifier/utils/rf_enet_functions.R"/')
 for (loc in locs) {
   if (file.exists(loc)) {
