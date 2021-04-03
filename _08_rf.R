@@ -54,16 +54,16 @@ rf_importancedir <- paste0(outdir,'rf_importance/')
 rf_predsdir <- paste0(outdir,'rf_preds/')
 #directory for clobber check:
 rf_clobberdir <- paste0(outdir,'rf_clobber/')
-#directory for performance for each enet model:
-enet_modeldir <- paste0(outdir,'enet_models/')
-#directory for duration for each enet model:
-enet_durationdir <- paste0(outdir,'enet_durations/')
-#directory for coefficients:
-enet_coefsdir <- paste0(outdir,'enet_coefs/')
-#directory for predictions:
-enet_predsdir <- paste0(outdir,'enet_preds/')
-#directory for clobber check:
-enet_clobberdir <- paste0(outdir,'enet_clobber/')
+# #directory for performance for each enet model:
+# enet_modeldir <- paste0(outdir,'enet_models/')
+# #directory for duration for each enet model:
+# enet_durationdir <- paste0(outdir,'enet_durations/')
+# #directory for coefficients:
+# enet_coefsdir <- paste0(outdir,'enet_coefs/')
+# #directory for predictions:
+# enet_predsdir <- paste0(outdir,'enet_preds/')
+# #directory for clobber check:
+# enet_clobberdir <- paste0(outdir,'enet_clobber/')
 #make directories
 dir.create(outdir)
 dir.create(rf_durationdir)
@@ -71,11 +71,11 @@ dir.create(rf_modeldir)
 dir.create(rf_importancedir)
 dir.create(rf_predsdir)
 dir.create(rf_clobberdir)
-dir.create(enet_modeldir)
-dir.create(enet_durationdir)
-dir.create(enet_coefsdir)
-dir.create(enet_predsdir)
-dir.create(enet_clobberdir)
+# dir.create(enet_modeldir)
+# dir.create(enet_durationdir)
+# dir.create(enet_coefsdir)
+# dir.create(enet_predsdir)
+# dir.create(enet_clobberdir)
 
 
 # load module
