@@ -35,22 +35,38 @@ def consolidate_NN_perf():
         multi['brier_mean_aspects'] = multi.loc[:,['Fall_risk', 'Msk_prob', 'Nutrition', 'Resp_imp']].mean(axis = 1)
         # summarize by repeat/fold
         m_col = ['n_dense', 'n_units', 'dropout', 'l1_l2_pen',
-           'use_case_weights', 'repeat', 'fold', 'Fall_risk_neg', 'Fall_risk_neut',
+           'use_case_weights', 'Fall_risk_neg', 'Fall_risk_neut',
            'Fall_risk_pos', 'Msk_prob_neg', 'Msk_prob_neut', 'Msk_prob_pos',
            'Nutrition_neg', 'Nutrition_neut', 'Nutrition_pos', 'Resp_imp_neg',
            'Resp_imp_neut', 'Resp_imp_pos', 'Fall_risk', 'Msk_prob', 'Nutrition',
            'Resp_imp', 'brier_mean_aspects']
-        multi_mean_aspect = multi[m_col].groupby(
-            ['n_dense', 'n_units', 'dropout', 'l1_l2_pen', 'use_case_weights'],
-            as_index=False).mean()
-        multi_se_aspect =  multi[m_col].groupby(
-            ['n_dense', 'n_units', 'dropout', 'l1_l2_pen', 'use_case_weights'],
-            as_index=False).sem()
-        multi_agg_aspect = pd.concat([multi_mean_aspect.add_suffix('_mean'),
-                                      multi_se_aspect.add_suffix('_se')],
-                                     axis=1)
-        multi_agg_aspect['batch'] = batch
-        mult_b.append(multi_agg_aspect)
+        hyper_cols = ['n_dense', 'n_units', 'dropout', 'l1_l2_pen', 'use_case_weights']
+        hyperparam_mean = multi[m_col].groupby(hyper_cols,
+                                               as_index=False).mean()
+        news = [(i, i + '_mean') for i in hyperparam_mean.iloc[:, 5:].columns.values]
+        hyperparam_mean.rename(columns = dict(news), inplace=True)
+        hyperparam_se = multi[m_col].groupby(hyper_cols,
+                                             as_index=False).sem()
+        news = [(i, i + '_se') for i in hyperparam_se.iloc[:, 5:].columns.values]
+        hyperparam_se.rename(columns = dict(news), inplace=True)
+        hyperparam_perf = hyperparam_mean.merge(hyperparam_se, on=hyper_cols)
+        hyperparam_median = multi[m_col].groupby(hyper_cols,
+                                                 as_index=False).median()
+        news = [(i, i + '_median') for i in hyperparam_median.iloc[:, 5:].columns.values]
+        hyperparam_median.rename(columns = dict(news), inplace=True)
+        hyperparam_perf = hyperparam_perf.merge(hyperparam_median, on=hyper_cols)
+        hyperparam_iqr25 = multi[m_col].groupby(hyper_cols,
+                                                as_index=False).quantile(0.25)
+        news = [(i, i + '_iqr25') for i in hyperparam_iqr25.iloc[:, 5:].columns.values]
+        hyperparam_iqr25.rename(columns = dict(news), inplace=True)
+        hyperparam_perf = hyperparam_perf.merge(hyperparam_iqr25, on=hyper_cols)
+        hyperparam_iqr75 = multi[m_col].groupby(hyper_cols,
+                                                as_index=False).quantile(0.75)
+        news = [(i, i + '_iqr75') for i in hyperparam_iqr75.iloc[:, 5:].columns.values]
+        hyperparam_iqr75.rename(columns = dict(news), inplace=True)
+        hyperparam_perf = hyperparam_perf.merge(hyperparam_iqr75, on=hyper_cols)
+        hyperparam_perf['batch'] = batch
+        mult_b.append(hyperparam_perf)
         sd = []
         for pkl in single:
             x = read_pickle(f"{pklpath}{pkl}")
@@ -75,6 +91,7 @@ def consolidate_NN_perf():
     #write out
     stask = pd.concat(single_b).reset_index()
     stask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_stask.csv")
+
 
 '''
 re-run AL00, AL01, AL02 predictions to generate performance for the historical
