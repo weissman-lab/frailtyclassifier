@@ -502,20 +502,33 @@ def AL_learning_curve(latest_batch):
 
     current = current[~current.batch.isin(['AL01', 'AL02'])]
 
-    current = current.loc[current.reset_index().groupby(['batch'])\
+    #summarise with mean
+    current_mean = current.loc[current.groupby(['batch'])\
         ['brier_mean_aspects_mean'].idxmax()] \
         [['batch', 'brier_mean_aspects_mean', 'brier_mean_aspects_se']]
-
-    current['brier_aspectwise'] = current['brier_mean_aspects_mean']
-    current['brier_aspectwise_se'] = current['brier_mean_aspects_se']
-
+    current_mean['brier_aspectwise'] = current_mean['brier_mean_aspects_mean']
+    current_mean['brier_aspectwise_se'] = current_mean['brier_mean_aspects_se']
     historic['brier_aspectwise_se'] = 0
-
     cols = ['batch', 'brier_aspectwise', 'brier_aspectwise_se']
+    learning_curve_AL_mean = pd.concat([current_mean[cols], historic[cols]])
+    learning_curve_AL_mean.to_csv(f"{outdir}figures_tables/learning_curve_AL_mean.csv")
 
-    learning_curve_AL = pd.concat([current[cols], historic[cols]])
-
-    learning_curve_AL.to_csv(f"{outdir}figures_tables/learning_curve_AL.csv")
+    #summarise with median
+    current_median = current.loc[current.groupby(['batch'])\
+        ['brier_mean_aspects_median'].idxmax()] \
+        [['batch',
+          'brier_mean_aspects_median',
+          'brier_mean_aspects_iqr25',
+          'brier_mean_aspects_iqr75']]
+    current_median['brier_aspectwise'] = current_median['brier_mean_aspects_median']
+    current_median['brier_aspectwise_iqr25'] = current_median['brier_mean_aspects_iqr25']
+    current_median['brier_aspectwise_iqr75'] = current_median['brier_mean_aspects_iqr75']
+    historic['brier_aspectwise_iqr25'] = 0
+    historic['brier_aspectwise_iqr75'] = 0
+    cols = ['batch', 'brier_aspectwise',
+            'brier_aspectwise_iqr25', 'brier_aspectwise_iqr75']
+    learning_curve_AL_median = pd.concat([current_median[cols], historic[cols]])
+    learning_curve_AL_median.to_csv(f"{outdir}figures_tables/learning_curve_AL_median.csv")
 
 
 if __name__ == "__main__":
