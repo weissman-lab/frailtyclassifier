@@ -116,6 +116,10 @@ enet <- function(rep, fold, svd, frail_lab, alpha, case_weights, alpha_l){
   #write to prevent clobber
   fname_clobber <- gsub(enet_clobberdir, enet_clobberdir, fname_completed)
   fname_clobber <- gsub("_hypergrid_", "_clobber_", fname_clobber)
+  #skip if impending clobber
+  if (file.exists(fname_clobber)){
+    return(NULL)
+  }
   fwrite(data.frame(clb = 1), fname_clobber)
   lab_cw <- load_labels_caseweights(fold = fold, rep = rep)
   y_cols <- c(paste0(frail_lab, '_neut'),
