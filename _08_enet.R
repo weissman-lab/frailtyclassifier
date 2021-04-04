@@ -278,36 +278,56 @@ mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
 #randomize grid
 mg1 <- mg1[sample(nrow(mg1)), ]
 
-# for (r in 1:nrow(mg1)){
-#   do.call(enet, as.list(mg1[r,]))
-# }
-
-foreach(r = 1:nrow(mg1)) %dopar% {
-  do.call(enet, as.list(mg1[r,]))
+enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
+  tc_error <- tryCatch(
+    {
+      do.call(enet, as.list(mg1[r,]))
+    },
+    
+    #writing generic error messages to trace back later. Was not able to get
+    #foreach to reliably output the real error message AND where it occurred
+    error = function(cond) {
+      return(
+        paste0('error in: exp', batchstring, '_r', mg1$repeats[r], '_f', mg1$fold[r], '_',
+               mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha', mg1$alpha_l[r],
+               '_cw', as.integer(mg1$case_weights[r])))
+    },
+    warning = function(cond) {
+      return(
+        paste0('warning in: exp', batchstring, '_r', mg1$repeats[r], '_f', mg1$fold[r],
+               '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha',
+               mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r])))
+    })
+  return(tc_error)
 }
+
+fwrite(as.data.table(enet_error),
+       paste0(outdir, 'exp', batchstring, '_enet_error.txt'))
+
+
 
 
 # 
-# #run glmnet
+#run glmnet
 # enet_error = foreach (r = 1:nrow(mg1), .errorhandling = "pass") %dopar% {
 #   tc_error <- tryCatch(
 #     {
 #       #check if hyperparams already completed
-#       
-#       
+# 
+# 
 #       if (file.exists(fname_completed) == FALSE) {
-#         
+# 
 #         #check clobber
 #         fname_clobber <- paste0(enet_clobberdir, 'exp', batchstring, '_clobber_r', mg1$repeats[r], '_f',
 #                                 mg1$fold[r], '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha',
 #                                 mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r]), '.csv')
-#         
+# 
 #         if (file.exists(fname_clobber) == FALSE) {
 #           print(paste0(c("starting", fname_completed)))
-#           
+# 
 #           #write to prevent clobber
 #           fwrite(data.frame(clb = 1), fname_clobber)
-#           
+# 
 #           #get matching training and validation labels
 #           x_train <- get(
 #             paste0('r', mg1$repeats[r], '_f', mg1$fold[r], '_s_', mg1$svd[r], '_x_train'))
@@ -320,7 +340,7 @@ foreach(r = 1:nrow(mg1)) %dopar% {
 #             paste0('r', mg1$repeats[r], '_f', mg1$fold[r], '_tr'))[, ..y_cols])
 #           y_validation <- data.matrix(get(
 #             paste0('r', mg1$repeats[r], '_f', mg1$fold[r], '_va'))[, ..y_cols])
-#           
+# 
 #           #get matching case weights
 #           if (mg1$case_weights[r] == FALSE) {
 #             cw <- NULL
@@ -331,7 +351,7 @@ foreach(r = 1:nrow(mg1)) %dopar% {
 #           #measure CPU time for glmnet
 #           benchmark <- benchmark("glmnet" = {
 #             #train model
-#             frail_logit <- glmnet(x_train, 
+#             frail_logit <- glmnet(x_train,
 #                                   y_train,
 #                                   family = 'multinomial',
 #                                   alpha = mg1$alpha[r],
@@ -341,7 +361,7 @@ foreach(r = 1:nrow(mg1)) %dopar% {
 #           }, replications = 1
 #           )
 #           #save benchmarking
-#           fwrite(benchmark, 
+#           fwrite(benchmark,
 #                  paste0(enet_durationdir, 'exp', batchstring, '_duration_hyper_r',
 #                         mg1$repeats[r], '_f', mg1$fold[r], '_', mg1$frail_lab[r], '_svd_',
 #                         mg1$svd[r], '_alpha', mg1$alpha_l[r], '_cw',
@@ -359,7 +379,7 @@ foreach(r = 1:nrow(mg1)) %dopar% {
 #             coefs_save$SVD <- mg1$svd[r]
 #             coefs_save$alpha <- mg1$alpha[r]
 #             coefs_save$case_weights <- mg1$case_weights[r]
-#             fwrite(coefs_save, 
+#             fwrite(coefs_save,
 #                    paste0(enet_coefsdir, 'exp', batchstring, '_coefs_r', mg1$repeats[r], '_f',
 #                           mg1$fold[r], '_', y_cols[c], '_svd_', mg1$svd[r], '_alpha',
 #                           mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r]), '.csv'))
@@ -378,10 +398,10 @@ foreach(r = 1:nrow(mg1)) %dopar% {
 #             preds_s[[d]] <- preds_save
 #           }
 #           preds_save <- rbindlist(preds_s)
-#           fwrite(preds_save, 
-#                  paste0(enet_predsdir, 'exp', batchstring, '_preds_r', mg1$repeats[r], '_f', 
-#                         mg1$fold[r], '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], 
-#                         '_alpha', mg1$alpha_l[r], '_cw', 
+#           fwrite(preds_save,
+#                  paste0(enet_predsdir, 'exp', batchstring, '_preds_r', mg1$repeats[r], '_f',
+#                         mg1$fold[r], '_', mg1$frail_lab[r], '_svd_', mg1$svd[r],
+#                         '_alpha', mg1$alpha_l[r], '_cw',
 #                         as.integer(mg1$case_weights[r]), '.csv'))
 #           #build hyperparameter grid
 #           hyper_grid <- expand.grid(
@@ -421,7 +441,7 @@ foreach(r = 1:nrow(mg1)) %dopar% {
 #             preds <- alpha_preds[, , l]
 #             #check for missing values in preds and relevant obs in validation set
 #             if (((sum(is.na(preds)) > 0) == FALSE) &
-#                 ((sum(y_validation[, 2]) > 0) == TRUE) & 
+#                 ((sum(y_validation[, 2]) > 0) == TRUE) &
 #                 ((sum(y_validation[, 3]) > 0) == TRUE))  {
 #               #single class Brier scores
 #               hyper_grid$bscore_neut[l] = Brier(preds[, 1], y_validation[, 1], 1)
@@ -451,41 +471,41 @@ foreach(r = 1:nrow(mg1)) %dopar% {
 #                                                     weights.class0 = y_validation[, 3])$auc
 #             }
 #           }
-#           
+# 
 #           #save hyper_grid for each glmnet run
-#           fwrite(hyper_grid, 
+#           fwrite(hyper_grid,
 #                  paste0(enet_modeldir, 'exp', batchstring, '_hypergrid_r', mg1$repeats[r], '_f',
 #                         mg1$fold[r], '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha',
 #                         mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r]), '.csv'))
 #           #remove objects & garbage collection
-#           rm(x_train, x_validation, y_train, y_validation, frail_logit, benchmark, 
+#           rm(x_train, x_validation, y_train, y_validation, frail_logit, benchmark,
 #              alpha_preds, preds_save, preds_s, preds, hyper_grid)
-#           
+# 
 #           #delete clobber
 #           file.remove(fname_clobber)
 #         }}
 #     },
-#     
-#     #writing generic error messages to trace back later. Was not able to get 
+# 
+#     #writing generic error messages to trace back later. Was not able to get
 #     #foreach to reliably output the real error message AND where it occurred
 #     error = function(cond) {
 #       return(
-#         paste0('error in: exp', batchstring, '_r', mg1$repeats[r], '_f', mg1$fold[r], '_', 
-#                mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha', mg1$alpha_l[r], 
+#         paste0('error in: exp', batchstring, '_r', mg1$repeats[r], '_f', mg1$fold[r], '_',
+#                mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha', mg1$alpha_l[r],
 #                '_cw', as.integer(mg1$case_weights[r])))
 #     },
 #     warning = function(cond) {
 #       return(
-#         paste0('warning in: exp', batchstring, '_r', mg1$repeats[r], '_f', mg1$fold[r], 
-#                '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha', 
+#         paste0('warning in: exp', batchstring, '_r', mg1$repeats[r], '_f', mg1$fold[r],
+#                '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha',
 #                mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r])))
 #     })
 #   return(tc_error)
 # }
 # 
-# fwrite(as.data.table(enet_error), 
+# fwrite(as.data.table(enet_error),
 #        paste0(outdir, 'exp', batchstring, '_enet_error.txt'))
-# 
+# # 
 # invisible(gc(verbose = FALSE))
 # 
 # 
