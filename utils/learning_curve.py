@@ -6,7 +6,10 @@ from utils.constants import TAGS
 
 outdir = find_outdir()
 
-def learning_curve():
+'''
+consolidate single- and multi-task NN performance
+'''
+def consolidate_NN_perf():
     batches = ['AL01', 'AL02', 'AL03', 'AL04']
     mult_b = []
     single_b = []
