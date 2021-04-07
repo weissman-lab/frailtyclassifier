@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from utils.organization import find_outdir
 from utils.constants import TAGS
+import re
 
 outdir = find_outdir()
 
@@ -28,6 +29,7 @@ def consolidate_NN_perf():
             d['brier_all'] = x['brier_all']
             d['runtime'] = x['runtime']
             d['ran_when'] = x['ran_when']
+            d['pkl_dig'] = re.findall('\d+', pkl)[0]
             xd.append(d)
         multi = pd.DataFrame(xd)
         multi.shape
