@@ -52,8 +52,7 @@ def consolidate_NN_perf():
         single_b.append(single)
 
     #write out
-    mtask = pd.concat(mult_b).sort_values(by='brier_mean_aspects_mean',
-                                    ascending=False).reset_index()
+    mtask = pd.concat(mult_b).reset_index()
     mtask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_mtask.csv")
 
     #write out
