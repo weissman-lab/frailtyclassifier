@@ -307,7 +307,7 @@ if ((nrow(mg1) == 0) == FALSE) {
           coefs_s <- coefs[[y_cols[c]]]
           coefs_save <- as.data.table(t(as.matrix(coefs_s)))
           colnames(coefs_save)[1] <- 'intercept'
-          coefs_save$lambda <- as.character(lambda_seq)
+          coefs_save$lambda <- as.character(frail_logit$lambda)
           coefs_save$frail_lab <- y_cols[c]
           coefs_save$cv_repeat <- mg1$repeats[r]
           coefs_save$fold <- mg1$fold[r]
@@ -322,7 +322,7 @@ if ((nrow(mg1) == 0) == FALSE) {
         #make predictions on validation fold for each alpha
         alpha_preds <- predict(frail_logit, x_validation, type = 'response')
         #set lambas as dimnames for 3rd dimension
-        dimnames(alpha_preds)[[3]] <- lambda_seq
+        dimnames(alpha_preds)[[3]] <- frail_logit$lambda
         #save predictions
         preds_s <- list()
         for (d in 1:dim(alpha_preds)[3]) {
