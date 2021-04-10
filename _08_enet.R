@@ -235,7 +235,7 @@ for (p in 1:length(repeats)) {
 
 
 #set sequence of lambda values to test
-lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
+lambda_seq <- signif(c(10^seq(1, -4, length.out = 20)), 4)
 #tuning grid
 mg1 <- expand_grid(
   repeats = repeats,
