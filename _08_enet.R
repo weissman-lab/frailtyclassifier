@@ -424,12 +424,6 @@ if ((nrow(mg1) == 0) == FALSE) {
           paste0('error in: exp', exp, '_r', mg1$repeats[r], '_f', mg1$fold[r], '_', 
                  mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha', mg1$alpha_l[r], 
                  '_cw', as.integer(mg1$case_weights[r])))
-      },
-      warning = function(cond) {
-        return(
-          paste0('warning in: exp', exp, '_r', mg1$repeats[r], '_f', mg1$fold[r], 
-                 '_', mg1$frail_lab[r], '_svd_', mg1$svd[r], '_alpha', 
-                 mg1$alpha_l[r], '_cw', as.integer(mg1$case_weights[r])))
       })
     return(tc_error)
   }
