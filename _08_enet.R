@@ -434,27 +434,18 @@ if ((nrow(mg1) == 0) == FALSE) {
 
 invisible(gc(verbose = FALSE))
 
-#Summarize enet after all models are complete
-mg1 <- mg1 %>%
-  mutate(filename = 
-           paste0('exp', exp, '_hypergrid_r', repeats, '_f', fold, '_',
-                  frail_lab, '_svd_', svd, '_alpha', alpha_l, '_cw',
-                  as.integer(case_weights), '.csv')) %>%
-  filter(!filename %in% list.files(enet_modeldir))
-if (nrow(mg1) == 0) {
-  #Summarize performance for all completed enet models
-  enet_output <- grep('_hypergrid_', list.files(enet_modeldir), value = TRUE)
-  enet_output <- lapply(paste0(enet_modeldir, enet_output), fread)
-  enet_output <- rbindlist(enet_output)
-  fwrite(enet_output, paste0(outdir, 'exp', exp, '_enet_performance.csv'))
-  #Summarize benchmarking for all completed enet models
-  enet_bench <- grep('_duration_hyper_', list.files(enet_durationdir), value = TRUE)
-  enet_bench <- lapply(paste0(enet_durationdir, enet_bench), fread)
-  enet_bench <- rbindlist(enet_bench)
-  fwrite(enet_bench, paste0(outdir, 'exp', exp, '_enet_cpu_time.csv'))
-  #Summarize coefficients
-  enet_coefs <- grep('_coefs_r', list.files(enet_coefsdir), value = TRUE)
-  enet_coefs <- lapply(paste0(enet_coefsdir, enet_coefs), fread)
-  enet_coefs <- rbindlist(enet_coefs, fill = TRUE)
-  fwrite(enet_coefs, paste0(outdir, 'exp', exp, '_enet_coefs.csv'))
-}
+#Summarize performance for all completed enet models
+enet_output <- grep('_hypergrid_', list.files(enet_modeldir), value = TRUE)
+enet_output <- lapply(paste0(enet_modeldir, enet_output), fread)
+enet_output <- rbindlist(enet_output)
+fwrite(enet_output, paste0(outdir, 'exp', exp, '_enet_performance.csv'))
+#Summarize benchmarking for all completed enet models
+enet_bench <- grep('_duration_hyper_', list.files(enet_durationdir), value = TRUE)
+enet_bench <- lapply(paste0(enet_durationdir, enet_bench), fread)
+enet_bench <- rbindlist(enet_bench)
+fwrite(enet_bench, paste0(outdir, 'exp', exp, '_enet_cpu_time.csv'))
+#Summarize coefficients
+enet_coefs <- grep('_coefs_r', list.files(enet_coefsdir), value = TRUE)
+enet_coefs <- lapply(paste0(enet_coefsdir, enet_coefs), fread)
+enet_coefs <- rbindlist(enet_coefs, fill = TRUE)
+fwrite(enet_coefs, paste0(outdir, 'exp', exp, '_enet_coefs.csv'))
