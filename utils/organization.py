@@ -1,22 +1,25 @@
 import os
 import pandas as pd
 
-if __name__ == "__main__":
-    pass
 
 def find_outdir():
     # get the correct directories
     dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/",
-            "/media/drv2/andrewcd2/frailty/output/", "/gwshare/frailty/output/"]
+            "/media/drv2/andrewcd2/frailty/output/",
+            "/gwshare/frailty/output/",
+            "./output/"]
     for d in dirs:
         if os.path.exists(d):
             outdir = d
     return(outdir)
 
 def summarize_train_test_split():
-    from utils.organization import find_outdir
+    # from utils.organization import find_outdir
     # def table_1_demos():
-    outdir = find_outdir()
+    try:
+        outdir = find_outdir()
+    except:
+        outdir = "./output/"
 
     # load all notes_labeled_embedded (patients who NOT culled)
     nle = [i for i in os.listdir(f"{outdir}notes_labeled_embedded_SENTENCES/")
@@ -139,3 +142,6 @@ def summarize_train_test_split():
 
     rough_test_notes.to_csv(f"{outdir}notes_labeled_embedded_SENTENCES/notes_test_rough.csv")
     nle_train.to_csv(f"{outdir}notes_labeled_embedded_SENTENCES/notes_train_official.csv")
+
+if __name__ == "__main__":
+    pass

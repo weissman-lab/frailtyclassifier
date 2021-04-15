@@ -10,6 +10,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfTransformer
 from utils.constants import OUT_VARNAMES, STR_VARNAMES
+from utils.organization import summarize_train_test_split
 from utils.misc import (sheepish_mkdir, write_pickle, read_pickle, hasher,
                         send_message_to_slack, write_txt, compselect)
 
@@ -28,6 +29,7 @@ class DataProcessor():
         sheepish_mkdir(f"{self.ALdir}/processed_data/full_set")
         sheepish_mkdir(f"{self.ALdir}/processed_data/caseweights")
         sheepish_mkdir(f"{self.ALdir}/processed_data/sklearn_artifacts")
+        summarize_train_test_split()
         if "data_dict.pkl" not in os.listdir(f"{self.ALdir}/processed_data/"):
             self.data_dict = self.load_clean_aggregate()
             write_pickle(self.data_dict, f"{self.ALdir}/processed_data/data_dict.pkl")
