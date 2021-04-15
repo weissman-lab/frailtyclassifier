@@ -42,7 +42,7 @@ embeddingsdir <- paste0(datadir, 'embeddings/')
 trvadatadir <- paste0(datadir, 'trvadata/')
 cwdir <- paste0(datadir, 'caseweights/')
 #new output directory for each experiment:
-outdir <- paste0(rootdir, 'lin_trees/')
+outdir <- paste0(rootdir, 'lin_trees_enet/')
 #directory for performance for each enet model:
 enet_modeldir <- paste0(outdir,'enet_models/')
 #directory for duration for each enet model:
