@@ -35,8 +35,7 @@ def main():
     ########################################
     # load the pickles and figure out which configuration is best
     cvmods = os.listdir(f"{ALdir}cv_models/")
-
-    pkls = [i for i in cvmods if 'model' in i]
+    pkls = [i for i in cvmods if any(re.findall("\d\.pkl", i))]
     cvdf = []
     for pkl in pkls:
         print(pkl)
