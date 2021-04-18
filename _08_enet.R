@@ -42,15 +42,7 @@ embeddingsdir <- paste0(datadir, 'embeddings/')
 trvadatadir <- paste0(datadir, 'trvadata/')
 cwdir <- paste0(datadir, 'caseweights/')
 #new output directory for each experiment:
-outdir <- paste0(rootdir, 'lin_trees/')
-#directory for performance for each rf model:
-rf_modeldir <- paste0(outdir,'rf_models/')
-#directory for duration for each rf model:
-rf_durationdir <- paste0(outdir,'rf_durations/')
-#directory for variable importance:
-rf_importancedir <- paste0(outdir,'rf_importance/')
-#directory for predictions:
-rf_predsdir <- paste0(outdir,'rf_preds/')
+outdir <- paste0(rootdir, 'lin_trees_enet/')
 #directory for performance for each enet model:
 enet_modeldir <- paste0(outdir,'enet_models/')
 #directory for duration for each enet model:
@@ -61,10 +53,6 @@ enet_coefsdir <- paste0(outdir,'enet_coefs/')
 enet_predsdir <- paste0(outdir,'enet_preds/')
 #make directories
 dir.create(outdir)
-dir.create(rf_durationdir)
-dir.create(rf_modeldir)
-dir.create(rf_importancedir)
-dir.create(rf_predsdir)
 dir.create(enet_modeldir)
 dir.create(enet_durationdir)
 dir.create(enet_coefsdir)
