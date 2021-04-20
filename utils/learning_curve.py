@@ -11,7 +11,7 @@ outdir = find_outdir()
 consolidate single- and multi-task NN performance
 '''
 def consolidate_NN_perf():
-    batches = ['AL01', 'AL02', 'AL03', 'AL04']
+    batches = ['AL01', 'AL02', 'AL03', 'AL04', 'AL05']
     mult_b = []
     single_b = []
     for batch in batches:
