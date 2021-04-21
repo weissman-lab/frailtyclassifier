@@ -216,7 +216,6 @@ def main():
             trobj.run()
 
 if __name__ == '__main__':
-    self = myclass(args)
     main()
 
 def old_main():
