@@ -206,7 +206,7 @@ def main():
     singletask = options.singletask
     dev = options.dev
     if singletask == False:
-        assert 2+2==5, "NOT TESTED"
+        raise Exception("not tested!")
         trobj = Trainer(batchstring = batchstring, task = 'multi', dev = dev)
         trobj.run()
     else:
@@ -216,6 +216,7 @@ def main():
             trobj.run()
 
 if __name__ == '__main__':
+    self = myclass(args)
     main()
 
 def old_main():
