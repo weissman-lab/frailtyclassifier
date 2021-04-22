@@ -82,76 +82,42 @@ class RModelDataMaker(TestPredictor):
         self.emb = emb
 
     def generate_files(self):
+        self.df['month'] = self.df.sentence_id.apply(lambda x: int(x.split("_")[2][1:]))
         df = self.df.merge(self.strdat)
         assert df.shape[0] == self.df.shape[0]
-
-self.df.loc[self.df.PAT_ID.isin(self.strdat.PAT_ID)]
-self.df.shape
-df.shape
-self.strdat.drop_duplicates().shape
-self.strdat.PAT_ID.nunique()
-
-        # get embeddings for fold
-        embeddings = emb.reset_index(drop=True)
-        assert df.shape[0] == embeddings.shape[0]
-        # Convert text into matrix of tf-idf features:
-        # id documents
-        docs = dflab['sentence'].tolist()
-        tfidf_ids = dflab['sentence_id'].tolist()
-        # instantiate countvectorizer (turn off default stopwords)
-        cv = CountVectorizer(analyzer='word', stop_words=None)
-        # compute tf
-        f_tf = cv.fit_transform(docs)
-        # id additional stopwords: medlist_was_here_but_got_cut,
-        # meds_was_here_but_got_cut, catv2_was_here_but_got_cut
-        cuttext = '_was_here_but_got_cut'
-        stopw = [i for i in list(cv.get_feature_names()) if re.search(cuttext, i)]
-        # repeat countvec with full list of stopwords
-        cv = CountVectorizer(analyzer='word', stop_words=stopw)
-        # fit to data, then transform to count matrix
-        f_tf = cv.fit_transform(docs)
-        # fit to count matrix, then transform to tf-idf representation
-        tfidf_transformer = TfidfTransformer()
-        f_tfidf = tfidf_transformer.fit_transform(f_tf)
-        # dimensionality reduction with truncated SVD
-        svd_300 = TruncatedSVD(n_components=300, n_iter=5, random_state=9082020)
-        svd_1000 = TruncatedSVD(n_components=1000, n_iter=5, random_state=9082020)
-        # fit to  data & transform
-        f_svd300 = pd.DataFrame(svd_300.fit_transform(f_tfidf))
-        f_svd1000 = pd.DataFrame(svd_1000.fit_transform(f_tfidf))
-        # add sentence ID to all of the TFIDF data frames
+        embeddings = self.emb.reset_index(drop=True)
+        assert self.df.shape[0] == embeddings.shape[0]
+        docs = self.df['sentence'].tolist()
+        tfidf_ids = self.df['sentence_id'].tolist()
+        skd = read_pickle(f"{self.ALdir}processed_data/full_set/full_sklearn_dict.pkl")
+        f_tf = skd['cv'].transform(docs)
+        f_tfidf = skd['tfidf_transformer'].transform(f_tf)
+        f_svd300 = pd.DataFrame(skd['svd_300'].transform(f_tfidf))
+        f_svd1000 = pd.DataFrame(skd['svd_1000'].transform(f_tfidf))
         f_svd300.insert(0, value=tfidf_ids, column='sentence_id')
         f_svd1000.insert(0, value=tfidf_ids, column='sentence_id')
-        # sorting
         embeddings = embeddings.sort_values('sentence_id')
         f_svd300 = f_svd300.sort_values('sentence_id')
         f_svd1000 = f_svd1000.sort_values('sentence_id')
-        # checking
         assert all(df.sentence_id.values == embeddings.sentence_id.values)
         assert all(df.sentence_id.values == f_svd300.sentence_id.values)
         assert all(df.sentence_id.values == f_svd1000.sentence_id.values)
-        # sklearn stuff
-        sklearn_dict['cv'] = cv
-        sklearn_dict['tfidf_transformer'] = tfidf_transformer
-        sklearn_dict['svd_300'] = svd_300
-        sklearn_dict['svd_1000'] = svd_1000
-        # Output for r
-        df.to_csv(f"{self.ALdir}/processed_data/full_set/full_df.csv")
-        embeddings.to_csv(f"{self.ALdir}/processed_data/full_set/full_embed_min_max_mean_SENT.csv")
-        f_svd300.to_csv(f"{self.ALdir}/processed_data/full_set/full_svd300.csv")
-        f_svd1000.to_csv(f"{self.ALdir}/processed_data/full_set/full_svd1000.csv")
-        # case weights
-        cwdf.to_csv(f"{self.ALdir}/processed_data/full_set/full_caseweights.csv")
-        # sklearn artifacts
-        write_pickle(sklearn_dict, f"{self.ALdir}/processed_data/full_set/full_sklearn_dict.pkl")
-        print(f"Saved full data for training after CV")
-
+        sheepish_mkdir(f"{self.ALdir}/processed_data/test_set")
+        df.to_csv(f"{self.ALdir}/processed_data/test_set/full_df.csv")
+        embeddings.to_csv(f"{self.ALdir}/processed_data/test_set/full_embed_min_max_mean_SENT.csv")
+        f_svd300.to_csv(f"{self.ALdir}/processed_data/test_set/full_svd300.csv")
+        f_svd1000.to_csv(f"{self.ALdir}/processed_data/test_set/full_svd1000.csv")
 
 
     def run(self):
         self.compile_text()
         self.compile_structured_data()
+        self.generate_files()
 
 
 if __name__ == "__main__":
-    self = RModelDataMaker(batchstring = '03')
+    RModelDataMaker(batchstring = '01').run()
+    RModelDataMaker(batchstring = '02').run()
+    RModelDataMaker(batchstring = '03').run()
+    RModelDataMaker(batchstring = '04').run()
+    RModelDataMaker(batchstring = '05').run()
