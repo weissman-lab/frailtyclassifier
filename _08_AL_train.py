@@ -9,7 +9,7 @@ import datetime
 import re
 import pandas as pd
 from utils.misc import (read_pickle, write_pickle, sheepish_mkdir,
-                        inv_logit, test_nan_inf)
+                        inv_logit, test_nan_inf, send_message_to_slack)
 from utils.prefit import make_model
 from utils.figures_tables import lossplot
 from utils.constants import TAGS, SENTENCE_LENGTH
@@ -54,11 +54,17 @@ class Trainer:
                 except:
                     pass
             else:
-                x = read_pickle(f"{self.ALdir}cv_models/{pkl}")
-                d = x['config']
-                d['brier_all'] = x['brier_all']
-                d['fn'] = pkl
-                cvdf.append(d)
+                errs = 0
+                try:
+                    x = read_pickle(f"{self.ALdir}cv_models/{pkl}")
+                    d = x['config']
+                    d['brier_all'] = x['brier_all']
+                    d['fn'] = pkl
+                    cvdf.append(d)
+                    except:
+                    errs += 1
+                if errs > 0:
+                    send_message_to_slack(f"{errs} bad pickle files when looking through cv files for {self.batchstring}")
 
 
         df = pd.DataFrame(cvdf)
