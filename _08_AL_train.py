@@ -187,7 +187,8 @@ class Trainer:
                        )
         if self.dev == False:
             sheepish_mkdir(f"{self.ALdir}/final_model")
-            write_pickle(outdict, f"{self.ALdir}/final_model/model_final_{self.batchstring}.pkl")
+            suffix = "" if self.task == "multi" else f"_{self.task}"
+            write_pickle(outdict, f"{self.ALdir}/final_model/model_final_{self.batchstring}{suffix}.pkl")
         else:
             print('it seems to work!')
 
