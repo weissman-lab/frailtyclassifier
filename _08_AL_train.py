@@ -61,7 +61,7 @@ class Trainer:
                     d['brier_all'] = x['brier_all']
                     d['fn'] = pkl
                     cvdf.append(d)
-                    except:
+                except:
                     errs += 1
                 if errs > 0:
                     send_message_to_slack(f"{errs} bad pickle files when looking through cv files for {self.batchstring}")
