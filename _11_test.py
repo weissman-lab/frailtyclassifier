@@ -87,8 +87,8 @@ class TestPredictor:
         scaled = skd['scaler_in'].transform(strdat_imp)
         rot = skd['pca'].transform(scaled)
         rot_scaled = skd['scaler_out'].transform(rot)
-        str_all = pd.concat([strdat.PAT_ID, pd.DataFrame(rot_scaled)], axis=1)
-        str_all.columns = ['PAT_ID'] + ['pca' + str(i) for i in range(rot_scaled.shape[1])]
+        str_all = pd.concat([strdat[['PAT_ID', 'month']], pd.DataFrame(rot_scaled)], axis=1)
+        str_all.columns = ['PAT_ID', 'month'] + ['pca' + str(i) for i in range(rot_scaled.shape[1])]
         #
         self.strdat = str_all
 
@@ -118,6 +118,7 @@ class TestPredictor:
         self.vectorizer = vectorizer
 
     def predict(self):
+        self.df['month'] = self.df.sentence_id.apply(lambda x: int(x.split("_")[2][1:]))
         pred_df = self.df.merge(self.strdat)
         text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
         labels = []
@@ -175,7 +176,7 @@ def main():
 
 
 if __name__ == "__main__":
-    # pass
+    pass
     main()
     # TestPredictor(batchstring='03', task='Msk_prob').run()
     # TestPredictor(batchstring='03', task='Fall_risk').run()
@@ -184,8 +185,8 @@ if __name__ == "__main__":
 # self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
 #
 # xx = preds
-# xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
-
+# # xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
+#
 # y = xx[[i for i in xx.columns if any([j in i for j in TAGS]) and 'pred' not in i]]
 # yhat = xx[[i for i in xx.columns if any([j in i for j in TAGS]) and 'pred' in i]]
 # yhat = yhat[[i+"_pred" for i in y.columns]]
