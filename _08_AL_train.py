@@ -9,19 +9,19 @@ import datetime
 import re
 import pandas as pd
 from utils.misc import (read_pickle, write_pickle, sheepish_mkdir,
-                        inv_logit, test_nan_inf, send_message_to_slack)
+                        inv_logit, test_nan_inf)
 from utils.prefit import make_model
 from utils.figures_tables import lossplot
 from utils.constants import TAGS, SENTENCE_LENGTH
 import numpy as np
 import tensorflow as tf
 
-
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
+
 class Trainer:
-    def __init__(self, batchstring, task, dev = False):
+    def __init__(self, batchstring, task, dev=False):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
@@ -34,7 +34,6 @@ class Trainer:
         self.cfg = None
         self.bestmods = None
         self.hdict = None
-
 
     def get_config(self):
         cvmods = os.listdir(f"{self.ALdir}cv_models/")
@@ -54,18 +53,11 @@ class Trainer:
                 except:
                     pass
             else:
-                errs = 0
-                try:
-                    x = read_pickle(f"{self.ALdir}cv_models/{pkl}")
-                    d = x['config']
-                    d['brier_all'] = x['brier_all']
-                    d['fn'] = pkl
-                    cvdf.append(d)
-                except:
-                    errs += 1
-                if errs > 0:
-                    send_message_to_slack(f"{errs} bad pickle files when looking through cv files for {self.batchstring}")
-
+                x = read_pickle(f"{self.ALdir}cv_models/{pkl}")
+                d = x['config']
+                d['brier_all'] = x['brier_all']
+                d['fn'] = pkl
+                cvdf.append(d)
 
         df = pd.DataFrame(cvdf)
         dfa = df.groupby(['n_dense', 'n_units', 'dropout', 'l1_l2_pen'])['brier_all'].mean().reset_index()
@@ -120,7 +112,7 @@ class Trainer:
             model, vectorizer = make_model(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
                                            sentence_length=SENTENCE_LENGTH,
                                            meta_shape=len(str_varnames),
-                                           tags=[self.task],
+                                           tags=[self.task] if self.task != 'multi' else TAGS,
                                            train_sent=sent,
                                            l1_l2_pen=self.cfg['l1_l2_pen'],
                                            n_units=self.cfg['n_units'],
@@ -142,8 +134,8 @@ class Trainer:
             assert all([all(tf.reduce_mean(tf.cast(i, dtype='float32'), axis=0) % 1 > 0) for i in labels])
         else:
             labels = tf.convert_to_tensor(df[[f"{self.task}_neg",
-                                           f"{self.task}_neut",
-                                           f"{self.task}_pos"]], dtype='float32')
+                                              f"{self.task}_neut",
+                                              f"{self.task}_pos"]], dtype='float32')
             assert all(tf.reduce_mean(tf.cast(labels, dtype='float32'), axis=0) % 1 > 0)
 
         struc = tf.convert_to_tensor(df[str_varnames], dtype='float32')
@@ -203,27 +195,30 @@ class Trainer:
         self.lossplot()
         self.fit()
 
+
 def main():
     p = ArgParser()
     p.add("-b", "--batchstring", help="batch string, i.e.: 00 or 01 or 02")
     p.add("--singletask", action='store_true')
-    p.add("--dev", action = 'store_true')
+    p.add("--dev", action='store_true')
     options = p.parse_args()
     batchstring = options.batchstring
     singletask = options.singletask
     dev = options.dev
     if singletask == False:
         raise Exception("not tested!")
-        trobj = Trainer(batchstring = batchstring, task = 'multi', dev = dev)
+        trobj = Trainer(batchstring=batchstring, task='multi', dev=dev)
         trobj.run()
     else:
         for task in TAGS:
             print(f"starting {task}")
-            trobj = Trainer(batchstring=batchstring, task=task, dev = dev)
+            trobj = Trainer(batchstring=batchstring, task=task, dev=dev)
             trobj.run()
+
 
 if __name__ == '__main__':
     main()
+
 
 def old_main():
     p = ArgParser()
@@ -362,5 +357,3 @@ def old_main():
                    )
     sheepish_mkdir(f"{ALdir}/final_model")
     write_pickle(outdict, f"{ALdir}/final_model/model_final_{batchstring}.pkl")
-
-
