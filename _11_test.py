@@ -13,13 +13,15 @@ pd.options.display.max_columns = 4000
 
 
 class TestPredictor:
-    def __init__(self, batchstring, task):
+    def __init__(self, batchstring, task, use_training_dict = False, save = True):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
         self.ALdir = f"{self.outdir}saved_models/AL{batchstring}/"
         self.batchstring = batchstring
         self.task = task
+        self.save = save
+        self.use_training_dict = use_training_dict
         self.suffix = "" if self.task == "multi" else f"_{self.task}"
         # things defined in methods
         self.df = None
@@ -92,16 +94,26 @@ class TestPredictor:
 
     def reconstitute_model(self):
         mod_dict = read_pickle(f"{self.ALdir}final_model/model_final_{self.batchstring}{self.suffix}.pkl")
+
+        if self.use_training_dict == True:
+            sents = self.training_data.sentence
+        else:
+            sents = self.df.sentence
+
         model, vectorizer = make_model(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
                                        sentence_length=SENTENCE_LENGTH,
                                        meta_shape=len(self.str_varnames),
                                        tags=OUT_VARNAMES if self.task == 'multi' else [self.task],
-                                       train_sent=self.training_data.sentence,
+                                       train_sent=sents,
                                        l1_l2_pen=mod_dict['config']['l1_l2_pen'],
                                        n_units=mod_dict['config']['n_units'],
                                        n_dense=mod_dict['config']['n_dense'],
                                        dropout=mod_dict['config']['dropout'])
-        model.set_weights(mod_dict['weights'])
+        weights = model.get_weights()
+        for i in range(1, len(weights)): # ignore the first weight matrix, which is the embeddings
+            weights[i] = mod_dict['weights'][i]
+        model.set_weights(weights)
+        # model.set_weights(mod_dict['weights'])
         self.model = model
         self.vectorizer = vectorizer
 
@@ -145,7 +157,10 @@ class TestPredictor:
         self.reconstitute_model()
         preds = self.predict()
         sheepish_mkdir(f"{self.ALdir}final_model/test_preds")
-        preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
+        if self.save == True:
+            preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
+
+
 
 
 def main():
@@ -160,16 +175,17 @@ def main():
 
 
 if __name__ == "__main__":
-    pass
+    # pass
     main()
     # TestPredictor(batchstring='03', task='Msk_prob').run()
     # TestPredictor(batchstring='03', task='Fall_risk').run()
     # TestPredictor(batchstring='03', task='multi').run()
 
-
-
-# xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
+# self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
 #
+# xx = preds
+# xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
+
 # y = xx[[i for i in xx.columns if any([j in i for j in TAGS]) and 'pred' not in i]]
 # yhat = xx[[i for i in xx.columns if any([j in i for j in TAGS]) and 'pred' in i]]
 # yhat = yhat[[i+"_pred" for i in y.columns]]
