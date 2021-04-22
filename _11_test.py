@@ -37,7 +37,20 @@ class TestPredictor:
         :return:
         '''
         testnotes = os.listdir(f"{self.outdir}notes_labeled_embedded_SENTENCES/test")
-        testnotes = [i for i in testnotes if int(i.split("_")[3][1:]) > 11]
+        testnotes = [i for i in testnotes if int(i.split("_")[3][1:]) > 12]
+        # culling:  make sure that the PIDs are in the cndf, and then remove one duplicate note
+        cndf = pd.read_pickle(f"{self.outdir}conc_notes_df.pkl")
+        cndf['month'] = cndf.LATEST_TIME.dt.month + (
+                cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
+        # generate 'note' label (used in webanno and notes_labeled_embedded)
+        cndf.month = cndf.month.astype(str)
+        uidstr = ("m" + cndf.month.astype(
+            str) + "_" + cndf.PAT_ID + ".csv").tolist()
+        # conc_notaes_df contains official list of eligible patients
+        notes_in_cndf = [i for i in testnotes if
+                         "_".join(i.split("_")[-2:]) in uidstr]
+        testnotes = [i for i in notes_in_cndf if not re.match('enote_batch_06_m22_0144', i)]
+
         df = pd.concat([pd.read_csv(f"{self.outdir}notes_labeled_embedded_SENTENCES/test/{i}",
                                     index_col=0,
                                     dtype=dict(PAT_ID=str)) for i in testnotes])
@@ -45,6 +58,11 @@ class TestPredictor:
         sent_str = df.sentence.apply(lambda x: "".join(["0" for i in range(6 - len(str(x)))]) + str(x))
         df.insert(2, 'sentence_id', df.note + "_sent" + sent_str)
         df.rename(columns={'sentence': 'sentence_in_note'}, inplace=True)
+
+        df['batch'] = df.sentence_id.apply(lambda x: "_".join(x.split("_")[:2]))
+        df[['note', 'batch']].drop_duplicates().batch.value_counts()
+        df.note.loc[df.batch.isin(['batch_05', 'batch_06'])].unique()
+
         y_dums = pd.concat(
             [pd.get_dummies(df[[i]].astype(str)) for i in OUT_VARNAMES], axis=1)
         df = pd.concat([y_dums, df], axis=1)
@@ -177,12 +195,12 @@ def main():
 
 if __name__ == "__main__":
     pass
-    main()
+    # main()
     # TestPredictor(batchstring='03', task='Msk_prob').run()
     # TestPredictor(batchstring='03', task='Fall_risk').run()
     # TestPredictor(batchstring='03', task='multi').run()
 
-# self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
+self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
 #
 # xx = preds
 # # xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
