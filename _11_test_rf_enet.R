@@ -48,8 +48,8 @@ for (d in 1:length(dirs)) {
 #constants
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 models <- c('enet', 'rf')
-enet_batches <- c('AL01', 'AL03')
-rf_batches <- c('AL01', 'AL03')
+enet_batches <- c('AL01', 'AL02', 'AL03', 'AL04')
+rf_batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
 
 #gather enet performance
 ep_list <- list()
@@ -374,4 +374,4 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
 }}
 
 fwrite(as.data.table(enet_error), 
-       paste0(rootdir, 'final_test_enet_error.txt'))
+       paste0(rootdir, 'final_test_rf_enet_error.txt'))
