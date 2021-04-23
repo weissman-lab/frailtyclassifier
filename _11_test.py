@@ -13,13 +13,15 @@ pd.options.display.max_columns = 4000
 
 
 class TestPredictor:
-    def __init__(self, batchstring, task):
+    def __init__(self, batchstring, task, use_training_dict = False, save = True):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
         self.ALdir = f"{self.outdir}saved_models/AL{batchstring}/"
         self.batchstring = batchstring
         self.task = task
+        self.save = save
+        self.use_training_dict = use_training_dict
         self.suffix = "" if self.task == "multi" else f"_{self.task}"
         # things defined in methods
         self.df = None
@@ -35,7 +37,20 @@ class TestPredictor:
         :return:
         '''
         testnotes = os.listdir(f"{self.outdir}notes_labeled_embedded_SENTENCES/test")
-        testnotes = [i for i in testnotes if int(i.split("_")[3][1:]) > 11]
+        testnotes = [i for i in testnotes if int(i.split("_")[3][1:]) > 12]
+        # culling:  make sure that the PIDs are in the cndf, and then remove one duplicate note
+        cndf = pd.read_pickle(f"{self.outdir}conc_notes_df.pkl")
+        cndf['month'] = cndf.LATEST_TIME.dt.month + (
+                cndf.LATEST_TIME.dt.year - min(cndf.LATEST_TIME.dt.year)) * 12
+        # generate 'note' label (used in webanno and notes_labeled_embedded)
+        cndf.month = cndf.month.astype(str)
+        uidstr = ("m" + cndf.month.astype(
+            str) + "_" + cndf.PAT_ID + ".csv").tolist()
+        # conc_notaes_df contains official list of eligible patients
+        notes_in_cndf = [i for i in testnotes if
+                         "_".join(i.split("_")[-2:]) in uidstr]
+        testnotes = [i for i in notes_in_cndf if not re.match('enote_batch_06_m22_0144', i)]
+
         df = pd.concat([pd.read_csv(f"{self.outdir}notes_labeled_embedded_SENTENCES/test/{i}",
                                     index_col=0,
                                     dtype=dict(PAT_ID=str)) for i in testnotes])
@@ -43,6 +58,11 @@ class TestPredictor:
         sent_str = df.sentence.apply(lambda x: "".join(["0" for i in range(6 - len(str(x)))]) + str(x))
         df.insert(2, 'sentence_id', df.note + "_sent" + sent_str)
         df.rename(columns={'sentence': 'sentence_in_note'}, inplace=True)
+
+        df['batch'] = df.sentence_id.apply(lambda x: "_".join(x.split("_")[:2]))
+        df[['note', 'batch']].drop_duplicates().batch.value_counts()
+        df.note.loc[df.batch.isin(['batch_05', 'batch_06'])].unique()
+
         y_dums = pd.concat(
             [pd.get_dummies(df[[i]].astype(str)) for i in OUT_VARNAMES], axis=1)
         df = pd.concat([y_dums, df], axis=1)
@@ -85,27 +105,38 @@ class TestPredictor:
         scaled = skd['scaler_in'].transform(strdat_imp)
         rot = skd['pca'].transform(scaled)
         rot_scaled = skd['scaler_out'].transform(rot)
-        str_all = pd.concat([strdat.PAT_ID, pd.DataFrame(rot_scaled)], axis=1)
-        str_all.columns = ['PAT_ID'] + ['pca' + str(i) for i in range(rot_scaled.shape[1])]
+        str_all = pd.concat([strdat[['PAT_ID', 'month']], pd.DataFrame(rot_scaled)], axis=1)
+        str_all.columns = ['PAT_ID', 'month'] + ['pca' + str(i) for i in range(rot_scaled.shape[1])]
         #
         self.strdat = str_all
 
     def reconstitute_model(self):
         mod_dict = read_pickle(f"{self.ALdir}final_model/model_final_{self.batchstring}{self.suffix}.pkl")
+
+        if self.use_training_dict == True:
+            sents = self.training_data.sentence
+        else:
+            sents = self.df.sentence
+
         model, vectorizer = make_model(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
                                        sentence_length=SENTENCE_LENGTH,
                                        meta_shape=len(self.str_varnames),
                                        tags=OUT_VARNAMES if self.task == 'multi' else [self.task],
-                                       train_sent=self.training_data.sentence,
+                                       train_sent=sents,
                                        l1_l2_pen=mod_dict['config']['l1_l2_pen'],
                                        n_units=mod_dict['config']['n_units'],
                                        n_dense=mod_dict['config']['n_dense'],
                                        dropout=mod_dict['config']['dropout'])
-        model.set_weights(mod_dict['weights'])
+        weights = model.get_weights()
+        for i in range(1, len(weights)): # ignore the first weight matrix, which is the embeddings
+            weights[i] = mod_dict['weights'][i]
+        model.set_weights(weights)
+        # model.set_weights(mod_dict['weights'])
         self.model = model
         self.vectorizer = vectorizer
 
     def predict(self):
+        self.df['month'] = self.df.sentence_id.apply(lambda x: int(x.split("_")[2][1:]))
         pred_df = self.df.merge(self.strdat)
         text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
         labels = []
@@ -145,11 +176,14 @@ class TestPredictor:
         self.reconstitute_model()
         preds = self.predict()
         sheepish_mkdir(f"{self.ALdir}final_model/test_preds")
-        preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
+        if self.save == True:
+            preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
+
+
 
 
 def main():
-    for tag in [TAGS + 'multi']:
+    for tag in TAGS + ['multi']:
         for bs in ["0" + str(i + 1) for i in range(5)]:
             try:
                 TestPredictor(batchstring=bs, task=tag).run()
@@ -161,14 +195,15 @@ def main():
 
 if __name__ == "__main__":
     pass
-    main()
+    # main()
     # TestPredictor(batchstring='03', task='Msk_prob').run()
     # TestPredictor(batchstring='03', task='Fall_risk').run()
     # TestPredictor(batchstring='03', task='multi').run()
 
-
-
-# xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
+self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
+#
+# xx = preds
+# # xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
 #
 # y = xx[[i for i in xx.columns if any([j in i for j in TAGS]) and 'pred' not in i]]
 # yhat = xx[[i for i in xx.columns if any([j in i for j in TAGS]) and 'pred' in i]]
