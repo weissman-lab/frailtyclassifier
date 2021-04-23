@@ -394,13 +394,7 @@ fwrite(rf_test_perf, paste0(rootdir, 'figures_tables/RF_test_set_performance.csv
 
 
 
-#Get best enet hyperparams
-perf_l <- list()
-for (b in 1:length(enet_batches)) {
-  perf <- perf_calc_MEAN(enet_performance[batch == enet_batches[b],])[[1]]
-  perf_l[[b]] <- perf
-}
-enet_hyperparams <- rbindlist(perf_l)
+
 
 
 #check for models that have already been completed & remove them from the grid
@@ -565,7 +559,7 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
       #performance metrics
       hyper_grid <- data.frame(batch = enet_hyperparams$batch[r])
       hyper_grid$frail_lab <- enet_hyperparams$frail_lab[r]
-      hyper_grid$SVD <- enet_hyperparams$svd[r]
+      hyper_grid$SVD <- enet_hyperparams$SVD[r]
       hyper_grid$lamba <- lambda_seq[length(lambda_seq)]
       hyper_grid$alpha <- enet_hyperparams$alpha[r]
       hyper_grid$case_weights <- enet_hyperparams$case_weights[r]
