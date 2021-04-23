@@ -192,6 +192,7 @@ for (b in 1:length(batches)){
 }
 
 #RFs
+if ((nrow(rf_hyperparams) == 0) == FALSE) {
 for (r in 1:nrow(rf_hyperparams)){
   #set directories
   batch_root <- paste0(rootdir, rf_hyperparams$batch[r], '/')
@@ -370,7 +371,7 @@ for (r in 1:nrow(rf_hyperparams)){
   fwrite(hyper_grid, 
          paste0(rf_modeldir, rf_hyperparams$batch[r], '_',
                 rf_hyperparams$frail_lab[r], '_performance.csv'))
-}
+}}
 
 
 #summarize results
