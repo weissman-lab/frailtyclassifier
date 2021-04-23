@@ -194,13 +194,14 @@ def main():
 
 
 if __name__ == "__main__":
-    pass
-    # main()
+    main()
+
+
     # TestPredictor(batchstring='03', task='Msk_prob').run()
     # TestPredictor(batchstring='03', task='Fall_risk').run()
     # TestPredictor(batchstring='03', task='multi').run()
 
-self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
+# self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
 #
 # xx = preds
 # # xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
