@@ -183,7 +183,7 @@ class TestPredictor:
 
 
 def main():
-    for tag in [TAGS + 'multi']:
+    for tag in TAGS + ['multi']:
         for bs in ["0" + str(i + 1) for i in range(5)]:
             try:
                 TestPredictor(batchstring=bs, task=tag).run()
