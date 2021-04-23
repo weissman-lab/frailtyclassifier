@@ -147,13 +147,13 @@ rf_hyperparams <- rbindlist(perf_l)
 # for each row in enet_hyperparams train then test 
 # for each row in f_hyperparams train then test
 
-# # make outdirs
+# make outdirs
 # batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
 # for (b in 1:length(batches)){
 #   batch_root <- paste0(rootdir, batches[b], '/')
-#   outdir <- paste0(batch_root, 'lin_trees_final_test_practice/')
-#   rf_coefsdir <- paste0(outdir, 'rf_coefs/')
-#   unlink(rf_coefsdir, recursive = TRUE)
+#   outdir <- paste0(batch_root, 'lin_trees_final_test/')
+#   enet_modeldir <- paste0(outdir, 'enet_models/')
+#   unlink(enet_modeldir, recursive = TRUE)
 # }
 
 # make outdirs
@@ -383,6 +383,7 @@ for (w in 1:nrow(rf_hyperparams_full)){
   rf_modeldir <- paste0(outdir,'rf_models/')
   md <- fread(paste0(rf_modeldir, rf_hyperparams_full$batch[w], '_',
                      rf_hyperparams_full$frail_lab[w], '_performance.csv'))
+  md$model <- 'rf'
   md_l[[w]] <- md
 }
 rf_test_perf <- rbindlist(md_l)
@@ -522,7 +523,7 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
       lambda_seq <- c(signif(c(10^seq(2, 0, length.out = 5)), 4),
                       enet_hyperparams$lambda[r])
       
-      lambda_seq <- signif(c(10^seq(2, 0, length.out = 5)), 4)
+      #lambda_seq <- signif(c(10^seq(2, 0, length.out = 5)), 4)
       
       #train model
       frail_logit <- glmnet(x_train, 
@@ -614,6 +615,7 @@ for (w in 1:nrow(enet_hyperparams_full)){
   enet_modeldir <- paste0(outdir,'enet_models/')
   md <- fread(paste0(enet_modeldir, enet_hyperparams_full$batch[w], '_',
                      enet_hyperparams_full$frail_lab[w], '_performance.csv'))
+  md$model <- 'enet'
   md_l[[w]] <- md
 }
 enet_test_perf <- rbindlist(md_l)
