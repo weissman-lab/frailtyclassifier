@@ -171,13 +171,14 @@ class TestPredictor:
         return out
 
     def run(self):
-        self.compile_text()
-        self.compile_structured_data()
-        self.reconstitute_model()
-        preds = self.predict()
-        sheepish_mkdir(f"{self.ALdir}final_model/test_preds")
-        if self.save == True:
-            preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
+        if not os.path.isfile(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv"):
+            self.compile_text()
+            self.compile_structured_data()
+            self.reconstitute_model()
+            preds = self.predict()
+            sheepish_mkdir(f"{self.ALdir}final_model/test_preds")
+            if self.save == True:
+                preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
 
 
 
@@ -199,7 +200,8 @@ if __name__ == "__main__":
 
     # TestPredictor(batchstring='03', task='Msk_prob').run()
     # TestPredictor(batchstring='03', task='Fall_risk').run()
-    # TestPredictor(batchstring='03', task='multi').run()
+    # self = TestPredictor(batchstring='03', task='multi')
+    # self.run()
 
 # self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
 #
