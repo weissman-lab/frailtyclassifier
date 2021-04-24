@@ -48,10 +48,8 @@ for (d in 1:length(dirs)) {
 #constants
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 models <- c('enet', 'rf')
-#enet_batches <- c('AL01', 'AL02', 'AL03', 'AL04')
-# rf_batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
-enet_batches <- c('AL01', 'AL03')
-rf_batches <- c('AL01', 'AL03')
+enet_batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
+rf_batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
 
 #gather enet performance
 ep_list <- list()
@@ -147,13 +145,17 @@ rf_hyperparams <- rbindlist(perf_l)
 # for each row in enet_hyperparams train then test 
 # for each row in f_hyperparams train then test
 
-# make outdirs
+# delete outdirs
 # batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
 # for (b in 1:length(batches)){
 #   batch_root <- paste0(rootdir, batches[b], '/')
 #   outdir <- paste0(batch_root, 'lin_trees_final_test/')
-#   enet_modeldir <- paste0(outdir, 'enet_models/')
+#   enet_modeldir <- paste0(outdir,'enet_models/')
+#   enet_coefsdir <- paste0(outdir, 'enet_coefs/')
+#   enet_predsdir <- paste0(outdir, 'enet_preds/')
 #   unlink(enet_modeldir, recursive = TRUE)
+#   unlink(enet_coefsdir, recursive = TRUE)
+#   unlink(enet_predsdir, recursive = TRUE)
 # }
 
 # make outdirs
@@ -388,11 +390,11 @@ for (w in 1:nrow(rf_hyperparams_full)){
 }
 rf_test_perf <- rbindlist(md_l)
 
-cols <- c('batch', 'frail_lab',
+cols <- c('model', 'batch', 'frail_lab',
           grep('sbrier', colnames(rf_test_perf), value = TRUE))
 print(rf_test_perf[, ..cols])
 
-fwrite(rf_test_perf, paste0(rootdir, 'figures_tables/RF_test_set_performance.csv'))
+fwrite(rf_test_perf, paste0('/gwshare/frailty/output/figures_tables/RF_test_set_performance.csv'))
 
 
 
@@ -620,6 +622,8 @@ for (w in 1:nrow(enet_hyperparams_full)){
 }
 enet_test_perf <- rbindlist(md_l)
 
-cols <- c('batch', 'frail_lab',
+fwrite(enet_test_perf, paste0('/gwshare/frailty/output/enet_test_set_performance.csv'))
+
+cols <- c('model', 'batch', 'frail_lab',
           grep('sbrier', colnames(enet_test_perf), value = TRUE))
 print(enet_test_perf[, ..cols])
