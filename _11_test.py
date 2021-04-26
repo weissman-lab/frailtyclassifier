@@ -200,10 +200,10 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
+    main()
 
 
-    self = TestPredictor(batchstring='03', task='Msk_prob')
+    # self = TestPredictor(batchstring='03', task='Msk_prob')
     # TestPredictor(batchstring='03', task='Fall_risk').run()
     # self = TestPredictor(batchstring='03', task='multi')
     # self.run()
