@@ -124,6 +124,8 @@ perf_calc_MEAN <- function(raw_perf){
 }
 
 
+raw_perf <- enet_performance[batch == 'AL01', ]
+
 #Get best enet hyperparams
 perf_l <- list()
 for (b in 1:length(enet_batches)) {
@@ -522,8 +524,7 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
       y_train <- data.matrix(train_df[, ..y_cols])
       y_test <- data.matrix(test_df[, ..y_cols])
       
-      lambda_seq <- c(signif(c(10^seq(2, 0, length.out = 5)), 4),
-                      enet_hyperparams$lambda[r])
+      lambda_seq <- seq(100, enet_hyperparams$lambda[r], length.out = 10)
       
       #lambda_seq <- signif(c(10^seq(2, 0, length.out = 5)), 4)
       
@@ -533,7 +534,8 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
                             family = 'multinomial',
                             alpha = enet_hyperparams$alpha[r],
                             lambda = lambda_seq,
-                            weights = cw_train_only)
+                            weights = cw_train_only,
+                            maxit = 1e7)
       
       #save coefficients
       coefs <- predict(frail_logit, x_test, type = 'coefficients')
