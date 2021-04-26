@@ -109,6 +109,11 @@ class TestPredictor:
         str_all.columns = ['PAT_ID', 'month'] + ['pca' + str(i) for i in range(rot_scaled.shape[1])]
         #
         self.strdat = str_all
+        # trimming outliers:
+        for p in [i for i in self.strdat.columns if 'pca' in i]:
+            self.strdat.loc[self.strdat[p]>4] = 4
+            self.strdat.loc[self.strdat[p]< -4] = -4
+
 
     def reconstitute_model(self):
         mod_dict = read_pickle(f"{self.ALdir}final_model/model_final_{self.batchstring}{self.suffix}.pkl")
@@ -171,14 +176,14 @@ class TestPredictor:
         return out
 
     def run(self):
-        if not os.path.isfile(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv"):
-            self.compile_text()
-            self.compile_structured_data()
-            self.reconstitute_model()
-            preds = self.predict()
-            sheepish_mkdir(f"{self.ALdir}final_model/test_preds")
-            if self.save == True:
-                preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
+        # if not os.path.isfile(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv"):
+        self.compile_text()
+        self.compile_structured_data()
+        self.reconstitute_model()
+        preds = self.predict()
+        sheepish_mkdir(f"{self.ALdir}final_model/test_preds")
+        if self.save == True:
+            preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
 
 
 
@@ -195,10 +200,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
 
 
-    # TestPredictor(batchstring='03', task='Msk_prob').run()
+    self = TestPredictor(batchstring='03', task='Msk_prob')
     # TestPredictor(batchstring='03', task='Fall_risk').run()
     # self = TestPredictor(batchstring='03', task='multi')
     # self.run()
