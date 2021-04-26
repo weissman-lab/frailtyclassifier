@@ -20,6 +20,34 @@ scaled_Brier <- function(predictions, observations, positive_class) {
          Brier(mean(observations), observations, positive_class))
 }
 
+# predictions <- preds[, 1]
+# observations <- y_test[, 1]
+# positive_class <- 1
+#look at missing sentence preds
+# preds_save[is.na(Fall_risk_neut),]
+# 
+# test_embed <- fread(paste0(
+#   batch_root, 'processed_data/test_set/full_embed_min_max_mean_SENT.csv'),
+#   drop = 1)
+# if (identical(test_df$sentence_id, test_embed$sentence_id) == FALSE)
+#   stop("test embeddings do not match structured data")
+# emb_cols_test <- grep('min_|max_|mean_', colnames(test_embed), value = TRUE)
+# if (identical(emb_cols, emb_cols_test) == FALSE) stop("train embed does not 
+#       match test embed")
+# 
+# x_test <- data.matrix(cbind(test_embed[, ..emb_cols],
+#                             test_df[, ..pca_cols]))
+# 
+# cols <- c('sentence_id', pca_cols)
+# sum(is.na(test_embed[sentence_id == 'batch_06_m15_015567852_sent000000', ]))
+# sum(is.na(test_df[sentence_id == 'batch_06_m15_015567852_sent000000', ..cols]))
+# 
+# bad_sent <- preds_save[is.na(Fall_risk_neut),]$sentence_id
+# test_df[sentence_id %in% (bad_sent)]
+# 
+# #very strange pca
+# test_df[sentence_id == 'batch_06_m15_015567852_sent000000', ..cols]
+
 # multiclass Brier score
 multi_Brier <- function(predictions, observations) {
   mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
@@ -474,6 +502,19 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
         x_test <- data.matrix(cbind(test_embed[, ..emb_cols],
                                         test_df[, ..pca_cols]))
       
+        
+        #####################truncate test PCA####################
+        test_pca <- test_df[, ..pca_cols]
+        test_pca[test_pca < -4] <- -4
+        test_pca[test_pca > 4] <- 4
+        # for (p in 1:length(pca_cols)){
+        #   print(range(test_pca[[pca_cols[p]]]))
+        # }
+        x_test <- data.matrix(cbind(test_embed[, ..emb_cols],
+                                    test_pca))
+        
+        
+        
       # 300-d SVD
       } else if (enet_hyperparams$SVD[r] == '300'){
         # x_train
