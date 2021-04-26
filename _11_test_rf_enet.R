@@ -123,8 +123,17 @@ perf_calc_MEAN <- function(raw_perf){
   return(list(select(step_1, -'hyperp'), step_3))
 }
 
+# raw_perf <- enet_performance[batch == 'AL01', ]
+# 
+# bestlam <- enet_performance[(lambda == 0.0021540 & alpha == 0.1 & case_weights == FALSE &
+#                    batch == 'AL04'), ]
 
-raw_perf <- enet_performance[batch == 'AL01', ]
+# step 1:
+group1 <- c('frail_lab', hypDerparams)
+step_1 <- raw_perf %>%
+  group_by_at(vars(all_of(group1))) %>%
+  summarise_at(vars(grep('sbrier', colnames(raw_perf), value = TRUE)),
+               list(mean = mean, sd = sd), na.rm = FALSE) 
 
 #Get best enet hyperparams
 perf_l <- list()
@@ -424,7 +433,7 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
       #set directories
       batch_root <- paste0(rootdir, enet_hyperparams$batch[r], '/')
       outdir <- paste0(batch_root, 'lin_trees_final_test/')
-      enet_modeldir <- paste0(outdir,'enet_models/')
+      enet_modeldir <- paste0(outdir, 'enet_models/')
       enet_coefsdir <- paste0(outdir, 'enet_coefs/')
       enet_predsdir <- paste0(outdir, 'enet_preds/')
     
@@ -524,8 +533,9 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
       y_train <- data.matrix(train_df[, ..y_cols])
       y_test <- data.matrix(test_df[, ..y_cols])
       
-      lambda_seq <- seq(100, enet_hyperparams$lambda[r], length.out = 10)
-      
+      lambda_seq <- c(10^seq(1, log10(enet_hyperparams$lambda[r]),
+                             length.out = 5))
+      #lambda_seq <- seq(100, enet_hyperparams$lambda[r], length.out = 10)
       #lambda_seq <- signif(c(10^seq(2, 0, length.out = 5)), 4)
       
       #train model
