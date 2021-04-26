@@ -128,13 +128,6 @@ perf_calc_MEAN <- function(raw_perf){
 # bestlam <- enet_performance[(lambda == 0.0021540 & alpha == 0.1 & case_weights == FALSE &
 #                    batch == 'AL04'), ]
 
-# step 1:
-group1 <- c('frail_lab', hypDerparams)
-step_1 <- raw_perf %>%
-  group_by_at(vars(all_of(group1))) %>%
-  summarise_at(vars(grep('sbrier', colnames(raw_perf), value = TRUE)),
-               list(mean = mean, sd = sd), na.rm = FALSE) 
-
 #Get best enet hyperparams
 perf_l <- list()
 for (b in 1:length(enet_batches)) {
