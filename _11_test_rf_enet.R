@@ -20,34 +20,6 @@ scaled_Brier <- function(predictions, observations, positive_class) {
          Brier(mean(observations), observations, positive_class))
 }
 
-# predictions <- preds[, 1]
-# observations <- y_test[, 1]
-# positive_class <- 1
-#look at missing sentence preds
-# preds_save[is.na(Fall_risk_neut),]
-# 
-# test_embed <- fread(paste0(
-#   batch_root, 'processed_data/test_set/full_embed_min_max_mean_SENT.csv'),
-#   drop = 1)
-# if (identical(test_df$sentence_id, test_embed$sentence_id) == FALSE)
-#   stop("test embeddings do not match structured data")
-# emb_cols_test <- grep('min_|max_|mean_', colnames(test_embed), value = TRUE)
-# if (identical(emb_cols, emb_cols_test) == FALSE) stop("train embed does not 
-#       match test embed")
-# 
-# x_test <- data.matrix(cbind(test_embed[, ..emb_cols],
-#                             test_df[, ..pca_cols]))
-# 
-# cols <- c('sentence_id', pca_cols)
-# sum(is.na(test_embed[sentence_id == 'batch_06_m15_015567852_sent000000', ]))
-# sum(is.na(test_df[sentence_id == 'batch_06_m15_015567852_sent000000', ..cols]))
-# 
-# bad_sent <- preds_save[is.na(Fall_risk_neut),]$sentence_id
-# test_df[sentence_id %in% (bad_sent)]
-# 
-# #very strange pca
-# test_df[sentence_id == 'batch_06_m15_015567852_sent000000', ..cols]
-
 # multiclass Brier score
 multi_Brier <- function(predictions, observations) {
   mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
@@ -151,10 +123,6 @@ perf_calc_MEAN <- function(raw_perf){
   return(list(select(step_1, -'hyperp'), step_3))
 }
 
-# raw_perf <- enet_performance[batch == 'AL01', ]
-# 
-# bestlam <- enet_performance[(lambda == 0.0021540 & alpha == 0.1 & case_weights == FALSE &
-#                    batch == 'AL04'), ]
 
 #Get best enet hyperparams
 perf_l <- list()
@@ -177,17 +145,18 @@ rf_hyperparams <- rbindlist(perf_l)
 # for each row in enet_hyperparams train then test 
 # for each row in f_hyperparams train then test
 
-# delete outdirs
+# # delete outdirs
 # batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
 # for (b in 1:length(batches)){
 #   batch_root <- paste0(rootdir, batches[b], '/')
 #   outdir <- paste0(batch_root, 'lin_trees_final_test/')
-#   enet_modeldir <- paste0(outdir,'enet_models/')
-#   enet_coefsdir <- paste0(outdir, 'enet_coefs/')
-#   enet_predsdir <- paste0(outdir, 'enet_preds/')
-#   unlink(enet_modeldir, recursive = TRUE)
-#   unlink(enet_coefsdir, recursive = TRUE)
-#   unlink(enet_predsdir, recursive = TRUE)
+#   # enet_modeldir <- paste0(outdir,'enet_models/')
+#   # enet_coefsdir <- paste0(outdir, 'enet_coefs/')
+#   # enet_predsdir <- paste0(outdir, 'enet_preds/')
+#   unlink(outdir, recursive = TRUE)
+#   # unlink(enet_modeldir, recursive = TRUE)
+#   # unlink(enet_coefsdir, recursive = TRUE)
+#   # unlink(enet_predsdir, recursive = TRUE)
 # }
 
 # make outdirs
@@ -276,8 +245,11 @@ for (r in 1:nrow(rf_hyperparams)){
     emb_cols_test <- grep('min_|max_|mean_', colnames(test_embed), value = TRUE)
     if (identical(emb_cols, emb_cols_test) == FALSE) stop("train embed does not 
       match test embed")
-    x_test <- data.matrix(cbind(test_embed[, ..emb_cols],
-                                test_df[, ..pca_cols]))
+    # remove extreme outliers from test PCA
+    test_pca <- test_df[, ..pca_cols]
+    test_pca[test_pca < -4] <- -4
+    test_pca[test_pca > 4] <- 4
+    x_test <- data.matrix(cbind(test_embed[, ..emb_cols], test_pca))
     
     # 300-d SVD
   } else if (rf_hyperparams$SVD[r] == '300'){
@@ -298,8 +270,11 @@ for (r in 1:nrow(rf_hyperparams)){
     colnames(test_svd_300) <- c('sentence_id', paste0('svd', seq(1:300)))
     if (identical(test_df$sentence_id, test_svd_300$sentence_id) == FALSE)
       stop("test 300-d svd does not match structured data")
-    x_test <- data.matrix(cbind(test_svd_300[, ..svd_cols],
-                                test_df[, ..pca_cols]))
+    # remove extreme outliers from test PCA
+    test_pca <- test_df[, ..pca_cols]
+    test_pca[test_pca < -4] <- -4
+    test_pca[test_pca > 4] <- 4
+    x_test <- data.matrix(cbind(test_svd_300[, ..svd_cols], test_pca))
     
     # 1000-d SVD
   } else if (rf_hyperparams$SVD[r] == '1000'){
@@ -320,8 +295,11 @@ for (r in 1:nrow(rf_hyperparams)){
     colnames(test_svd_1000) <- c('sentence_id', paste0('svd', seq(1:1000)))
     if (identical(test_df$sentence_id, test_svd_1000$sentence_id) == FALSE)
       stop("test 1000-d svd does not match structured data")
-    x_test <- data.matrix(cbind(test_svd_1000[, ..svd_cols],
-                                test_df[, ..pca_cols]))
+    # remove extreme outliers from test PCA
+    test_pca <- test_df[, ..pca_cols]
+    test_pca[test_pca < -4] <- -4
+    test_pca[test_pca > 4] <- 4
+    x_test <- data.matrix(cbind(test_svd_1000[, ..svd_cols], test_pca))
   }
   
   #labels
@@ -499,21 +477,11 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
         emb_cols_test <- grep('min_|max_|mean_', colnames(test_embed), value = TRUE)
         if (identical(emb_cols, emb_cols_test) == FALSE) stop("train embed does not 
       match test embed")
-        x_test <- data.matrix(cbind(test_embed[, ..emb_cols],
-                                        test_df[, ..pca_cols]))
-      
-        
-        #####################truncate test PCA####################
+        # remove extreme outliers from test PCA
         test_pca <- test_df[, ..pca_cols]
         test_pca[test_pca < -4] <- -4
         test_pca[test_pca > 4] <- 4
-        # for (p in 1:length(pca_cols)){
-        #   print(range(test_pca[[pca_cols[p]]]))
-        # }
-        x_test <- data.matrix(cbind(test_embed[, ..emb_cols],
-                                    test_pca))
-        
-        
+        x_test <- data.matrix(cbind(test_embed[, ..emb_cols], test_pca))
         
       # 300-d SVD
       } else if (enet_hyperparams$SVD[r] == '300'){
@@ -534,8 +502,11 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
         colnames(test_svd_300) <- c('sentence_id', paste0('svd', seq(1:300)))
         if (identical(test_df$sentence_id, test_svd_300$sentence_id) == FALSE)
           stop("test 300-d svd does not match structured data")
-        x_test <- data.matrix(cbind(test_svd_300[, ..svd_cols],
-                                          test_df[, ..pca_cols]))
+        # remove extreme outliers from test PCA
+        test_pca <- test_df[, ..pca_cols]
+        test_pca[test_pca < -4] <- -4
+        test_pca[test_pca > 4] <- 4
+        x_test <- data.matrix(cbind(test_svd_300[, ..svd_cols], test_pca))
       
       # 1000-d SVD
       } else if (enet_hyperparams$SVD[r] == '1000'){
@@ -556,8 +527,11 @@ enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %do
         colnames(test_svd_1000) <- c('sentence_id', paste0('svd', seq(1:1000)))
         if (identical(test_df$sentence_id, test_svd_1000$sentence_id) == FALSE)
           stop("test 1000-d svd does not match structured data")
-        x_test <- data.matrix(cbind(test_svd_1000[, ..svd_cols],
-                                           test_df[, ..pca_cols]))
+        # remove extreme outliers from test PCA
+        test_pca <- test_df[, ..pca_cols]
+        test_pca[test_pca < -4] <- -4
+        test_pca[test_pca > 4] <- 4
+        x_test <- data.matrix(cbind(test_svd_1000[, ..svd_cols], test_pca))
       }
     
       #labels
@@ -668,8 +642,14 @@ for (w in 1:nrow(enet_hyperparams_full)){
 }
 enet_test_perf <- rbindlist(md_l)
 
-fwrite(enet_test_perf, paste0('/gwshare/frailty/output/enet_test_set_performance.csv'))
-
 cols <- c('model', 'batch', 'frail_lab',
           grep('sbrier', colnames(enet_test_perf), value = TRUE))
 print(enet_test_perf[, ..cols])
+
+fwrite(enet_test_perf, paste0('/gwshare/frailty/output/figures_tables/enet_test_set_performance.csv'))
+
+
+
+
+
+
