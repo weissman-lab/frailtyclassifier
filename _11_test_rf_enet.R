@@ -1,6 +1,7 @@
 library(data.table)
 library(dplyr)
 library(tidyr)
+library(stringr)
 library(glmnet)
 library(ranger)
 library(PRROC)
@@ -47,37 +48,57 @@ for (d in 1:length(dirs)) {
 
 #constants
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
-models <- c('enet', 'rf')
-enet_batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
-rf_batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
+models <- c('enet', 'rf', 'nn_single')
+batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
 
 #gather enet performance
 ep_list <- list()
-for (b in 1:length(enet_batches)){
+for (b in 1:length(batches)){
   ep <- fread(paste0(rootdir,
-                     enet_batches[b], '/lin_trees_enet/exp',
-                     enet_batches[b], '_enet_performance.csv'))
+                     batches[b], '/lin_trees_enet/exp',
+                     batches[b], '_enet_performance.csv'))
   ep$model <- 'enet'
-  ep$batch <- enet_batches[b]
+  ep$batch <- batches[b]
   ep_list[[b]] <- ep
 }
 enet_performance <- rbindlist(ep_list)
 
 #gather rf performance
 rf_list <- list()
-for (b in 1:length(rf_batches)){
+for (b in 1:length(batches)){
   rf <- fread(paste0(rootdir,
-                     rf_batches[b], '/lin_trees/exp',
-                     rf_batches[b], '_rf_performance.csv'))
+                     batches[b], '/lin_trees/exp',
+                     batches[b], '_rf_performance.csv'))
   rf$model <- 'rf'
-  rf$batch <- rf_batches[b]
+  rf$batch <- batches[b]
   rf_list[[b]] <- rf
 }
 rf_performance <- rbindlist(rf_list)
 
+#gather single-task NN performance
+nn_single_performance <- fread(paste0(rootdir,
+                                      tail(batches, 1),
+                                      '/learning_curve_stask.csv'))
+nn_single_performance[, 'sbrier_neg'] <- 
+  apply(nn_single_performance[, .SD, .SDcols = (paste0(frail_lab, '_neg'))],
+        1, max, na.rm=TRUE)
+nn_single_performance[, 'sbrier_neut'] <- 
+  apply(nn_single_performance[, .SD, .SDcols = (paste0(frail_lab, '_neut'))],
+        1, max, na.rm=TRUE)
+nn_single_performance[, 'sbrier_pos'] <- 
+  apply(nn_single_performance[, .SD, .SDcols = (paste0(frail_lab, '_pos'))],
+        1, max, na.rm=TRUE)
+nn_single_performance[, 'sbrier_multi'] <- nn_single_performance[, 'brier_all']
+nn_single_performance[, 'frail_lab'] <- str_sub(nn_single_performance$tags, 3, -3)
+nn_single_performance[, 'model'] <- 'nn_single'
+nn_single_performance[, 'cv_repeat'] <- nn_single_performance[, 'repeat']
+
+
 #list relevant hyperparams
 hyperparams_enet <- c('SVD', 'lambda', 'alpha', 'case_weights')
 hyperparams_rf <- c('SVD', 'mtry', 'sample_frac', 'case_weights')
+hyperparams_nn <- c('n_dense', 'n_units', 'dropout', 'l1_l2_pen',
+                    'use_case_weights')
 
 # step 1: find the best hyperparams for each aspect and calculate performance
 # step 2: using the best hyperparams only, calcuLate the mean scaled brier
@@ -85,12 +106,16 @@ hyperparams_rf <- c('SVD', 'mtry', 'sample_frac', 'case_weights')
 # step 3: find the mean and sd for performance across all folds
 # note: this should be run separately for each batch
 perf_calc_MEAN <- function(raw_perf){
+  #drop repeat 3 fold 9 (performance outlier - likely collinearity issue)
+  raw_perf <- filter(raw_perf, !(cv_repeat == 3 & fold == 9))
   raw_perf <- as.data.frame(raw_perf)
   if (raw_perf$model[1] == 'enet') {
     hyperparams = hyperparams_enet
   } else if (raw_perf$model[1] == 'rf') {
     hyperparams = hyperparams_rf
-  }
+  } else if (raw_perf$model[1] == 'nn_single') {
+    hyperparams = hyperparams_nn
+    }
   # step 1:
   group1 <- c('frail_lab', hyperparams)
   step_1 <- raw_perf %>%
@@ -123,27 +148,184 @@ perf_calc_MEAN <- function(raw_perf){
   return(list(select(step_1, -'hyperp'), step_3))
 }
 
-
+# CROSS VALIDATION HYPERPARAMETERS SUMMARY
 #Get best enet hyperparams
 perf_l <- list()
-for (b in 1:length(enet_batches)) {
-  perf <- perf_calc_MEAN(enet_performance[batch == enet_batches[b],])[[1]]
+for (b in 1:length(batches)) {
+  perf <- perf_calc_MEAN(enet_performance[batch == batches[b],])[[1]]
   perf_l[[b]] <- perf
 }
 enet_hyperparams <- rbindlist(perf_l)
 
 #Get best rf hyperparams
 perf_l <- list()
-for (b in 1:length(rf_batches)) {
-  perf <- perf_calc_MEAN(rf_performance[batch == rf_batches[b],])[[1]]
+for (b in 1:length(batches)) {
+  perf <- perf_calc_MEAN(rf_performance[batch == batches[b],])[[1]]
   perf_l[[b]] <- perf
 }
 rf_hyperparams <- rbindlist(perf_l)
 
+#Get best nn single task hyperparams
+perf_l <- list()
+for (b in 1:length(batches)) {
+  perf <- perf_calc_MEAN(nn_single_performance[batch == batches[b],])[[1]]
+  perf_l[[b]] <- perf
+}
+nn_single_hyperparams <- rbindlist(perf_l)
 
-#batch ->
-# for each row in enet_hyperparams train then test 
-# for each row in f_hyperparams train then test
+#Get best nn multi task hyperparams
+# (fewer steps to summarize because all aspects get the same hyperparams)
+nn_multi_performance <- fread(paste0(rootdir,
+                                     tail(batches, 1),
+                                     '/learning_curve_mtask.csv'))
+nn_multi_performance[, 'cv_repeat'] <- nn_multi_performance[, 'repeat']
+#drop repeat 3 fold 9 (performance outlier - likely collinearity issue)
+nn_multi_performance <- filter(nn_multi_performance, !(cv_repeat == 3 & fold == 9))
+nn_multi_performance[, 'sbrier_multi_all'] <- nn_multi_performance[, 'brier_mean_aspects']
+group <- c('batch', hyperparams_nn)
+nn_multi_hyperparams <- nn_multi_performance %>%
+  group_by_at(vars(all_of(group))) %>%
+  summarise_at(vars(grep('Fall_risk|Msk_prob|Nutrition|Resp_imp|brier', colnames(nn_multi_performance), value = TRUE)),
+               list(mean = mean,
+                    sd = sd)) %>%
+  ungroup() %>%
+  group_by(batch) %>%
+  arrange(desc(sbrier_multi_all_mean)) %>%
+  slice(1) %>%
+  ungroup()
+nn_multi_hyperparams$model <- 'nn_multi'
+
+
+# CROSS VALIDATION PERFORMANCE SUMMARY
+mod_l <- list()
+for (m in 1:length(models)) {
+  perf_l <- list()
+  for (b in 1:length(batches)) {
+    perf <- perf_calc_MEAN(get(paste0(models[m], '_performance'))[batch == batches[b],])
+    perf_l[[b]] <- perf[[2]][c('model', 'batch', 'sbrier_multi_all_mean',
+                               'sbrier_multi_all_sd')]
+  }
+  mod_l <- c(mod_l, perf_l)
+}
+train_performance_mean <- rbindlist(mod_l)
+nn_multi_perf <- select(nn_multi_hyperparams,
+                        c('batch', 'model',
+                          'sbrier_multi_all_mean',
+                          'sbrier_multi_all_sd'))
+train_performance_mean <- rbind(train_performance_mean, nn_multi_perf)
+
+fwrite(train_performance_mean,
+       paste0('/gwshare/frailty/output/figures_tables/all_train_cv_performance.csv'))
+
+
+
+# TEST SET PERFORMANCE
+#multi-task neural nets
+bbs <- list()
+for (b in 1:length(batches)){
+  test_preds <- fread(paste0(rootdir, batches[b],
+                             '/final_model/test_preds/test_preds_',
+                             batches[b],
+                             '.csv'))
+  sbs <- list()
+  for (f in 1:length(frail_lab)){
+    neg <- grep(paste0(frail_lab[f], '_neg'), colnames(test_preds), value = TRUE)
+    neut <- grep(paste0(frail_lab[f], '_neut'), colnames(test_preds), value = TRUE)
+    pos <- grep(paste0(frail_lab[f], '_pos'), colnames(test_preds), value = TRUE)
+    cols <- c(neg, neut, pos)
+    preds <- grep('_pred', cols, value = TRUE)
+    preds <- test_preds[, ..preds]
+    obs <- grep('_pred', cols, value = TRUE, invert = TRUE)
+    obs <- test_preds[, ..obs]
+    sb <- data.frame(frail_lab = frail_lab[f])
+    sb$batch <- batches[b]
+    sb$hyperparams <- mutate(nn_multi_hyperparams[nn_multi_hyperparams$batch == batches[b], ],
+                             hyperparams = paste0('dense_', n_dense,
+                                                  ' units_', n_units,
+                                                  ' dropout_', dropout,
+                                                  ' l1l2_', l1_l2_pen,
+                                                  ' cw_', use_case_weights))$hyperparams
+    sb$sbrier_multi <-multi_scaled_Brier(preds, obs)
+    sb$sbrier_neg = scaled_Brier(preds[[1]], obs[[1]], 1)
+    sb$sbrier_neut = scaled_Brier(preds[[2]], obs[[2]], 1)
+    sb$sbrier_pos = scaled_Brier(preds[[3]], obs[[3]], 1)
+    #Precision-recall area under the curve
+    sb$PR_AUC_neg = pr.curve(scores.class0 = preds[[1]],
+                             weights.class0 = obs[[1]])$auc.integral
+    sb$PR_AUC_neut = pr.curve(scores.class0 = preds[[2]],
+                                      weights.class0 = obs[[2]])$auc.integral
+    sb$PR_AUC_pos = pr.curve(scores.class0 = preds[[3]],
+                                     weights.class0 = obs[[3]])$auc.integral
+    #Receiver operating characteristic area under the curve
+    sb$ROC_AUC_neg = roc.curve(scores.class0 = preds[[1]],
+                               weights.class0 = obs[[1]])$auc
+    sb$ROC_AUC_neut = roc.curve(scores.class0 = preds[[2]],
+                                weights.class0 = obs[[2]])$auc
+    sb$ROC_AUC_pos = roc.curve(scores.class0 = preds[[3]],
+                               weights.class0 = obs[[3]])$auc
+    sbs[[f]] <- sb
+  }
+  sbs_l <- rbindlist(sbs)
+  bbs[[b]] <- sbs_l
+}
+nn_multi_test_perf <- rbindlist(bbs)
+nn_multi_test_perf$model <- 'nn_multi'
+
+#single-task neural nets
+bbs <- list()
+for (b in 1:length(batches)){
+  sbs <- list()
+  for (f in 1:length(frail_lab)){
+    test_preds <- fread(paste0(rootdir,
+                               batches[b],
+                               '/final_model/test_preds/test_preds_',
+                               batches[b],
+                               '_',
+                               frail_lab[f],
+                               '.csv'))
+    neg <- grep(paste0(frail_lab[f], '_neg'), colnames(test_preds), value = TRUE)
+    neut <- grep(paste0(frail_lab[f], '_neut'), colnames(test_preds), value = TRUE)
+    pos <- grep(paste0(frail_lab[f], '_pos'), colnames(test_preds), value = TRUE)
+    cols <- c(neg, neut, pos)
+    preds <- grep('_pred', cols, value = TRUE)
+    preds <- test_preds[, ..preds]
+    obs <- grep('_pred', cols, value = TRUE, invert = TRUE)
+    obs <- test_preds[, ..obs]
+    sb <- data.frame(frail_lab = frail_lab[f])
+    sb$batch <- batches[b]
+    sb$hyperparams <- mutate(nn_single_hyperparams[nn_single_hyperparams$batch == batches[b] &
+                                                     nn_single_hyperparams$frail_lab == frail_lab[f], ],
+                             hyperparams = paste0('dense_', n_dense,
+                                                  ' units_', n_units,
+                                                  ' dropout_', dropout,
+                                                  ' l1l2_', l1_l2_pen,
+                                                  ' cw_', use_case_weights))$hyperparams
+    sb$sbrier_multi <-multi_scaled_Brier(preds, obs)
+    sb$sbrier_neg = scaled_Brier(preds[[1]], obs[[1]], 1)
+    sb$sbrier_neut = scaled_Brier(preds[[2]], obs[[2]], 1)
+    sb$sbrier_pos = scaled_Brier(preds[[3]], obs[[3]], 1)
+    #Precision-recall area under the curve
+    sb$PR_AUC_neg = pr.curve(scores.class0 = preds[[1]],
+                             weights.class0 = obs[[1]])$auc.integral
+    sb$PR_AUC_neut = pr.curve(scores.class0 = preds[[2]],
+                              weights.class0 = obs[[2]])$auc.integral
+    sb$PR_AUC_pos = pr.curve(scores.class0 = preds[[3]],
+                             weights.class0 = obs[[3]])$auc.integral
+    #Receiver operating characteristic area under the curve
+    sb$ROC_AUC_neg = roc.curve(scores.class0 = preds[[1]],
+                               weights.class0 = obs[[1]])$auc
+    sb$ROC_AUC_neut = roc.curve(scores.class0 = preds[[2]],
+                                weights.class0 = obs[[2]])$auc
+    sb$ROC_AUC_pos = roc.curve(scores.class0 = preds[[3]],
+                               weights.class0 = obs[[3]])$auc
+    sbs[[f]] <- sb
+  }
+  sbs_l <- rbindlist(sbs)
+  bbs[[b]] <- sbs_l
+}
+nn_single_test_perf <- rbindlist(bbs)
+nn_single_test_perf$model <- 'nn_single'
+
 
 # # delete outdirs
 # batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
@@ -387,7 +569,7 @@ for (r in 1:nrow(rf_hyperparams)){
 
 
 #summarize results
-rf_hyperparams_full <- filter(rf_hyperparams_full, batch %in% rf_batches)
+rf_hyperparams_full <- filter(rf_hyperparams_full, batch %in% batches)
 md_l <- list()
 for (w in 1:nrow(rf_hyperparams_full)){
   batch_root <- paste0(rootdir, rf_hyperparams_full$batch[w], '/')
@@ -404,7 +586,8 @@ cols <- c('model', 'batch', 'frail_lab',
           grep('sbrier', colnames(rf_test_perf), value = TRUE))
 print(rf_test_perf[, ..cols])
 
-fwrite(rf_test_perf, paste0('/gwshare/frailty/output/figures_tables/RF_test_set_performance.csv'))
+fwrite(rf_test_perf,
+       paste0('/gwshare/frailty/output/figures_tables/RF_test_set_performance.csv'))
 
 
 
@@ -629,7 +812,7 @@ fwrite(as.data.table(enet_error),
 
 
 #summarize results
-enet_hyperparams_full <- filter(enet_hyperparams_full, batch %in% enet_batches)
+enet_hyperparams_full <- filter(enet_hyperparams_full, batch %in% batches)
 md_l <- list()
 for (w in 1:nrow(enet_hyperparams_full)){
   batch_root <- paste0(rootdir, enet_hyperparams_full$batch[w], '/')
@@ -646,10 +829,36 @@ cols <- c('model', 'batch', 'frail_lab',
           grep('sbrier', colnames(enet_test_perf), value = TRUE))
 print(enet_test_perf[, ..cols])
 
-fwrite(enet_test_perf, paste0('/gwshare/frailty/output/figures_tables/enet_test_set_performance.csv'))
+fwrite(enet_test_perf,
+       paste0('/gwshare/frailty/output/figures_tables/enet_test_set_performance.csv'))
 
 
 
+enet_test_perf$hyperparams <- 
+  mutate(enet_hyperparams_full,
+         hyperparams = paste0(SVD,
+                              ' lambda_', lambda,
+                              ' alpha_', alpha,
+                              ' cw_', case_weights))$hyperparams
+rf_test_perf$hyperparams <- 
+  mutate(rf_hyperparams_full,
+         hyperparams = paste0(SVD,
+                              ' mtry_', mtry,
+                              ' samplefrac_', sample_frac,
+                              ' cw_', case_weights))$hyperparams
+nn_single_test_perf
+nn_multi_test_perf
 
+cols <- c('model', 'batch', 'frail_lab', 'hyperparams',
+          'sbrier_multi', 'sbrier_neg', 'sbrier_neut', 'sbrier_pos',
+          'PR_AUC_neg', 'PR_AUC_neut', 'PR_AUC_pos',
+          'ROC_AUC_neg', 'ROC_AUC_neut', 'ROC_AUC_pos')
 
+all_test_perf <- rbind(enet_test_perf[, ..cols],
+                       rf_test_perf[, ..cols],
+                       nn_single_test_perf[, ..cols],
+                       nn_multi_test_perf[, ..cols])
+
+fwrite(all_test_perf,
+       paste0('/gwshare/frailty/output/figures_tables/all_test_set_performance.csv'))
 
