@@ -5,12 +5,6 @@ library(ggplot2)
 library(ggrepel)
 library(stringr)
 
-se <- function(x) {
-  # remove NA (necessary if there is an error (e.g. test fold is completely 
-  # missing pos or neg class))
-  x <- x[!is.na(x)]
-  sd(x)/sqrt(length(x))
-}
 
 # set directories based on location
 dirs = c(paste0('/gwshare/frailty/output/saved_models/'),
@@ -24,63 +18,7 @@ for (d in 1:length(dirs)) {
 
 #constants
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
-models <- c('enet', 'rf', 'nn_single')
-rfenet_batches <- c('AL03', 'AL04')
-nn_batches <- c('AL01', 'AL02', 'AL03', 'AL04')
-
-#gather enet performance
-ep_list <- list()
-for (b in 1:length(rfenet_batches)){
-  if (rfenet_batches[b] == 'AL03') {
-    ep <- fread(paste0(rootdir,
-                    'lin_trees_SENT/exp1292021/exp1292021_enet_performance.csv'))
-  } else {
-    ep <- fread(paste0(rootdir,
-                       'saved_models/', rfenet_batches[b], '/lin_trees/exp',
-                       rfenet_batches[b], '_enet_performance.csv'))
-  }
-  ep$model <- 'enet'
-  ep$batch <- rfenet_batches[b]
-  ep_list[[b]] <- ep
-}
-enet_performance <- rbindlist(ep_list)
-
-#gather rf performance
-rf_list <- list()
-for (b in 1:length(rfenet_batches)){
-  if (rfenet_batches[b] == 'AL03') {
-    rf <- fread(paste0(rootdir,
-                       'lin_trees_SENT/exp1292021/exp1292021_rf_performance.csv'))
-  } else {
-    rf <- fread(paste0(rootdir,
-                       'saved_models/', rfenet_batches[b], '/lin_trees/exp',
-                       rfenet_batches[b], '_rf_performance.csv'))
-  }
-  rf$model <- 'rf'
-  rf$batch <- rfenet_batches[b]
-  rf_list[[b]] <- rf
-}
-rf_performance <- rbindlist(rf_list)
-
-
-#gather single-task NN performance
-nn_single_performance <- fread(paste0(rootdir,
-                                      'saved_models/',
-                                      tail(nn_batches, 1),
-                                      '/learning_curve_stask.csv'))
-nn_single_performance[, 'sbrier_neg'] <- 
-  apply(nn_single_performance[, .SD, .SDcols = (paste0(frail_lab, '_neg'))],
-        1, max, na.rm=TRUE)
-nn_single_performance[, 'sbrier_neut'] <- 
-  apply(nn_single_performance[, .SD, .SDcols = (paste0(frail_lab, '_neut'))],
-        1, max, na.rm=TRUE)
-nn_single_performance[, 'sbrier_pos'] <- 
-  apply(nn_single_performance[, .SD, .SDcols = (paste0(frail_lab, '_pos'))],
-        1, max, na.rm=TRUE)
-nn_single_performance[, 'sbrier_multi'] <- nn_single_performance[, 'brier_all']
-nn_single_performance[, 'frail_lab'] <- str_sub(nn_single_performance$tags, 3, -3)
-nn_single_performance[, 'model'] <- 'nn_single'
-nn_single_performance[, 'cv_repeat'] <- nn_single_performance[, 'repeat']
+batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
 
 
 # Calculate performance. Skip step #1 &2 for multi-task. Must go through 
@@ -145,9 +83,11 @@ perf_calc_MEAN <- function(raw_perf){
 mod_l <- list()
 for (m in 1:length(models)) {
   if (models[m] == 'nn_single') {
-    batches <- nn_batches
-  } else {
-    batches <- rfenet_batches
+    batches <- batches
+  } else if (models[m] == 'enet'){
+    batches <- enet_batches
+  } else if (models[m] == 'rf'){
+    batches <- rf_batches
   }
   perf_l <- list()
   for (b in 1:length(batches)) {
@@ -212,8 +152,10 @@ mod_l <- list()
 for (m in 1:length(models)) {
   if (models[m] == 'nn_single') {
     batches <- nn_batches
-  } else {
-    batches <- rfenet_batches
+  } else if (models[m] == 'enet'){
+    batches <- enet_batches
+  } else if (models[m] == 'rf'){
+    batches <- rf_batches
   }
   perf_l <- list()
   for (b in 1:length(batches)) {
@@ -470,15 +412,16 @@ note_raw <- fread(paste0(rootdir,
 note_count <- note_raw %>%
   group_by(batch) %>%
   count()
-AL01 = sum(note_count[note_count$batch %in% c('batch_01', 'batch_02', 
-                                              'batch_03', 'AL00'), ]$n)
+AL00 = sum(note_count[note_count$batch %in% c('batch_01', 'batch_02', 
+                                              'batch_03'), ]$n)
+AL01 = sum(note_count[note_count$batch %in% c('AL00'), ]$n, AL00)
 AL02 = sum(note_count[note_count$batch %in% c('AL01', 'AL01_v2',
                                               'AL01_v2ALTERNATE'), ]$n, AL01)
 AL03 = sum(note_count[note_count$batch %in% c('AL02_v2'), ]$n, AL02)
 AL04 = sum(note_count[note_count$batch %in% c('AL03'), ]$n, AL03)
-check_note_count <- data.frame(n_patients= c(AL01, AL02, AL03, AL04),
-                         batch = c('AL01', 'AL02', 'AL03', 'AL04'))
-if (identical(sent_count$n_patients, check_note_count$n_patients) == FALSE)
+check_note_count <- data.frame(n_patients= c(AL00, AL01, AL02, AL03, AL04),
+                         batch = c('AL00', 'AL01', 'AL02', 'AL03', 'AL04'))
+if (identical(sent_count$n_patients, check_note_count$n_patients[2:5]) == FALSE)
   stop("note counts do not match")
 
 #Total sentence counts for latest batch
