@@ -7,6 +7,43 @@ from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
 from gensim.models import KeyedVectors
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l1_l2
+from utils.constants import ROBERTA_MAX_TOKS
+from transformers import RobertaTokenizer, RobertaConfig, TFRobertaModel
+import tensorflow as tf
+
+
+def make_roberta_model(meta_shape,
+                       tags,
+                       l1_l2_pen,
+                       n_units,
+                       n_dense,
+                       dropout,
+                       emb_path = None,
+                       sentence_length = None,
+                       train_sent = None,
+                       ):
+    '''outputs a tokenizer and a roberta model'''
+    tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+
+    structured_input = Input(shape=meta_shape, name='inp_str')
+    input_ids = Input(shape=ROBERTA_MAX_TOKS, dtype=tf.int32, name='inp_ids')
+    attention_mask = Input(shape=ROBERTA_MAX_TOKS, dtype=tf.int32, name='inp_attnmask')
+    config = RobertaConfig.from_pretrained('roberta-base' ,output_hidden_states=True)
+    encoder = TFRobertaModel.from_pretrained('roberta-base', config=config)
+    embedding = encoder(input_ids,
+                        attention_mask=attention_mask,
+                        )[2][-1][:,0,:]
+
+    for i in range(n_dense):
+        d = Dense(n_units, activation='relu',
+                  kernel_regularizer=l1_l2(l1_l2_pen))(embedding if i == 0 else drp)
+        drp = Dropout(dropout)(d)
+    penultimate = concatenate([drp, structured_input])
+    out = [Dense(3, activation='softmax', name=t)(penultimate) for t in tags]
+
+    model = Model(inputs=[input_ids, attention_mask, structured_input], outputs=out)
+    return model, tokenizer
+
 
 
 def make_model(emb_path,

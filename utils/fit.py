@@ -5,14 +5,15 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from sklearn.metrics import roc_auc_score, average_precision_score
-from utils.prefit import make_model
-from utils.constants import SENTENCE_LENGTH, TAGS
+from utils.prefit import make_model, make_roberta_model
+from utils.constants import SENTENCE_LENGTH, TAGS, ROBERTA_MAX_TOKS
 import datetime
 from utils.misc import write_pickle, sheepish_mkdir, test_nan_inf, inv_logit, write_txt
 
 
 def AL_CV(index,
           batchstring,
+          embeddings,
           n_dense,
           n_units,
           dropout,
@@ -21,11 +22,24 @@ def AL_CV(index,
           repeat,
           fold,
           tags = TAGS):
+# index = 482
+# batchstring = '01'
+# embeddings = 'roberta'
+# n_units = 22
+# n_dense = 2
+# dropout = .5
+# l1_l2_pen = .00001
+# use_case_weights = False
+# repeat = 3
+# fold = 9
+# tags = TAGS
     #################
     outdir = f"{os.getcwd()}/output/"
     datadir = f"{os.getcwd()}/data/"
     ALdir = f"{outdir}saved_models/AL{batchstring}/"
     cv_savepath = f"{ALdir}cv_models/"
+    if embeddings == "roberta":
+        cv_savepath += "roberta/"
     sheepish_mkdir(cv_savepath)
     savename = f"model_pickle_cv_{index}{tags if isinstance(tags, str) else ''}.pkl" # append the aspect if singletasking
     tokname = re.sub("model_pickle", "antiClobberToken", savename)
@@ -62,8 +76,10 @@ def AL_CV(index,
         # create model and vectorizer
         mirrored_strategy = tf.distribute.MirroredStrategy()
 
+        mmfun = make_roberta_model if embeddings == 'roberta' else make_model
+        lr = 1e-5 if embeddings == 'roberta' else 1e-4
         with mirrored_strategy.scope():
-            model, vectorizer = make_model(emb_path=f"{datadir}w2v_oa_all_300d.bin",
+            model, vectorizer = mmfun(emb_path=f"{datadir}w2v_oa_all_300d.bin",
                                            sentence_length=SENTENCE_LENGTH,
                                            meta_shape=len(str_varnames),
                                            tags=tags,
@@ -77,12 +93,48 @@ def AL_CV(index,
                                                              patience=25,
                                                              restore_best_weights=True)
             model.compile(loss='categorical_crossentropy',
-                          optimizer=tf.keras.optimizers.Adam(1e-4))
+                          optimizer=tf.keras.optimizers.Adam(lr))
 
         #####################
         # prepare data for tensorfow
-        tr_text = vectorizer(np.array([[s] for s in train_sent]))
-        va_text = vectorizer(np.array([[s] for s in test_sent]))
+        if embeddings == 'roberta':
+            tok = vectorizer(train_sent.tolist())
+            tr_ids, tr_atm = [], []
+            for i in range(len(train_sent)):
+                if len(tok['input_ids'][i])<=ROBERTA_MAX_TOKS:
+                    id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
+                    att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
+                else:
+                    id = tok['input_ids'][i][:ROBERTA_MAX_TOKS]
+                    att = tok['attention_mask'][i][:ROBERTA_MAX_TOKS]
+                assert len(id) == ROBERTA_MAX_TOKS
+                assert len(att) == ROBERTA_MAX_TOKS
+                tr_ids.append(id)
+                tr_atm.append(att)
+            tr_ids = tf.stack(tr_ids)
+            tr_atm = tf.stack(tr_atm)
+            assert tr_ids.shape == tr_atm.shape
+
+            tok = vectorizer(test_sent.tolist())
+            va_ids, va_atm = [], []
+            for i in range(len(test_sent)):
+                if len(tok['input_ids'][i])<=ROBERTA_MAX_TOKS:
+                    id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
+                    att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
+                else:
+                    id = tok['input_ids'][i][:ROBERTA_MAX_TOKS]
+                    att = tok['attention_mask'][i][:ROBERTA_MAX_TOKS]
+                va_ids.append(id)
+                va_atm.append(att)
+            va_ids = tf.stack(va_ids)
+            va_atm = tf.stack(va_atm)
+            assert va_ids.shape == va_atm.shape
+
+        else:
+            tr_text = vectorizer(np.array([[s] for s in train_sent]))
+            va_text = vectorizer(np.array([[s] for s in test_sent]))
+            test_nan_inf(tr_text)
+            test_nan_inf(va_text)
 
         tr_labels = []
         va_labels = []
@@ -97,8 +149,6 @@ def AL_CV(index,
 
         case_weights_tensor_list = [tf.convert_to_tensor(case_weights[t + "_cw"]) for t in tags]
 
-        test_nan_inf(tr_text)
-        test_nan_inf(va_text)
         test_nan_inf(tr_labels)
         test_nan_inf(va_labels)
         test_nan_inf(tr_struc)
@@ -121,11 +171,13 @@ def AL_CV(index,
         # fit the model
 
         start_time = time.time()
-        history = model.fit(x=[tr_text, tr_struc],
+        xtr = [tr_ids, tr_atm, tr_struc] if embeddings == 'roberta' else [tr_text, tr_struc]
+        xva = [va_ids, va_atm, va_struc] if embeddings == 'roberta' else [va_text, va_struc]
+
+        history = model.fit(x=xtr,
                             y=tr_labels,
-                            validation_data=(
-                                [va_text, va_struc], va_labels),
-                            epochs=1000,
+                            validation_data=(xva, va_labels),
+                            epochs=1,
                             batch_size=32,
                             verbose=1,
                             sample_weight=case_weights_tensor_list if use_case_weights == True else None,
@@ -133,7 +185,7 @@ def AL_CV(index,
         runtime = time.time() - start_time
         ################################
         # predictions and metrics
-        va_preds = model.predict([va_text, va_struc])
+        va_preds = model.predict(xva)
 
         subtags = [f"{t}_{i}" for t in tags for i in ['neg', 'neut', 'pos']]
 
