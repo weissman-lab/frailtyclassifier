@@ -55,10 +55,7 @@ class BCBEmbedder:
 
     def __call__(self, sentence_list):
         self.sentence_list = sentence_list
-        if self.model_type == 'emilyalsentzer/Bio_ClinicalBERT':
-            out = self.make_cls_array()
-        else:
-            raise Exception("Need to implement HS averaging for roberta")
+        out = self.make_array()
         return out
 
 if __name__ == "__main__":
