@@ -126,6 +126,12 @@ def AL_CV(index,
             tr_labels.append(tr)
             va_labels.append(va)
 
+        for v in str_varnames:
+            df_tr.loc[df_tr[v] > 4, v] = 4
+            df_tr.loc[df_tr[v] < -4, v] = -4
+            df_va.loc[df_va[v] > 4, v] = 4
+            df_va.loc[df_va[v] < -4, v] = -4
+
         tr_struc = tf.convert_to_tensor(df_tr[str_varnames], dtype='float32')
         va_struc = tf.convert_to_tensor(df_va[str_varnames], dtype='float32')
 
