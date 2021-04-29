@@ -1,5 +1,4 @@
 
-
 import numpy as np
 from tensorflow import keras
 from tensorflow.keras.layers import Embedding, Masking, Input, Bidirectional, LSTM, Dense, Dropout, concatenate
@@ -28,22 +27,21 @@ def make_roberta_model(meta_shape,
     structured_input = Input(shape=meta_shape, name='inp_str')
     input_ids = Input(shape=ROBERTA_MAX_TOKS, dtype=tf.int32, name='inp_ids')
     attention_mask = Input(shape=ROBERTA_MAX_TOKS, dtype=tf.int32, name='inp_attnmask')
-    config = RobertaConfig.from_pretrained('roberta-base' ,output_hidden_states=True)
+    config = RobertaConfig.from_pretrained('roberta-base' ,output_hidden_states=False)
     encoder = TFRobertaModel.from_pretrained('roberta-base', config=config)
     embedding = encoder(input_ids,
                         attention_mask=attention_mask,
-                        )[2][-1][:,0,:]
-
+                        )[0][:, 0, :]
+    drp = Dropout(dropout)(embedding)
     for i in range(n_dense):
         d = Dense(n_units, activation='relu',
-                  kernel_regularizer=l1_l2(l1_l2_pen))(embedding if i == 0 else drp)
+                  kernel_regularizer=l1_l2(l1_l2_pen))(drp)
         drp = Dropout(dropout)(d)
     penultimate = concatenate([drp, structured_input])
     out = [Dense(3, activation='softmax', name=t)(penultimate) for t in tags]
 
     model = Model(inputs=[input_ids, attention_mask, structured_input], outputs=out)
     return model, tokenizer
-
 
 
 def make_model(emb_path,
@@ -62,7 +60,7 @@ def make_model(emb_path,
                                    standardize=None)  # this is CRITICAL --
     # default will strip '_' and smash multi-word-expressions together
     vectorizer.adapt(np.array(train_sent.fillna("")))
-    cr_embed = KeyedVectors.load(emb_path,mmap='r')
+    cr_embed = KeyedVectors.load(emb_path, mmap='r')
     # get the vocabulary from our vectorized text
     vocab = vectorizer.get_vocabulary()
     # make a dictionary mapping words to their indices
@@ -103,7 +101,7 @@ def make_model(emb_path,
                   kernel_regularizer=l1_l2(l1_l2_pen))(lstm if i == 0 else drp)
         drp = Dropout(dropout)(d)
     penultimate = concatenate([drp, meta_input])
-    out = [Dense(3, activation='softmax', name = t)(penultimate) for t in tags]
+    out = [Dense(3, activation='softmax', name=t)(penultimate) for t in tags]
 
     model = Model(inputs=[nlp_input, meta_input], outputs=out)
     return model, vectorizer

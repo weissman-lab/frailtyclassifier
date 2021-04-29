@@ -21,18 +21,18 @@ def AL_CV(index,
           use_case_weights,
           repeat,
           fold,
-          tags = TAGS):
-# index = 482
-# batchstring = '01'
-# embeddings = 'roberta'
-# n_units = 22
-# n_dense = 2
-# dropout = .5
-# l1_l2_pen = .00001
-# use_case_weights = False
-# repeat = 3
-# fold = 9
-# tags = TAGS
+          tags=TAGS):
+    # index = 482
+    # batchstring = '01'
+    # embeddings = 'roberta'
+    # n_units = 22
+    # n_dense = 2
+    # dropout = .5
+    # l1_l2_pen = .00001
+    # use_case_weights = False
+    # repeat = 3
+    # fold = 9
+    # tags = TAGS
     #################
     outdir = f"{os.getcwd()}/output/"
     datadir = f"{os.getcwd()}/data/"
@@ -41,7 +41,7 @@ def AL_CV(index,
     if embeddings == "roberta":
         cv_savepath += "roberta/"
     sheepish_mkdir(cv_savepath)
-    savename = f"model_pickle_cv_{index}{tags if isinstance(tags, str) else ''}.pkl" # append the aspect if singletasking
+    savename = f"model_pickle_cv_{index}{tags if isinstance(tags, str) else ''}.pkl"  # append the aspect if singletasking
     tokname = re.sub("model_pickle", "antiClobberToken", savename)
     tokname = re.sub("pkl", "txt", tokname)
     tags = [tags] if isinstance(tags, str) else tags
@@ -80,14 +80,14 @@ def AL_CV(index,
         lr = 1e-5 if embeddings == 'roberta' else 1e-4
         with mirrored_strategy.scope():
             model, vectorizer = mmfun(emb_path=f"{datadir}w2v_oa_all_300d.bin",
-                                           sentence_length=SENTENCE_LENGTH,
-                                           meta_shape=len(str_varnames),
-                                           tags=tags,
-                                           train_sent=train_sent,
-                                           l1_l2_pen=l1_l2_pen,
-                                           n_units=n_units,
-                                           n_dense=n_dense,
-                                           dropout=dropout)
+                                      sentence_length=SENTENCE_LENGTH,
+                                      meta_shape=len(str_varnames),
+                                      tags=tags,
+                                      train_sent=train_sent,
+                                      l1_l2_pen=l1_l2_pen,
+                                      n_units=n_units,
+                                      n_dense=n_dense,
+                                      dropout=dropout)
 
             earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                              patience=25,
@@ -101,7 +101,7 @@ def AL_CV(index,
             tok = vectorizer(train_sent.tolist())
             tr_ids, tr_atm = [], []
             for i in range(len(train_sent)):
-                if len(tok['input_ids'][i])<=ROBERTA_MAX_TOKS:
+                if len(tok['input_ids'][i]) <= ROBERTA_MAX_TOKS:
                     id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
                     att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
                 else:
@@ -118,7 +118,7 @@ def AL_CV(index,
             tok = vectorizer(test_sent.tolist())
             va_ids, va_atm = [], []
             for i in range(len(test_sent)):
-                if len(tok['input_ids'][i])<=ROBERTA_MAX_TOKS:
+                if len(tok['input_ids'][i]) <= ROBERTA_MAX_TOKS:
                     id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
                     att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
                 else:
@@ -163,7 +163,7 @@ def AL_CV(index,
         # set the bias terms to the proportions
         for i, yi in enumerate(tr_labels):
             props = inv_logit(tf.reduce_mean(yi, axis=0).numpy())
-            pos = 7 - i * 2 if len(tags) == 4 else 1 # the 1 is for single-task learning
+            pos = 7 - i * 2 if len(tags) == 4 else 1  # the 1 is for single-task learning
             w[-pos] = w[-pos] * 0 + props
         model.set_weights(w)
 
@@ -177,7 +177,7 @@ def AL_CV(index,
         history = model.fit(x=xtr,
                             y=tr_labels,
                             validation_data=(xva, va_labels),
-                            epochs=1,
+                            epochs=1000,
                             batch_size=32,
                             verbose=1,
                             sample_weight=case_weights_tensor_list if use_case_weights == True else None,
