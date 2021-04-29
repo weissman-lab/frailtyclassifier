@@ -1,4 +1,3 @@
-
 import numpy as np
 from tensorflow import keras
 from tensorflow.keras.layers import Embedding, Masking, Input, Bidirectional, LSTM, Dense, Dropout, concatenate
@@ -8,6 +7,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l1_l2
 from utils.constants import ROBERTA_MAX_TOKS
 from transformers import RobertaTokenizer, RobertaConfig, TFRobertaModel
+
 import tensorflow as tf
 
 
@@ -17,9 +17,10 @@ def make_roberta_model(meta_shape,
                        n_units,
                        n_dense,
                        dropout,
-                       emb_path = None,
-                       sentence_length = None,
-                       train_sent = None,
+                       average_embeddings_no_train=False,
+                       emb_path=None,
+                       sentence_length=None,
+                       train_sent=None,
                        ):
     '''outputs a tokenizer and a roberta model'''
     tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
@@ -27,20 +28,30 @@ def make_roberta_model(meta_shape,
     structured_input = Input(shape=meta_shape, name='inp_str')
     input_ids = Input(shape=ROBERTA_MAX_TOKS, dtype=tf.int32, name='inp_ids')
     attention_mask = Input(shape=ROBERTA_MAX_TOKS, dtype=tf.int32, name='inp_attnmask')
-    config = RobertaConfig.from_pretrained('roberta-base' ,output_hidden_states=False)
+    config = RobertaConfig.from_pretrained('roberta-base', output_hidden_states=False)
     encoder = TFRobertaModel.from_pretrained('roberta-base', config=config)
-    embedding = encoder(input_ids,
-                        attention_mask=attention_mask,
-                        )[0][:, 0, :]
-    drp = Dropout(dropout)(embedding)
+    if average_embeddings_no_train == True:
+        embedding = encoder(input_ids,
+                            attention_mask=attention_mask,
+                            )[0][:, 1:, :]
+        eavg = tf.reduce_mean(embedding, axis=1)
+        drp = Dropout(dropout)(eavg)
+    else:
+        embedding = encoder(input_ids,
+                            attention_mask=attention_mask,
+                            )[0][:, 0, :]
+        drp = Dropout(dropout)(embedding)
     for i in range(n_dense):
         d = Dense(n_units, activation='relu',
                   kernel_regularizer=l1_l2(l1_l2_pen))(drp)
         drp = Dropout(dropout)(d)
     penultimate = concatenate([drp, structured_input])
     out = [Dense(3, activation='softmax', name=t)(penultimate) for t in tags]
-
     model = Model(inputs=[input_ids, attention_mask, structured_input], outputs=out)
+    if average_embeddings_no_train == True:
+        for n, l in enumerate(model.layers):
+            if 'bert' in l.name:
+                model.layers[n].trainable = False
     return model, tokenizer
 
 
