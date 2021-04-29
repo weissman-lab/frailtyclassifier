@@ -10,7 +10,7 @@ import re
 import pandas as pd
 from utils.misc import (read_pickle, write_pickle, sheepish_mkdir,
                         inv_logit, test_nan_inf)
-from utils.prefit import make_model
+from utils.prefit import make_model, make_transformers_model
 from utils.figures_tables import lossplot
 from utils.constants import TAGS, SENTENCE_LENGTH
 import numpy as np
@@ -21,12 +21,15 @@ pd.options.display.max_columns = 4000
 
 
 class Trainer:
-    def __init__(self, batchstring, task, dev=False):
+    def __init__(self, batchstring, task, dev=False, model_type = 'w2v'):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
         self.ALdir = f"{self.outdir}saved_models/AL{batchstring}/"
         sheepish_mkdir(f"{self.ALdir}figures")
+        self.model_type = model_type
+        if self.model_type is None:
+            self.model_type = 'w2v'
         self.task = task
         self.batchstring = batchstring
         self.dev = dev
@@ -36,7 +39,12 @@ class Trainer:
         self.hdict = None
 
     def get_config(self):
-        cvmods = os.listdir(f"{self.ALdir}cv_models/")
+        cvmodpath = f"{self.ALdir}cv_models/"
+        if self.model_type != "w2v":
+            cvmodpath += self.model_type+"/"
+        cvmods = os.listdir(cvmodpath)
+        if self.model_type != "w2v":
+            cvmods += self.model_type
         if self.task == 'multi':
             pkls = [i for i in cvmods if any(re.findall("\d\.pkl", i))]
         else:
@@ -106,25 +114,35 @@ class Trainer:
 
         ###################
         # create model and vectorizer
+        mmfun = make_model if self.model_type == 'w2v' else make_transformers_model
+        emb_filename = f"embeddings_{self.model_type}_final.npy" # only used for transformers
+
         mirrored_strategy = tf.distribute.MirroredStrategy()
 
         with mirrored_strategy.scope():
-            model, vectorizer = make_model(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
-                                           sentence_length=SENTENCE_LENGTH,
+            model, vectorizer = mmfun(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
+                                       sentence_length=SENTENCE_LENGTH,
                                            meta_shape=len(str_varnames),
                                            tags=[self.task] if self.task != 'multi' else TAGS,
                                            train_sent=sent,
+                                          test_sent = None,
                                            l1_l2_pen=self.cfg['l1_l2_pen'],
                                            n_units=self.cfg['n_units'],
                                            n_dense=self.cfg['n_dense'],
-                                           dropout=self.cfg['dropout'])
+                                           dropout=self.cfg['dropout'],
+                                           ALdir=self.ALdir,
+                                           embeddings=self.model_type,
+                                           emb_filename=emb_filename
+                                           )
 
             model.compile(loss='categorical_crossentropy',
                           optimizer=tf.keras.optimizers.Adam(1e-4))
 
         #####################
         # prepare data for tensorfow
-        text = vectorizer(np.array([[s] for s in sent]))
+        if self.model_type == 'w2v':
+            text = vectorizer(np.array([[s] for s in sent]))
+            test_nan_inf(text)
 
         labels = []
         if self.task == 'multi':
@@ -139,9 +157,9 @@ class Trainer:
             assert all(tf.reduce_mean(tf.cast(labels, dtype='float32'), axis=0) % 1 > 0)
 
         struc = tf.convert_to_tensor(df[str_varnames], dtype='float32')
-        test_nan_inf(text)
-        test_nan_inf(labels)
         test_nan_inf(struc)
+        test_nan_inf(labels)
+
         # test for constant columns in labels
 
         #############################
@@ -158,6 +176,10 @@ class Trainer:
             pos = 1
             w[-pos] = w[-pos] * 0 + props
         model.set_weights(w)
+
+        NO TR IN THE TEST SET -- LEFT OFF HERE  ALSO THE CUDA CARD RAN OUT OF MEMORY
+        X = [vectorizeNOTRr['tr'], tr_struc] if not embeddings == 'w2v' else [tr_text, tr_struc]
+        xva = [vectorizer['va'], va_struc] if not embeddings == 'w2v' else [va_text, va_struc]
 
         history = model.fit(x=[text, struc],
                             y=labels,
@@ -201,23 +223,26 @@ def main():
     p.add("-b", "--batchstring", help="batch string, i.e.: 00 or 01 or 02")
     p.add("--singletask", action='store_true')
     p.add("--dev", action='store_true')
+    p.add("--model_type")
     options = p.parse_args()
     batchstring = options.batchstring
     singletask = options.singletask
+    model_type = options.model_type
+
     dev = options.dev
     if singletask == False:
-        raise Exception("not tested!")
-        trobj = Trainer(batchstring=batchstring, task='multi', dev=dev)
+        trobj = Trainer(batchstring=batchstring, task='multi', dev=dev, model_type=model_type)
         trobj.run()
     else:
         for task in TAGS:
             print(f"starting {task}")
-            trobj = Trainer(batchstring=batchstring, task=task, dev=dev)
+            trobj = Trainer(batchstring=batchstring, task=task, dev=dev, model_type=model_type)
             trobj.run()
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    self = Trainer(batchstring='01', task='multi', dev=True, model_type = 'bioclinicalbert')
 
 
 def old_main():

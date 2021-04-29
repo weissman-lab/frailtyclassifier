@@ -30,6 +30,8 @@ class BCBEmbedder:
             outputs = self.model(tokens_tensor, segments_tensors)
             out = outputs[2][-1][:, 0, :].cpu()
         cls = np.array(out).squeeze()
+        del cls
+        torch.cuda.empty_cache()
         return cls
 
     def get_avg_embedding(self, y):
@@ -44,6 +46,8 @@ class BCBEmbedder:
             out = outputs[2][-1][:, 1:, :].cpu()
         out = np.mean(np.array(out), axis = 1)
         avg = np.array(out).squeeze()
+        del out
+        torch.cuda.empty_cache()
         return avg
 
     def make_array(self):
