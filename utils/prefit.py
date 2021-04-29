@@ -105,8 +105,8 @@ def make_transformers_model(emb_path,
     cond2 = os.path.exists(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}")
     if not cond1 & cond2:
         emb = BCBEmbedder(model_type = embeddings)
-        tr = emb(train_sent.tolist)
-        va = emb(test_sent.tolist)
+        tr = emb(train_sent.tolist())
+        va = emb(test_sent.tolist())
         np.save(f"{ALdir}processed_data/{embeddings}/{emb_filename}", tr)
         np.save(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}", va)
     else:
