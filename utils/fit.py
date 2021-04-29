@@ -23,17 +23,17 @@ def AL_CV(index,
           repeat,
           fold,
           tags=TAGS):
-    # index = 482
-    # batchstring = '01'
-    # embeddings = 'bioclinicalbert'
-    # n_units = 22
-    # n_dense = 2
-    # dropout = .5
-    # l1_l2_pen = .00001
-    # use_case_weights = False
-    # repeat = 3
-    # fold = 9
-    # tags = TAGS
+    index = 482
+    batchstring = '01'
+    embeddings = 'bioclinicalbert'
+    n_units = 22
+    n_dense = 2
+    dropout = .5
+    l1_l2_pen = .00001
+    use_case_weights = False
+    repeat = 3
+    fold = 9
+    tags = TAGS
     #################
     outdir = f"{os.getcwd()}/output/"
     datadir = f"{os.getcwd()}/data/"

@@ -98,8 +98,8 @@ def make_transformers_model(emb_path,
     creates or loads the embeddings, and builds a model off of that
     :return: a model, for training.  in place of the vectorizer is a dict with embeddings to feed the model
     '''
-    tr = np.load('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL01/processed_data/bioclinicalbert/tr.npy')
-    va = np.load('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL01/processed_data/bioclinicalbert/te.npy')
+    # tr = np.load('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL01/processed_data/bioclinicalbert/tr.npy')
+    # va = np.load('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL01/processed_data/bioclinicalbert/te.npy')
     #
     cond1 = os.path.exists(f"{ALdir}processed_data/{embeddings}/{emb_filename}")
     cond2 = os.path.exists(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}")
