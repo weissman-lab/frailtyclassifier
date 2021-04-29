@@ -25,7 +25,7 @@ def main():
     #Multi-task
     # hyperparameter grid
     hp_grid = {'batchstring': [batchstring],
-               'embeddings': ['w2v', 'roberta'],
+               'embeddings': ['w2v', 'roberta', 'bioclinicalbert'],
                'n_dense': [1, 2],
                'n_units': [64, 256],
                'dropout': [.1, .5],
@@ -50,7 +50,7 @@ def main():
 
     # single task
     hp_grid = {'batchstring': [batchstring],
-               'embeddings': ['w2v', 'roberta'],
+               'embeddings': ['w2v', 'roberta', 'bioclinicalbert'],
                'n_dense': [1, 2],
                'n_units': [64, 256],
                'dropout': [.1, .5],
