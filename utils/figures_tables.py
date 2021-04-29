@@ -1,102 +1,44 @@
 import pandas as pd
-import os
 from utils.organization import find_outdir
 import numpy as np
 
 
 def table_1_demographics():
     '''
-    Finds the directory of the new AL batch and:
-     1.) compares structured data to testing and training structured data
-     2.) reports all structured data for the new AL batch for manual review
-     3.) make table 1
+    Makes table 1 with comparison of training and test notes
      '''
-    from utils.organization import summarize_train_test_split
     # set directories
     outdir = find_outdir()
-    # summarize the labeled & embedded training notes and all test notes
-    summarize_train_test_split()
-    # load notes
+    #load train and test notes
     notes_train = pd.read_csv(
-        f"{outdir}notes_labeled_embedded_SENTENCES/notes_train_official.csv")
-
+        f"{outdir}saved_models/AL05/processed_data/full_set/full_df.csv")
     notes_test = pd.read_csv(
-        f"{outdir}notes_labeled_embedded_SENTENCES/notes_test_rough.csv")
-
-    # Check for a new AL batch: pull all rounds of AL from /saved_models/ then
-    # compare to notes_train to see if they have already been labeled & embedded.
-    new_AL_batches = [i for i in os.listdir(f"{outdir}saved_models/")
-                      if 'AL0' in i
-                      and '.txt' not in i
-                      and i not in [i.split("_")[0] for i in notes_train.batch]]
-
-    assert len(new_AL_batches) > 0, "Could not find the new AL batch"
-    print(f"New AL batch: {new_AL_batches}")
-
-    # make table with new AL notes
-    notes_new_AL = []
-    for batch in new_AL_batches:
-        notes = [i for i in os.listdir(f"{outdir}notes_output/{batch}") if
-                 '.txt' in i]
-        PAT_IDs = [str(i).split("_")[-1].split(".")[0] for i in notes]
-        months = [int(i.split("_")[-2][1:]) for i in notes]
-        label_batch = [str(i).split("_")[0] for i in notes]
-        fname = [i for i in notes]
-        pat_batch = pd.DataFrame(dict(PAT_ID=PAT_IDs,
-                                      month=months,
-                                      batch=label_batch,
-                                      filename=fname))
-        notes_new_AL.append(pat_batch)
-
-    notes_new_AL = pd.concat(notes_new_AL).reset_index(drop=True)
-
-    # load structured data
+        f"{outdir}saved_models/AL05/processed_data/test_set/full_df.csv")
+    #get month
+    notes_train['month'] = [int(m.split('_')[-3].split('m')[1]) for m in notes_train.sentence_id]
+    notes_test['month'] = [int(m.split('_')[-3].split('m')[1]) for m in notes_test.sentence_id]
+    notes_train = notes_train[['PAT_ID', 'month']].drop_duplicates()
+    notes_test = notes_test[['PAT_ID', 'month']].drop_duplicates()
+    # load structured data & match to train and test data
     strdat = pd.read_csv(f"{outdir}structured_data_merged_cleaned.csv",
                          index_col=0)
-
-    # get structured data for new AL batch
-    strdat_new_AL = strdat.merge(notes_new_AL[['PAT_ID', 'month']])
-    strdat_new_AL['train_test'] = 'new_AL'
-    # summarize new AL batch
-    drop_cols = ['sd_', 'MV_', 'train_test']
-    drop_cols = [i for i in strdat_new_AL.columns if
-                 any(xi in i for xi in drop_cols)]
-    new_AL_str = strdat_new_AL.loc[:, ~strdat_new_AL.columns.isin(drop_cols)].sort_values(
-        by='PAT_ID')
-
-    #merge with prior training & test data
     strdat_train = strdat.merge(notes_train[['PAT_ID', 'month']])
-    strdat_train['train_test'] = 'train'
     strdat_test = strdat.merge(notes_test[['PAT_ID', 'month']])
+    strdat_train['train_test'] = 'train'
     strdat_test['train_test'] = 'test'
-    all_str = pd.concat([strdat_new_AL, strdat_train, strdat_test])
-
-    # check if new AL batch contains any duplicates (ok in training data if
-    # months are different, but not ideal)
-    dups = all_str[all_str.PAT_ID.isin([i for i in list(all_str.PAT_ID)
-                                 if list(all_str.PAT_ID).count(i) > 1
-                                 and i in list(strdat_new_AL.PAT_ID)])].shape[0]
-    assert dups < 1, "duplicates in the new AL batch"
-    print(f"{dups} duplicates in the new AL batch")
-
-    ######## quick fix ###########
+    all_str = pd.concat([strdat_train, strdat_test])
     # fix encounters in structured_data_merged_cleaned.csv with encs_6m.pkl.
-    # Later, will be re-run to update structured_data_merged_cleaned.csv
-    print('WARNING: QUICK FIX ENCOUNTERS')
     fix_encs = pd.read_pickle(f"{outdir}encs_6m.pkl")
     fix_encs['f_n_encs'] = fix_encs['n_encs']
     fix_encs['f_n_ed_visits'] = fix_encs['n_ed_visits']
     fix_encs['f_n_admissions'] = fix_encs['n_admissions']
     fix_encs['f_days_hospitalized'] = fix_encs['days_hospitalized']
-    fix_encs = fix_encs.drop(
-        ['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized'], axis =1)
+    fix_encs = fix_encs.drop(['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized'], axis =1)
     all_str = all_str.merge(fix_encs, 'left', on = ['PAT_ID', 'month'])
-
     # drop extra columns
     drop_cols = ['PAT_ID', 'month', 'sd_', 'MV_']
     drop_cols = [i for i in all_str.columns if any(xi in i for xi in drop_cols)]
     all_str = all_str.loc[:, ~all_str.columns.isin(drop_cols)]
-
     #mean, sd
     mean_cols = ['AGE', 'mean_sys_bp', 'mean_dia_bp', 'bmi_mean', 'bmi_slope',
                  'spo2_worst', 'ALBUMIN',  'CALCIUM', 'CO2', 'HEMATOCRIT',
@@ -122,23 +64,52 @@ def table_1_demographics():
               'MARITAL_STATUS_Widowed', 'EMPY_STAT_Disabled',
               'EMPY_STAT_Full Time', 'EMPY_STAT_Not Employed', 'EMPY_STAT_Other',
               'EMPY_STAT_Part Time', 'EMPY_STAT_Retired']
-
     #new dums
     all_str['Race_white'] = np.where(all_str.RACE == 'White', 1, 0)
     all_str['Race_black'] = np.where(all_str.RACE == 'Black', 1, 0)
     all_str['Race_other'] = np.where(all_str.RACE == 'Other', 1, 0)
     all_str['Language_english'] = np.where(all_str.LANGUAGE == 'English', 1, 0)
     all_str['Language_spanish'] = np.where(all_str.LANGUAGE == 'Spanish', 1, 0)
-
-    #save comparison of new AL, train, test
-    all_mean = all_str[mean_cols + ['train_test']].groupby('train_test').mean().T
-    all_median = all_str[median_cols + ['train_test']].groupby('train_test').median().T
-    all_n = all_str[n_cols + ['train_test']].groupby('train_test').sum().T
-    all_str2 = pd.concat([all_mean, all_median, all_n])
-    all_str2.to_csv(
-        f"{outdir}saved_models/{new_AL_batches[0]}/{new_AL_batches[0]}_StrucData_compare.csv")
-    new_AL_str.to_csv(
-        f"{outdir}saved_models/{new_AL_batches[0]}/{new_AL_batches[0]}_StrucData_summary.csv")
+    #summarize mean (SD)
+    train_mean = all_str[all_str.train_test == 'train'][mean_cols].mean().reset_index()
+    train_mean.columns = ['val', 'mean']
+    train_mean['train'] = train_mean['mean'].round(2).astype(str) + ' (' +\
+                          all_str[all_str.train_test == 'train'][mean_cols].std().reset_index()[0].round(2).astype(str) +\
+                              ')'
+    train_mean['field'] = train_mean['val'] + ', mean (SD)'
+    test_mean = all_str[all_str.train_test == 'test'][mean_cols].mean().reset_index()
+    test_mean.columns = ['val', 'mean']
+    test_mean['test'] = test_mean['mean'].round(2).astype(str) + ' (' +\
+                          all_str[all_str.train_test == 'test'][mean_cols].std().reset_index()[0].round(2).astype(str) +\
+                              ')'
+    test_mean['field'] = test_mean['val'] + ', mean (SD)'
+    all_mean = train_mean[['field', 'train']].merge(test_mean[['field', 'test']])
+    #summarize median (IQR)
+    train_median = all_str[all_str.train_test == 'train'][median_cols].median().reset_index()
+    train_median.columns = ['val', 'median']
+    train_median['train'] = train_median['median'].round(2).astype(str) + ' (' +\
+                          all_str[all_str.train_test == 'train'][median_cols].quantile(0.25).reset_index()[0.25].round(2).astype(str) +\
+                              '-' + all_str[all_str.train_test == 'train'][median_cols].quantile(0.75).reset_index()[0.75].round(2).astype(str)+\
+                              ')'
+    train_median['field'] = train_median['val'] + ', median (IQR)'
+    test_median = all_str[all_str.train_test == 'test'][median_cols].median().reset_index()
+    test_median.columns = ['val', 'median']
+    test_median['test'] = test_median['median'].round(2).astype(str) + ' (' +\
+                          all_str[all_str.train_test == 'test'][median_cols].quantile(0.25).reset_index()[0.25].round(2).astype(str) +\
+                              '-' + all_str[all_str.train_test == 'test'][median_cols].quantile(0.75).reset_index()[0.75].round(2).astype(str)+\
+                              ')'
+    test_median['field'] = test_median['val'] + ', median (IQR)'
+    all_median = train_median[['field', 'train']].merge(test_median[['field', 'test']])
+    #summarize n
+    train_n = all_str[all_str.train_test == 'train'][n_cols].sum().reset_index()
+    train_n.columns = ['val', 'train']
+    train_n['field'] = train_n['val'] + ', n (%)'
+    test_n = all_str[all_str.train_test == 'test'][n_cols].sum().reset_index()
+    test_n.columns = ['val', 'test']
+    test_n['field'] = test_n['val'] + ', n (%)'
+    all_n = train_n[['field', 'train']].merge(test_n[['field', 'test']])
+    all_str2 = pd.concat([all_mean, all_median, all_n]).reset_index()
+    all_str2.to_csv(f"{outdir}figures_tables/table_1.csv")
 
     #table 1 - summary stats
     def summ_stat(train_test):
