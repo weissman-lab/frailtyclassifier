@@ -102,10 +102,18 @@ def table_1_demographics():
     all_median = train_median[['field', 'train']].merge(test_median[['field', 'test']])
     #summarize n
     train_n = all_str[all_str.train_test == 'train'][n_cols].sum().reset_index()
-    train_n.columns = ['val', 'train']
+    train_n.columns = ['val', 'n']
+    train_n_patients = len(all_str[all_str.train_test == 'train'])
+    train_n['train'] = train_n['n'].astype(str) + ' (' +\
+                       (all_str[all_str.train_test == 'train'][n_cols].sum().reset_index()[0] / train_n_patients * 100).round().astype(int).astype(str) +\
+        '%)'
     train_n['field'] = train_n['val'] + ', n (%)'
     test_n = all_str[all_str.train_test == 'test'][n_cols].sum().reset_index()
-    test_n.columns = ['val', 'test']
+    test_n.columns = ['val', 'n']
+    test_n_patients = len(all_str[all_str.train_test == 'test'])
+    test_n['test'] = test_n['n'].astype(str) + ' (' +\
+                       (all_str[all_str.train_test == 'test'][n_cols].sum().reset_index()[0] / test_n_patients * 100).round().astype(int).astype(str) +\
+        '%)'
     test_n['field'] = test_n['val'] + ', n (%)'
     all_n = train_n[['field', 'train']].merge(test_n[['field', 'test']])
     all_str2 = pd.concat([all_mean, all_median, all_n]).reset_index()
