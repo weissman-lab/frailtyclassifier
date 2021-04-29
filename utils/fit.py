@@ -117,40 +117,6 @@ def AL_CV(index,
             va_text = vectorizer(np.array([[s] for s in test_sent]))
             test_nan_inf(tr_text)
             test_nan_inf(va_text)
-        #     tok = vectorizer(train_sent.tolist())
-        #     tr_ids, tr_atm = [], []
-        #     for i in range(len(train_sent)):
-        #         if len(tok['input_ids'][i]) <= ROBERTA_MAX_TOKS:
-        #             id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
-        #             att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
-        #         else:
-        #             id = tok['input_ids'][i][:ROBERTA_MAX_TOKS]
-        #             att = tok['attention_mask'][i][:ROBERTA_MAX_TOKS]
-        #         assert len(id) == ROBERTA_MAX_TOKS
-        #         assert len(att) == ROBERTA_MAX_TOKS
-        #         tr_ids.append(id)
-        #         tr_atm.append(att)
-        #     tr_ids = tf.stack(tr_ids)
-        #     tr_atm = tf.stack(tr_atm)
-        #     assert tr_ids.shape == tr_atm.shape
-        #
-        #     tok = vectorizer(test_sent.tolist())
-        #     va_ids, va_atm = [], []
-        #     for i in range(len(test_sent)):
-        #         if len(tok['input_ids'][i]) <= ROBERTA_MAX_TOKS:
-        #             id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
-        #             att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
-        #         else:
-        #             id = tok['input_ids'][i][:ROBERTA_MAX_TOKS]
-        #             att = tok['attention_mask'][i][:ROBERTA_MAX_TOKS]
-        #         va_ids.append(id)
-        #         va_atm.append(att)
-        #     va_ids = tf.stack(va_ids)
-        #     va_atm = tf.stack(va_atm)
-        #     assert va_ids.shape == va_atm.shape
-        #
-        # else:
-
 
         tr_labels = []
         va_labels = []
@@ -188,7 +154,7 @@ def AL_CV(index,
 
         start_time = time.time()
         xtr = [vectorizer['tr'], tr_struc] if not embeddings == 'w2v' else [tr_text, tr_struc]
-        xva = [vectorizer['tr'], va_struc] if not embeddings == 'w2v' else [va_text, va_struc]
+        xva = [vectorizer['va'], va_struc] if not embeddings == 'w2v' else [va_text, va_struc]
 
         history = model.fit(x=xtr,
                             y=tr_labels,
@@ -271,3 +237,37 @@ def AL_CV(index,
 
 if __name__ == "__main__":
     pass
+
+#     tok = vectorizer(train_sent.tolist())
+#     tr_ids, tr_atm = [], []
+#     for i in range(len(train_sent)):
+#         if len(tok['input_ids'][i]) <= ROBERTA_MAX_TOKS:
+#             id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
+#             att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
+#         else:
+#             id = tok['input_ids'][i][:ROBERTA_MAX_TOKS]
+#             att = tok['attention_mask'][i][:ROBERTA_MAX_TOKS]
+#         assert len(id) == ROBERTA_MAX_TOKS
+#         assert len(att) == ROBERTA_MAX_TOKS
+#         tr_ids.append(id)
+#         tr_atm.append(att)
+#     tr_ids = tf.stack(tr_ids)
+#     tr_atm = tf.stack(tr_atm)
+#     assert tr_ids.shape == tr_atm.shape
+#
+#     tok = vectorizer(test_sent.tolist())
+#     va_ids, va_atm = [], []
+#     for i in range(len(test_sent)):
+#         if len(tok['input_ids'][i]) <= ROBERTA_MAX_TOKS:
+#             id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
+#             att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
+#         else:
+#             id = tok['input_ids'][i][:ROBERTA_MAX_TOKS]
+#             att = tok['attention_mask'][i][:ROBERTA_MAX_TOKS]
+#         va_ids.append(id)
+#         va_atm.append(att)
+#     va_ids = tf.stack(va_ids)
+#     va_atm = tf.stack(va_atm)
+#     assert va_ids.shape == va_atm.shape
+#
+# else:
