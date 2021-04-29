@@ -23,17 +23,17 @@ def AL_CV(index,
           repeat,
           fold,
           tags=TAGS):
-    index = 482
-    batchstring = '01'
-    embeddings = 'bioclinicalbert'
-    n_units = 22
-    n_dense = 2
-    dropout = .5
-    l1_l2_pen = .00001
-    use_case_weights = False
-    repeat = 3
-    fold = 9
-    tags = TAGS
+    # index = 482
+    # batchstring = '01'
+    # embeddings = 'bioclinicalbert'
+    # n_units = 22
+    # n_dense = 2
+    # dropout = .5
+    # l1_l2_pen = .00001
+    # use_case_weights = False
+    # repeat = 3
+    # fold = 9
+    # tags = TAGS
     #################
     outdir = f"{os.getcwd()}/output/"
     datadir = f"{os.getcwd()}/data/"
@@ -56,6 +56,7 @@ def AL_CV(index,
         write_txt("I am a token.  Why must we anthropomorphize everything?",
                   f"{cv_savepath}{tokname}")
         config_dict = dict(batchstring=batchstring,
+                           embeddings=embeddings,
                            n_dense=n_dense,
                            n_units=n_units,
                            dropout=dropout,
