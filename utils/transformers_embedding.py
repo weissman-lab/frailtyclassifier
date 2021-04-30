@@ -1,7 +1,7 @@
 from tensorflow import convert_to_tensor as tft
 from tensorflow import stack as tfstack
-from transformers import AutoModel, AutoTokenizer, TFAutoModel
-import tensorflow as tf
+from transformers import AutoModel, AutoTokenizer#, TFAutoModel
+# import tensorflow as tf
 import torch
 import numpy as np
 
@@ -11,15 +11,15 @@ class BCBEmbedder:
         self.model_type = model_type
         if self.model_type == 'bioclinicalbert': #easier to write and no slashes
             self.model_type = 'emilyalsentzer/Bio_ClinicalBERT'
-            self.model = AutoModel.from_pretrained(self.model_type,
-                                                   output_hidden_states=True, )
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.model.to(self.device)
 
         if self.model_type == 'roberta': #easier to write and no slashes
             self.model_type = 'roberta-base'
-            self.model = TFAutoModel.from_pretrained(self.model_type,
-                                                   output_hidden_states=True, )
+            # self.model = TFAutoModel.from_pretrained(self.model_type,
+            #                                        output_hidden_states=True, )
+        self.model = AutoModel.from_pretrained(self.model_type,
+                                               output_hidden_states=True, )
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_type)
         print('init done')
 
@@ -46,13 +46,31 @@ class BCBEmbedder:
         tok_y = self.tokenizer.tokenize(y)
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(tok_y)
         segments_ids = [1] * len(tok_y)
-        tokens_tensor = tf.expand_dims(tf.convert_to_tensor(indexed_tokens), 0)
-        segments_tensor = tf.expand_dims(tf.convert_to_tensor(segments_ids),0)
-        outputs = self.model([tokens_tensor, segments_tensor])
-        out = outputs[2][-1][:, 1:, :]
+        tokens_tensor = torch.tensor([indexed_tokens]).to(self.device)
+        segments_tensors = torch.tensor([segments_ids]).to(self.device)
+        with torch.no_grad():
+            outputs = self.model(tokens_tensor, segments_tensors)
+            out = outputs[2][-1][:, 1:, :].cpu()
         out = np.mean(np.array(out), axis = 1)
         avg = np.array(out).squeeze()
+        del out
+        torch.cuda.empty_cache()
         return avg
+
+    #
+    # def get_avg_embedding(self, y):
+    #     assert self.model_type == 'roberta-base'
+    #     y = "<s>" + y + "</s>"
+    #     tok_y = self.tokenizer.tokenize(y)
+    #     indexed_tokens = self.tokenizer.convert_tokens_to_ids(tok_y)
+    #     segments_ids = [1] * len(tok_y)
+    #     tokens_tensor = tf.expand_dims(tf.convert_to_tensor(indexed_tokens), 0)
+    #     segments_tensor = tf.expand_dims(tf.convert_to_tensor(segments_ids),0)
+    #     outputs = self.model([tokens_tensor, segments_tensor])
+    #     out = outputs[2][-1][:, 1:, :]
+    #     out = np.mean(np.array(out), axis = 1)
+    #     avg = np.array(out).squeeze()
+    #     return avg
 
     def make_array(self):
         if self.model_type == 'emilyalsentzer/Bio_ClinicalBERT':
