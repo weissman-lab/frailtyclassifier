@@ -35,10 +35,6 @@ def table_1_demographics():
     fix_encs['f_days_hospitalized'] = fix_encs['days_hospitalized']
     fix_encs = fix_encs.drop(['n_encs', 'n_ed_visits', 'n_admissions', 'days_hospitalized'], axis =1)
     all_str = all_str.merge(fix_encs, 'left', on = ['PAT_ID', 'month'])
-    # drop extra columns
-    drop_cols = ['PAT_ID', 'month', 'sd_', 'MV_']
-    drop_cols = [i for i in all_str.columns if any(xi in i for xi in drop_cols)]
-    all_str = all_str.loc[:, ~all_str.columns.isin(drop_cols)]
     #mean, sd
     mean_cols = ['AGE', 'mean_sys_bp', 'mean_dia_bp', 'bmi_mean', 'bmi_slope',
                  'spo2_worst', 'ALBUMIN',  'CALCIUM', 'CO2', 'HEMATOCRIT',
@@ -70,6 +66,14 @@ def table_1_demographics():
     all_str['Race_other'] = np.where(all_str.RACE == 'Other', 1, 0)
     all_str['Language_english'] = np.where(all_str.LANGUAGE == 'English', 1, 0)
     all_str['Language_spanish'] = np.where(all_str.LANGUAGE == 'Spanish', 1, 0)
+    # drop extra columns
+    drop_cols = ['sd_', 'MV_']
+    drop_cols = [i for i in all_str.columns if any(xi in i for xi in drop_cols)]
+    all_str = all_str.loc[:, ~all_str.columns.isin(drop_cols)]
+    all_str.to_csv(f"{outdir}figures_tables/patient_struc_data.csv")
+    drop_cols = ['PAT_ID', 'month']
+    drop_cols = [i for i in all_str.columns if any(xi in i for xi in drop_cols)]
+    all_str = all_str.loc[:, ~all_str.columns.isin(drop_cols)]
     #summarize mean (SD)
     train_mean = all_str[all_str.train_test == 'train'][mean_cols].mean().reset_index()
     train_mean.columns = ['val', 'mean']
