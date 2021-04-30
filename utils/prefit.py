@@ -110,6 +110,8 @@ def make_transformers_model(emb_path,
         if test_sent is not None:
             va = emb(test_sent.tolist())
             np.save(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}", va)
+        else:
+            va = None
     else:
         tr = np.load(f"{ALdir}processed_data/{embeddings}/{emb_filename}")
         if test_sent is not None:

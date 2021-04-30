@@ -160,7 +160,6 @@ class Trainer:
         test_nan_inf(struc)
         test_nan_inf(labels)
 
-        # test for constant columns in labels
 
         #############################
         # initialize the bias terms with the logits of the proportions
@@ -177,10 +176,9 @@ class Trainer:
             w[-pos] = w[-pos] * 0 + props
         model.set_weights(w)
 
-        X = [vectorizer['tr'], tr_struc] if not embeddings == 'w2v' else [tr_text, tr_struc]
-        xva = [vectorizer['va'], va_struc] if not embeddings == 'w2v' else [va_text, va_struc]
+        X = [vectorizer['tr'], struc] if not self.model_type == 'w2v' else [text, struc]
 
-        history = model.fit(x=[text, struc],
+        history = model.fit(x=X,
                             y=labels,
                             epochs=int(self.cfg['medianlen']) if self.dev == False else 1,
                             batch_size=32,
@@ -194,8 +192,8 @@ class Trainer:
                                nL=history.history['Nutrition_loss'],
                                rL=history.history['Resp_imp_loss'])
             fff = lossplot(self.hdict, self.cfg['medianlen'], final_hdict)
-            fff.savefig(f"{self.ALdir}figures/cvlossplot_w_final.pdf")
-            fff.savefig(f"{self.ALdir}figures/cvlossplot_w_final.png", dpi=400)
+            fff.savefig(f"{self.ALdir}figures/cvlossplot_w_final_{self.model_type}.pdf")
+            fff.savefig(f"{self.ALdir}figures/cvlossplot_w_final_{self.model_type}.png", dpi=400)
 
         # collect the output
         outdict = dict(config=self.cfg,
@@ -207,6 +205,7 @@ class Trainer:
         if self.dev == False:
             sheepish_mkdir(f"{self.ALdir}/final_model")
             suffix = "" if self.task == "multi" else f"_{self.task}"
+            suffix += f"{'_' + self.model_type if self.model_type is not 'w2v' else ''}"
             write_pickle(outdict, f"{self.ALdir}/final_model/model_final_{self.batchstring}{suffix}.pkl")
         else:
             print('it seems to work!')
@@ -240,8 +239,9 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
-    self = Trainer(batchstring='01', task='multi', dev=True, model_type='bioclinicalbert')
+    main()
+    # self = Trainer(batchstring='01', task='multi', dev=True, model_type='bioclinicalbert')
+    # self.run()
 
 
 def old_main():
