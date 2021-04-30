@@ -21,7 +21,7 @@ pd.options.display.max_columns = 4000
 
 
 class Trainer:
-    def __init__(self, batchstring, task, dev=False, model_type = 'w2v'):
+    def __init__(self, batchstring, task, dev=False, model_type='w2v'):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
@@ -37,14 +37,14 @@ class Trainer:
         self.cfg = None
         self.bestmods = None
         self.hdict = None
+        self.cvmodpath = None
 
     def get_config(self):
         cvmodpath = f"{self.ALdir}cv_models/"
         if self.model_type != "w2v":
-            cvmodpath += self.model_type+"/"
+            cvmodpath += self.model_type + "/"
+        self.cvmodpath = cvmodpath
         cvmods = os.listdir(cvmodpath)
-        if self.model_type != "w2v":
-            cvmods += self.model_type
         if self.task == 'multi':
             pkls = [i for i in cvmods if any(re.findall("\d\.pkl", i))]
         else:
@@ -53,7 +53,7 @@ class Trainer:
         for pkl in pkls:
             if self.dev == True:
                 try:
-                    x = read_pickle(f"{self.ALdir}cv_models/{pkl}")
+                    x = read_pickle(f"{cvmodpath}/{pkl}")
                     d = x['config']
                     d['brier_all'] = x['brier_all']
                     d['fn'] = pkl
@@ -61,7 +61,7 @@ class Trainer:
                 except:
                     pass
             else:
-                x = read_pickle(f"{self.ALdir}cv_models/{pkl}")
+                x = read_pickle(f"{cvmodpath}/{pkl}")
                 d = x['config']
                 d['brier_all'] = x['brier_all']
                 d['fn'] = pkl
@@ -79,7 +79,7 @@ class Trainer:
         bestmods = bestmods.fn.tolist()
         bestmods.sort()
         self.bestmods = bestmods
-        self.cfg = read_pickle(f"{self.ALdir}cv_models/{bestmods[0]}")['config']
+        self.cfg = read_pickle(f"{cvmodpath}/{bestmods[0]}")['config']
 
     def lossplot(self):
         hdict = dict(L=[],
@@ -88,7 +88,7 @@ class Trainer:
                      nL=[],
                      rL=[])
         for b in self.bestmods:
-            x = read_pickle(f"{self.ALdir}cv_models/{b}")
+            x = read_pickle(f"{self.cvmodpath}/{b}")
             hdict['L'].append(x['history']['val_loss'])
             if self.task == 'multi':
                 hdict['fL'].append(x['history']['val_Fall_risk_loss'])
@@ -99,7 +99,7 @@ class Trainer:
         self.hdict = hdict
         medianlen = np.median([len(i) for i in hdict['L']]) // 1
         self.cfg['medianlen'] = medianlen
-        if self.task == "multi":
+        if (self.task == "multi") & (self.model_type == 'w2v'):
             ff = lossplot(hdict, medianlen)
             suffix = "" if self.task == "multi" else f"_{self.task}"
             ff.savefig(f"{self.ALdir}figures/cvlossplot{suffix}.pdf")
@@ -115,25 +115,25 @@ class Trainer:
         ###################
         # create model and vectorizer
         mmfun = make_model if self.model_type == 'w2v' else make_transformers_model
-        emb_filename = f"embeddings_{self.model_type}_final.npy" # only used for transformers
+        emb_filename = f"embeddings_{self.model_type}_final.npy"  # only used for transformers
 
         mirrored_strategy = tf.distribute.MirroredStrategy()
 
         with mirrored_strategy.scope():
             model, vectorizer = mmfun(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
-                                       sentence_length=SENTENCE_LENGTH,
-                                           meta_shape=len(str_varnames),
-                                           tags=[self.task] if self.task != 'multi' else TAGS,
-                                           train_sent=sent,
-                                          test_sent = None,
-                                           l1_l2_pen=self.cfg['l1_l2_pen'],
-                                           n_units=self.cfg['n_units'],
-                                           n_dense=self.cfg['n_dense'],
-                                           dropout=self.cfg['dropout'],
-                                           ALdir=self.ALdir,
-                                           embeddings=self.model_type,
-                                           emb_filename=emb_filename
-                                           )
+                                      sentence_length=SENTENCE_LENGTH,
+                                      meta_shape=len(str_varnames),
+                                      tags=[self.task] if self.task != 'multi' else TAGS,
+                                      train_sent=sent,
+                                      test_sent=None,
+                                      l1_l2_pen=self.cfg['l1_l2_pen'],
+                                      n_units=self.cfg['n_units'],
+                                      n_dense=self.cfg['n_dense'],
+                                      dropout=self.cfg['dropout'],
+                                      ALdir=self.ALdir,
+                                      embeddings=self.model_type,
+                                      emb_filename=emb_filename
+                                      )
 
             model.compile(loss='categorical_crossentropy',
                           optimizer=tf.keras.optimizers.Adam(1e-4))
@@ -177,8 +177,7 @@ class Trainer:
             w[-pos] = w[-pos] * 0 + props
         model.set_weights(w)
 
-        NO TR IN THE TEST SET -- LEFT OFF HERE  ALSO THE CUDA CARD RAN OUT OF MEMORY
-        X = [vectorizeNOTRr['tr'], tr_struc] if not embeddings == 'w2v' else [tr_text, tr_struc]
+        X = [vectorizer['tr'], tr_struc] if not embeddings == 'w2v' else [tr_text, tr_struc]
         xva = [vectorizer['va'], va_struc] if not embeddings == 'w2v' else [va_text, va_struc]
 
         history = model.fit(x=[text, struc],
@@ -242,7 +241,7 @@ def main():
 
 if __name__ == '__main__':
     # main()
-    self = Trainer(batchstring='01', task='multi', dev=True, model_type = 'bioclinicalbert')
+    self = Trainer(batchstring='01', task='multi', dev=True, model_type='bioclinicalbert')
 
 
 def old_main():
