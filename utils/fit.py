@@ -85,6 +85,14 @@ def AL_CV(index,
         mmfun = make_model if embeddings == 'w2v' else make_transformers_model
         # lr = 1e-5 if embeddings == 'roberta' else 1e-4
         emb_filename = f"embeddings_{embeddings}_r{repeat}_f{fold}_tr.npy" # only used for transformers
+        # write an anti-clobber token, or if you find one, return something that indicates to the parent function that it should delete it's own anti-clobber token and exit
+        embedding_tokname = re.sub('embeddings', 'antiClobberToken', emb_filename)
+        if os.path.exists(f"{ALdir}processed_data/{embeddings}/{embedding_tokname}"):
+            os.remove(f"{cv_savepath}{tokname}")
+            print('embeddings in progress on another machine')
+            return 2
+
+        np.save(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}", va)
 
         with mirrored_strategy.scope():
 

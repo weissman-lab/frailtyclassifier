@@ -6,6 +6,7 @@ from gensim.models import KeyedVectors
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l1_l2
 from utils.constants import ROBERTA_MAX_TOKS
+from utils.misc import write_txt
 from transformers import RobertaTokenizer, RobertaConfig, TFRobertaModel
 from utils.transformers_embedding import BCBEmbedder
 import os
@@ -104,6 +105,9 @@ def make_transformers_model(emb_path,
     cond1 = os.path.exists(f"{ALdir}processed_data/{embeddings}/{emb_filename}")
     cond2 = os.path.exists(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}")
     if not cond1 & cond2:
+        embedding_tokname = re.sub('embeddings', 'antiClobberToken', emb_filename)
+        write_txt("I am a token.  Why must we anthropomorphize everything?",
+                  f"{ALdir}processed_data/{embeddings}/{embedding_tokname}")
         emb = BCBEmbedder(model_type = embeddings)
         tr = emb(train_sent.tolist())
         np.save(f"{ALdir}processed_data/{embeddings}/{emb_filename}", tr)
@@ -112,6 +116,7 @@ def make_transformers_model(emb_path,
             np.save(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}", va)
         else:
             va = None
+        os.remove(f"{ALdir}processed_data/{embeddings}/{embedding_tokname}")
     else:
         tr = np.load(f"{ALdir}processed_data/{embeddings}/{emb_filename}")
         if test_sent is not None:
