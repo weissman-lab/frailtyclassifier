@@ -92,8 +92,6 @@ def AL_CV(index,
             print('embeddings in progress on another machine')
             return 2
 
-        np.save(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}", va)
-
         with mirrored_strategy.scope():
 
             '''If the model is to be a transformer, either create or load the data'''
