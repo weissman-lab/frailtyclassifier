@@ -1,5 +1,5 @@
 FROM tensorflow/tensorflow:latest-gpu-jupyter
-RUN pip install pandas numpy 'spacy==2.3.5' scispacy scikit-learn scipy configargparse 'gensim==3.8.3' sqlalchemy pymssql pyyaml transformers torch
+RUN pip install -v pandas numpy 'spacy==2.3.5' scispacy scikit-learn scipy configargparse 'gensim==3.8.3' sqlalchemy pymssql pyyaml transformers torch
 RUN python -m spacy download en_core_web_sm
 RUN pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.3.0/en_core_sci_md-0.3.0.tar.gz
 WORKDIR /usr/src/app

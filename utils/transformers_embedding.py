@@ -59,7 +59,7 @@ class BCBEmbedder:
 
     def get_avg_embedding(self, y):
         assert self.model_type == 'roberta-base'
-        y = "<s>" + y + "</s>"
+        y = "<s>" + str(y) + "</s>"
         tok_y = self.tokenizer.tokenize(y)
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(tok_y)
         segments_ids = [1] * len(tok_y)

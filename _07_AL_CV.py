@@ -36,6 +36,7 @@ def main():
                }
     hp_grid = expand_grid(hp_grid)
     hp_grid.insert(0, 'index', list(range(hp_grid.shape[0])))
+
     hp_grid.to_csv(f"{ALdir}hyperparameter_grid.csv")
     
     scram_idx = np.random.choice(hp_grid.shape[0], hp_grid.shape[0], replace = False)
