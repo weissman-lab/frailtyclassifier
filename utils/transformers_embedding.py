@@ -26,7 +26,7 @@ class BCBEmbedder:
     def get_cls(self, y):
         assert self.model_type == 'emilyalsentzer/Bio_ClinicalBERT'
         # y = "Why is this broken?"
-        y = "[CLS] " + y + " [SEP]"
+        y = "[CLS] " + str(y) + " [SEP]"
         tok_y = self.tokenizer.tokenize(y)
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(tok_y)
         segments_ids = [1] * len(tok_y)
