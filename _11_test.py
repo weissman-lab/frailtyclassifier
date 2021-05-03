@@ -13,7 +13,7 @@ pd.options.display.max_columns = 4000
 
 
 class TestPredictor:
-    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type = 'w2v'):
+    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type='w2v'):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
@@ -128,12 +128,11 @@ class TestPredictor:
         mmfun = make_model if self.model_type == 'w2v' else make_transformers_model
         emb_filename = f"embeddings_{self.model_type}_final_test.npy"  # only used for transformers
 
-
         model, vectorizer = mmfun(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
                                   sentence_length=SENTENCE_LENGTH,
                                   meta_shape=len(self.str_varnames),
                                   tags=[self.task] if self.task != 'multi' else TAGS,
-                                  train_sent=sents, # these are actually test sentences, but they'll work here
+                                  train_sent=sents,  # these are actually test sentences, but they'll work here
                                   test_sent=None,
                                   l1_l2_pen=mod_dict['config']['l1_l2_pen'],
                                   n_units=mod_dict['config']['n_units'],
@@ -143,8 +142,6 @@ class TestPredictor:
                                   embeddings=self.model_type,
                                   emb_filename=emb_filename
                                   )
-
-
 
         weights = model.get_weights()
         for i in range(1, len(weights)):  # ignore the first weight matrix, which is the embeddings
@@ -211,8 +208,9 @@ def main():
         for model_type in ['w2v', 'bioclinicalbert', 'roberta']:
             for bs in ["0" + str(i + 1) for i in range(5)]:
                 try:
-                    pp = TestPredictor(batchstring=bs, task=tag, model_type = model_type)
-                    if not os.path.exists(f"{pp.ALdir}final_model/test_preds/test_preds_AL{pp.batchstring}{pp.suffix}.csv"):
+                    pp = TestPredictor(batchstring=bs, task=tag, model_type=model_type)
+                    if not os.path.exists(
+                            f"{pp.ALdir}final_model/test_preds/test_preds_AL{pp.batchstring}{pp.suffix}.csv"):
                         print(f"test preds for batch {bs} tag {tag} type {model_type}")
                         pp.run()
                 except:
