@@ -204,9 +204,9 @@ class TestPredictor:
 
 
 def main():
-    for tag in TAGS + ['multi']:
-        for model_type in ['w2v', 'bioclinicalbert', 'roberta']:
-            for bs in ["0" + str(i + 1) for i in range(5)]:
+    for bs in ["0" + str(i + 1) for i in range(5)]:
+        for tag in TAGS + ['multi']:
+            for model_type in ['w2v', 'bioclinicalbert', 'roberta']:
                 try:
                     pp = TestPredictor(batchstring=bs, task=tag, model_type=model_type)
                     if not os.path.exists(
