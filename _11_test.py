@@ -6,14 +6,14 @@ import numpy as np
 import tensorflow as tf
 from utils.constants import SENTENCE_LENGTH, OUT_VARNAMES, STR_VARNAMES, TAGS
 from utils.misc import read_pickle, test_nan_inf, sheepish_mkdir, send_message_to_slack
-from utils.prefit import make_model
+from utils.prefit import make_model, make_transformers_model
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
 
 class TestPredictor:
-    def __init__(self, batchstring, task, use_training_dict = False, save = True):
+    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type = 'w2v'):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
@@ -23,6 +23,9 @@ class TestPredictor:
         self.save = save
         self.use_training_dict = use_training_dict
         self.suffix = "" if self.task == "multi" else f"_{self.task}"
+        if model_type != "w2v":
+            self.suffix += f"_{model_type}"
+        self.model_type = model_type
         # things defined in methods
         self.df = None
         self.strdat = None
@@ -111,9 +114,8 @@ class TestPredictor:
         self.strdat = str_all
         # trimming outliers:
         for p in [i for i in self.strdat.columns if 'pca' in i]:
-            self.strdat.loc[self.strdat[p]>4] = 4
-            self.strdat.loc[self.strdat[p]< -4] = -4
-
+            self.strdat.loc[self.strdat[p] > 4] = 4
+            self.strdat.loc[self.strdat[p] < -4] = -4
 
     def reconstitute_model(self):
         mod_dict = read_pickle(f"{self.ALdir}final_model/model_final_{self.batchstring}{self.suffix}.pkl")
@@ -123,17 +125,29 @@ class TestPredictor:
         else:
             sents = self.df.sentence
 
-        model, vectorizer = make_model(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
-                                       sentence_length=SENTENCE_LENGTH,
-                                       meta_shape=len(self.str_varnames),
-                                       tags=OUT_VARNAMES if self.task == 'multi' else [self.task],
-                                       train_sent=sents,
-                                       l1_l2_pen=mod_dict['config']['l1_l2_pen'],
-                                       n_units=mod_dict['config']['n_units'],
-                                       n_dense=mod_dict['config']['n_dense'],
-                                       dropout=mod_dict['config']['dropout'])
+        mmfun = make_model if self.model_type == 'w2v' else make_transformers_model
+        emb_filename = f"embeddings_{self.model_type}_final_test.npy"  # only used for transformers
+
+
+        model, vectorizer = mmfun(emb_path=f"{self.datadir}w2v_oa_all_300d.bin",
+                                  sentence_length=SENTENCE_LENGTH,
+                                  meta_shape=len(self.str_varnames),
+                                  tags=[self.task] if self.task != 'multi' else TAGS,
+                                  train_sent=sents, # these are actually test sentences, but they'll work here
+                                  test_sent=None,
+                                  l1_l2_pen=mod_dict['config']['l1_l2_pen'],
+                                  n_units=mod_dict['config']['n_units'],
+                                  n_dense=mod_dict['config']['n_dense'],
+                                  dropout=mod_dict['config']['dropout'],
+                                  ALdir=self.ALdir,
+                                  embeddings=self.model_type,
+                                  emb_filename=emb_filename
+                                  )
+
+
+
         weights = model.get_weights()
-        for i in range(1, len(weights)): # ignore the first weight matrix, which is the embeddings
+        for i in range(1, len(weights)):  # ignore the first weight matrix, which is the embeddings
             weights[i] = mod_dict['weights'][i]
         model.set_weights(weights)
         # model.set_weights(mod_dict['weights'])
@@ -143,7 +157,12 @@ class TestPredictor:
     def predict(self):
         self.df['month'] = self.df.sentence_id.apply(lambda x: int(x.split("_")[2][1:]))
         pred_df = self.df.merge(self.strdat)
-        text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
+
+        if self.model_type == 'w2v':
+            text = self.vectorizer(np.array([[s] for s in pred_df.sent]))
+            test_nan_inf(text)
+
+        # text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
         labels = []
         if self.task == 'multi':
             for n in TAGS:
@@ -156,10 +175,11 @@ class TestPredictor:
                                                    f"{self.task}_pos"]], dtype='float32')
             assert all(tf.reduce_mean(tf.cast(labels, dtype='float32'), axis=0) % 1 > 0)
         struc = tf.convert_to_tensor(pred_df[self.str_varnames], dtype='float32')
-        test_nan_inf(text)
         test_nan_inf(labels)
         test_nan_inf(struc)
-        yhat = self.model.predict([text, struc])
+        X = [self.vectorizer['tr'], struc] if not self.model_type == 'w2v' else [text, struc]
+
+        yhat = self.model.predict(X)
         if self.task == 'multi':
             yhat_df = []
             for i, yh in enumerate(yhat):
@@ -186,8 +206,6 @@ class TestPredictor:
             preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
 
 
-
-
 def main():
     for tag in TAGS + ['multi']:
         for bs in ["0" + str(i + 1) for i in range(5)]:
@@ -197,11 +215,9 @@ def main():
                 send_message_to_slack(f"problem with batch {bs} tag {tag}")
 
 
-
-
 if __name__ == "__main__":
-    main()
-
+    self = TestPredictor(batchstring='01', task='Resp_imp')
+    # main()
 
     # self = TestPredictor(batchstring='03', task='Msk_prob')
     # TestPredictor(batchstring='03', task='Fall_risk').run()
