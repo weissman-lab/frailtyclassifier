@@ -216,7 +216,7 @@ def main():
                         print(f"test preds for batch {bs} tag {tag} type {model_type}")
                         pp.run()
                 except:
-                    send_message_to_slack(f"problem with batch {bs} tag {tag}")
+                    send_message_to_slack(f"problem with batch {bs} tag {tag}, model type {model_type}")
 
 
 if __name__ == "__main__":
