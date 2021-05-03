@@ -114,8 +114,8 @@ class TestPredictor:
         self.strdat = str_all
         # trimming outliers:
         for p in [i for i in self.strdat.columns if 'pca' in i]:
-            self.strdat.loc[self.strdat[p] > 4] = 4
-            self.strdat.loc[self.strdat[p] < -4] = -4
+            self.strdat.loc[self.strdat[p] > 4, p] = 4
+            self.strdat.loc[self.strdat[p] < -4, p] = -4
 
     def reconstitute_model(self):
         mod_dict = read_pickle(f"{self.ALdir}final_model/model_final_{self.batchstring}{self.suffix}.pkl")
@@ -158,7 +158,6 @@ class TestPredictor:
         if self.model_type == 'w2v':
             text = self.vectorizer(np.array([[s] for s in pred_df.sent]))
             test_nan_inf(text)
-
         # text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
         labels = []
         if self.task == 'multi':
