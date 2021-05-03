@@ -216,8 +216,8 @@ def main():
 
 
 if __name__ == "__main__":
-    self = TestPredictor(batchstring='01', task='Resp_imp')
-    # main()
+    # self = TestPredictor(batchstring='01', task='Resp_imp')
+    main()
 
     # self = TestPredictor(batchstring='03', task='Msk_prob')
     # TestPredictor(batchstring='03', task='Fall_risk').run()
