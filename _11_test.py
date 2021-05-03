@@ -208,11 +208,15 @@ class TestPredictor:
 
 def main():
     for tag in TAGS + ['multi']:
-        for bs in ["0" + str(i + 1) for i in range(5)]:
-            try:
-                TestPredictor(batchstring=bs, task=tag).run()
-            except:
-                send_message_to_slack(f"problem with batch {bs} tag {tag}")
+        for model_type in ['w2v', 'bioclinicalbert', 'roberta']:
+            for bs in ["0" + str(i + 1) for i in range(5)]:
+                try:
+                    pp = TestPredictor(batchstring=bs, task=tag, model_type = model_type)
+                    if not os.path.exists(f"{pp.ALdir}final_model/test_preds/test_preds_AL{pp.batchstring}{pp.suffix}.csv"):
+                        print(f"test preds for batch {bs} tag {tag} type {model_type}")
+                        pp.run()
+                except:
+                    send_message_to_slack(f"problem with batch {bs} tag {tag}")
 
 
 if __name__ == "__main__":
