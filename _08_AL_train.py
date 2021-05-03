@@ -51,7 +51,7 @@ class Trainer:
             pkls = [i for i in cvmods if any(re.findall(self.task, i))]
         cvdf = []
         for pkl in pkls:
-            if self.dev == True:
+            if (self.dev == True) | (self.batchstring == "01"):
                 try:
                     x = read_pickle(f"{cvmodpath}/{pkl}")
                     d = x['config']
