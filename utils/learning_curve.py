@@ -8,19 +8,26 @@ import re
 outdir = find_outdir()
 
 '''
-consolidate single- and multi-task NN performance
+consolidate single- and multi-task NN training performance
+run separately for each embedding strategy (w2v, bert, roberta)
 '''
-def consolidate_NN_perf():
+def consolidate_NN_perf(model):
     batches = ['AL01', 'AL02', 'AL03', 'AL04', 'AL05']
     mult_b = []
     single_b = []
     for batch in batches:
-        pklpath = f'{outdir}saved_models/{batch}/cv_models/'
+        if model == 'w2v':
+            pklpath = f'{outdir}saved_models/{batch}/cv_models/'
+        elif model == 'roberta':
+            pklpath = f'{outdir}saved_models/{batch}/cv_models/roberta/'
+        elif model == 'bert':
+            pklpath = f'{outdir}saved_models/{batch}/cv_models/bioclinicalbert/'
         pkls = [i for i in os.listdir(pklpath) if 'model' in i]
         xd = []
         #ID single- and multi-task NN
         multi = [pkl for pkl in pkls if not any(s in pkl for s in TAGS)]
         single = [pkl for pkl in pkls if any(s in pkl for s in TAGS)]
+        #gather multi-task NN cross validation performance
         for pkl in multi:
             x = read_pickle(f"{pklpath}{pkl}")
             d = x['config']
@@ -37,6 +44,7 @@ def consolidate_NN_perf():
         multi['brier_mean_aspects'] = multi.loc[:, ['Fall_risk', 'Msk_prob', 'Nutrition', 'Resp_imp']].mean(axis = 1)
         multi['batch'] = batch
         mult_b.append(multi)
+        # gather single-task NN cross validation performance
         sd = []
         for pkl in single:
             x = read_pickle(f"{pklpath}{pkl}")
@@ -52,14 +60,22 @@ def consolidate_NN_perf():
         # same as RF & enet)
         single['batch'] = batch
         single_b.append(single)
-
     #write out
     mtask = pd.concat(mult_b).reset_index()
-    mtask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_mtask.csv")
-
+    if model == 'w2v':
+        mtask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_mtask.csv")
+    elif model == 'roberta':
+        mtask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_mtask_roberta.csv")
+    elif model == 'bert':
+        mtask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_mtask_bert.csv")
     #write out
     stask = pd.concat(single_b).reset_index()
-    stask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_stask.csv")
+    if model == 'w2v':
+        stask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_stask.csv")
+    elif model == 'roberta':
+        stask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_stask_roberta.csv")
+    elif model == 'bert':
+        stask.to_csv(f"{outdir}saved_models/{batches[-1]}/learning_curve_stask_bert.csv")
 
 
 '''
