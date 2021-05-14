@@ -132,7 +132,7 @@ def AL_CV(index,
             tr_labels.append(tr)
             va_labels.append(va)
 
-        for v in str_varnames:
+        for v in str_varnames: # lose outliers in PCA
             df_tr.loc[df_tr[v] > 4, v] = 4
             df_tr.loc[df_tr[v] < -4, v] = -4
             df_va.loc[df_va[v] > 4, v] = 4
