@@ -1,0 +1,19 @@
+version: "3.7"
+services:
+
+  terraform:
+    build: .
+    volumes: 
+      - ./:/tmp
+      # - ./.ssh/azure:/root/.ssh/azure
+      - azure-ssh:/root.ssh/azure
+    working_dir: /tmp
+    stdin_open: true
+    tty: true
+    env_file: 
+      - .env
+      - secrets.env
+    entrypoint: ["/bin/bash"]
+
+volumes:
+  azure-ssh:

@@ -1,0 +1,19 @@
+{
+  "bind_addr":"_CONSUL_BIND_ADDR_",
+  "client_addr": "0.0.0.0",
+  "data_dir": "/var/lib/consul",
+  "server": false,
+  "encrypt": "${consul_enc_key}",
+  "retry_join": ["provider=azure subscription_id=${az_subscription_id} tenant_id=${az_tenant_id} client_id=${az_client_id} secret_access_key=\"${az_secret_access_key}\" resource_group=${az_rg_name} vm_scale_set=${az_consul_vmss_name}"],
+  "ca_file": "/etc/consul.d/consul-agent-ca.pem",
+  "cert_file": "/etc/consul.d/consul-client.pem",
+  "key_file": "/etc/consul.d/consul-client-key.pem",
+  "verify_outgoing": true,
+  "verify_server_hostname": true,
+  "verify_incoming": true,
+  "acl": {
+    "enabled": true,
+    "default_policy": "deny",
+    "down_policy": "extend-cache"
+  }
+}
