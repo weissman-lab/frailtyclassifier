@@ -103,8 +103,8 @@ def make_transformers_model(emb_path,
     # va = np.load('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL01/processed_data/bioclinicalbert/te.npy')
     #
     if "final_test" in emb_filename:
-        ALdir = "AL01" # the final test embeddings are the same for all the batches
-
+        # ALdir = "AL01/" # the final test embeddings are the same for all the batches
+        ALdir = ALdir[:-3] + "01/"
     cond1 = os.path.exists(f"{ALdir}processed_data/{embeddings}/{emb_filename}")
     cond2 = os.path.exists(f"{ALdir}processed_data/{embeddings}/{re.sub('_tr', '_va', emb_filename)}")
     if not cond1 & cond2:
