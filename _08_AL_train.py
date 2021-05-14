@@ -21,7 +21,7 @@ pd.options.display.max_columns = 4000
 
 
 class Trainer:
-    def __init__(self, batchstring, task, dev=False, model_type='w2v'):
+    def __init__(self, batchstring, task, dev=False, model_type='w2v', earlystopping=False):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
@@ -32,12 +32,14 @@ class Trainer:
             self.model_type = 'w2v'
         self.task = task
         self.batchstring = batchstring
+        self.earlystopping = earlystopping
         self.dev = dev
         # defined in methods:
         self.cfg = None
         self.bestmods = None
         self.hdict = None
         self.cvmodpath = None
+        self.tr_pids = None
 
     def get_config(self):
         cvmodpath = f"{self.ALdir}cv_models/"
@@ -108,14 +110,23 @@ class Trainer:
     def fit(self):
         ##################
         # load data
-        df = pd.read_csv(f"{self.ALdir}processed_data/full_set/full_df.csv", index_col=0)
-        sent = df['sentence']
-        str_varnames = [i for i in df.columns if re.match("pca[0-9]", i)]
+        if self.earlystopping == False:
+            df = pd.read_csv(f"{self.ALdir}processed_data/full_set/full_df.csv", index_col=0)
+            sent = df['sentence']
+        else:
+            df_tr = pd.read_csv(f"{self.ALdir}processed_data/full_set_earlystopping/rNone_fNone_tr_df.csv", index_col=0)
+            df_va = pd.read_csv(f"{self.ALdir}processed_data/full_set_earlystopping/rNone_fNone_va_df.csv", index_col=0)
+            sent_tr = df_tr['sentence']
+            sent_va = df_va['sentence']
+            str_varnames = [i for i in df_tr.columns if re.match("pca[0-9]", i)]
 
         ###################
         # create model and vectorizer
         mmfun = make_model if self.model_type == 'w2v' else make_transformers_model
-        emb_filename = f"embeddings_{self.model_type}_final.npy"  # only used for transformers
+        if self.earlystopping == False:
+            emb_filename = f"embeddings_{self.model_type}_final.npy"  # only used for transformers
+        else:
+            emb_filename = f"embeddings_{self.model_type}_final_tr.npy"  # only used for transformers
 
         mirrored_strategy = tf.distribute.MirroredStrategy()
 
@@ -124,8 +135,8 @@ class Trainer:
                                       sentence_length=SENTENCE_LENGTH,
                                       meta_shape=len(str_varnames),
                                       tags=[self.task] if self.task != 'multi' else TAGS,
-                                      train_sent=sent,
-                                      test_sent=None,
+                                      train_sent=sent if self.earlystopping == False else sent_tr,
+                                      test_sent=None if self.earlystopping == False else sent_va,
                                       l1_l2_pen=self.cfg['l1_l2_pen'],
                                       n_units=self.cfg['n_units'],
                                       n_dense=self.cfg['n_dense'],
@@ -135,31 +146,75 @@ class Trainer:
                                       emb_filename=emb_filename
                                       )
 
+            earlystopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                             patience=25,
+                                                             restore_best_weights=True)
+
             model.compile(loss='categorical_crossentropy',
                           optimizer=tf.keras.optimizers.Adam(1e-4))
 
         #####################
         # prepare data for tensorfow
         if self.model_type == 'w2v':
-            text = vectorizer(np.array([[s] for s in sent]))
-            test_nan_inf(text)
+            if self.earlystopping == False:
+                text = vectorizer(np.array([[s] for s in sent]))
+                test_nan_inf(text)
+            else:
+                text_tr = vectorizer(np.array([[s] for s in sent_tr]))
+                test_nan_inf(text_tr)
+                text_va = vectorizer(np.array([[s] for s in sent_va]))
+                test_nan_inf(text_va)
 
-        labels = []
-        if self.task == 'multi':
-            for n in TAGS:
-                lab = tf.convert_to_tensor(df[[f"{n}_neg", f"{n}_neut", f"{n}_pos"]], dtype='float32')
-                labels.append(lab)
-            assert all([all(tf.reduce_mean(tf.cast(i, dtype='float32'), axis=0) % 1 > 0) for i in labels])
+        if self.earlystopping == False:
+            labels = []
+            if self.task == 'multi':
+                for n in TAGS:
+                    lab = tf.convert_to_tensor(df[[f"{n}_neg", f"{n}_neut", f"{n}_pos"]], dtype='float32')
+                    labels.append(lab)
+                assert all([all(tf.reduce_mean(tf.cast(i, dtype='float32'), axis=0) % 1 > 0) for i in labels])
+            else:
+                labels = tf.convert_to_tensor(df[[f"{self.task}_neg",
+                                                  f"{self.task}_neut",
+                                                  f"{self.task}_pos"]], dtype='float32')
+                assert all(tf.reduce_mean(tf.cast(labels, dtype='float32'), axis=0) % 1 > 0)
+            struc = tf.convert_to_tensor(df[str_varnames], dtype='float32')
+            test_nan_inf(struc)
+            test_nan_inf(labels)
+
         else:
-            labels = tf.convert_to_tensor(df[[f"{self.task}_neg",
-                                              f"{self.task}_neut",
-                                              f"{self.task}_pos"]], dtype='float32')
-            assert all(tf.reduce_mean(tf.cast(labels, dtype='float32'), axis=0) % 1 > 0)
+            labels_tr = []
+            labels_va = []
+            if self.task == 'multi':
+                for n in TAGS:
+                    lab = tf.convert_to_tensor(df_tr[[f"{n}_neg", f"{n}_neut", f"{n}_pos"]], dtype='float32')
+                    labels_tr.append(lab)
+                    lab = tf.convert_to_tensor(df_va[[f"{n}_neg", f"{n}_neut", f"{n}_pos"]], dtype='float32')
+                    labels_va.append(lab)
+                assert all([all(tf.reduce_mean(tf.cast(i, dtype='float32'), axis=0) % 1 > 0) for i in labels_tr])
+                assert all([all(tf.reduce_mean(tf.cast(i, dtype='float32'), axis=0) % 1 > 0) for i in labels_va])
+            else:
+                labels_tr = tf.convert_to_tensor(df_tr[[f"{self.task}_neg",
+                                                        f"{self.task}_neut",
+                                                        f"{self.task}_pos"]], dtype='float32')
+                labels_va = tf.convert_to_tensor(df_va[[f"{self.task}_neg",
+                                                        f"{self.task}_neut",
+                                                        f"{self.task}_pos"]], dtype='float32')
+                assert all(tf.reduce_mean(tf.cast(labels_tr, dtype='float32'), axis=0) % 1 > 0)
+                assert all(tf.reduce_mean(tf.cast(labels_va, dtype='float32'), axis=0) % 1 > 0)
 
-        struc = tf.convert_to_tensor(df[str_varnames], dtype='float32')
-        test_nan_inf(struc)
-        test_nan_inf(labels)
+            for v in str_varnames:  # lose outliers in PCA
+                df_tr.loc[df_tr[v] > 4, v] = 4
+                df_tr.loc[df_tr[v] < -4, v] = -4
+                df_va.loc[df_va[v] > 4, v] = 4
+                df_va.loc[df_va[v] < -4, v] = -4
 
+            struc_tr = tf.convert_to_tensor(df_tr[str_varnames], dtype='float32')
+            struc_va = tf.convert_to_tensor(df_va[str_varnames], dtype='float32')
+
+            test_nan_inf(struc_tr)
+            test_nan_inf(labels_tr)
+            test_nan_inf(struc_va)
+            test_nan_inf(labels_va)
 
         #############################
         # initialize the bias terms with the logits of the proportions
@@ -176,16 +231,27 @@ class Trainer:
             w[-pos] = w[-pos] * 0 + props
         model.set_weights(w)
 
-        X = [vectorizer['tr'], struc] if not self.model_type == 'w2v' else [text, struc]
+        if self.earlystopping == False:
+            X = [vectorizer['tr'], struc] if not self.model_type == 'w2v' else [text, struc]
 
-        history = model.fit(x=X,
-                            y=labels,
-                            epochs=int(self.cfg['medianlen']) if self.dev == False else 1,
-                            batch_size=32,
-                            verbose=1)
+            history = model.fit(x=X,
+                                y=labels,
+                                epochs=int(self.cfg['medianlen']) if self.dev == False else 1,
+                                batch_size=32,
+                                verbose=1)
+        else:
+            Xtr = [vectorizer['tr'], struc_tr] if not self.model_type == 'w2v' else [text_tr, struc_tr]
+            Xva = [vectorizer['va'], struc_va] if not self.model_type == 'w2v' else [text_va, struc_va]
+            history = model.fit(x=Xtr,
+                                y=labels_tr,
+                                validation_data=(Xva, labels_va),
+                                callbacks=earlystopping,
+                                epochs=int(self.cfg['medianlen']) if self.dev == False else 1,
+                                batch_size=32,
+                                verbose=1)
 
         #
-        if self.task == 'multi':
+        if self.task == 'multi' & self.earlystopping == False:
             final_hdict = dict(L=history.history['loss'],
                                fL=history.history['Fall_risk_loss'],
                                mL=history.history['Msk_prob_loss'],
@@ -206,6 +272,7 @@ class Trainer:
             sheepish_mkdir(f"{self.ALdir}/final_model")
             suffix = "" if self.task == "multi" else f"_{self.task}"
             suffix += f"{'_' + self.model_type if self.model_type is not 'w2v' else ''}"
+            suffix += f"{'_earlystopping' if self.earlystopping == True else ''}"
             write_pickle(outdict, f"{self.ALdir}/final_model/model_final_{self.batchstring}{suffix}.pkl")
         else:
             print('it seems to work!')
@@ -222,25 +289,30 @@ def main():
     p.add("--singletask", action='store_true')
     p.add("--dev", action='store_true')
     p.add("--model_type")
+    p.add("--earlystopping", action='store_true')
     options = p.parse_args()
     batchstring = options.batchstring
     singletask = options.singletask
     model_type = options.model_type
+    earlystopping = options.earlystopping
 
     dev = options.dev
     if singletask == False:
-        trobj = Trainer(batchstring=batchstring, task='multi', dev=dev, model_type=model_type)
+        trobj = Trainer(batchstring=batchstring, task='multi', dev=dev, model_type=model_type,
+                        earlystopping=earlystopping)
         trobj.run()
     else:
         for task in TAGS:
             print(f"starting {task}")
-            trobj = Trainer(batchstring=batchstring, task=task, dev=dev, model_type=model_type)
+            trobj = Trainer(batchstring=batchstring, task=task, dev=dev, model_type=model_type,
+                            earlystopping=earlystopping)
             trobj.run()
 
 
 if __name__ == '__main__':
     main()
-    # self = Trainer(batchstring='01', task='multi', dev=True, model_type='bioclinicalbert')
+    # self = Trainer(batchstring='01', task='multi', dev=True, model_type='bioclinicalbert',
+    #                earlystopping=True)
     # self.run()
 
 
