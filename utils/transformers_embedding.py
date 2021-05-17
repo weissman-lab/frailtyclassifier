@@ -13,8 +13,12 @@ class BCBEmbedder:
             self.model_type = 'emilyalsentzer/Bio_ClinicalBERT'
             self.model = AutoModel.from_pretrained(self.model_type,
                                                    output_hidden_states=True, )
-            # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            # self.model.to(self.device)
+            try:
+                self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                self.model.to(self.device)
+            except:
+                self.device = torch.device("cpu")
+                self.model.to(self.device)
 
         if self.model_type == 'roberta':  # easier to write and no slashes
             self.model_type = 'roberta-base'
