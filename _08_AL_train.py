@@ -246,7 +246,7 @@ class Trainer:
                                 y=labels_tr,
                                 validation_data=(Xva, labels_va),
                                 callbacks=earlystopping,
-                                epochs=int(self.cfg['medianlen']) if self.dev == False else 1,
+                                epochs=10000,
                                 batch_size=32,
                                 verbose=1)
 
