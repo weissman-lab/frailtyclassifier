@@ -251,7 +251,7 @@ class Trainer:
                                 verbose=1)
 
         #
-        if self.task == 'multi' & self.earlystopping == False:
+        if (self.task == 'multi') & (self.earlystopping == False):
             final_hdict = dict(L=history.history['loss'],
                                fL=history.history['Fall_risk_loss'],
                                mL=history.history['Msk_prob_loss'],
