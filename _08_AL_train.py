@@ -221,12 +221,12 @@ class Trainer:
         w = model.get_weights()
         # set the bias terms to the proportions
         if self.task == 'multi':
-            for i, yi in enumerate(labels):
+            for i, yi in enumerate(labels if self.earlystopping == False else labels_tr):
                 props = inv_logit(tf.reduce_mean(yi, axis=0).numpy())
                 pos = 7 - i * 2
                 w[-pos] = w[-pos] * 0 + props
         else:
-            props = inv_logit(tf.reduce_mean(labels, axis=0).numpy())
+            props = inv_logit(tf.reduce_mean(labels if self.earlystopping == False else labels_tr, axis=0).numpy())
             pos = 1
             w[-pos] = w[-pos] * 0 + props
         model.set_weights(w)
