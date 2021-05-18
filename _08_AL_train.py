@@ -108,6 +108,15 @@ class Trainer:
             ff.savefig(f"{self.ALdir}figures/cvlossplot{suffix}.png", dpi=400)
 
     def fit(self):
+        if self.dev == False:
+            sheepish_mkdir(f"{self.ALdir}/final_model")
+            suffix = "" if self.task == "multi" else f"_{self.task}"
+            suffix += f"{'_' + self.model_type if self.model_type is not 'w2v' else ''}"
+            suffix += f"{'_earlystopping' if self.earlystopping == True else ''}"
+            savepath = f"{self.ALdir}/final_model/model_final_{self.batchstring}{suffix}.pkl"
+            if os.path.exists(savepath):
+                print(f"Already exists: \n{savepath}")
+                return
         ##################
         # load data
         if self.earlystopping == False:
@@ -269,11 +278,7 @@ class Trainer:
                        ran_on=tf.config.list_physical_devices()
                        )
         if self.dev == False:
-            sheepish_mkdir(f"{self.ALdir}/final_model")
-            suffix = "" if self.task == "multi" else f"_{self.task}"
-            suffix += f"{'_' + self.model_type if self.model_type is not 'w2v' else ''}"
-            suffix += f"{'_earlystopping' if self.earlystopping == True else ''}"
-            write_pickle(outdict, f"{self.ALdir}/final_model/model_final_{self.batchstring}{suffix}.pkl")
+            write_pickle(outdict, savepath)
         else:
             print('it seems to work!')
 
@@ -309,10 +314,12 @@ def main():
             trobj.run()
 
 
+
+
 if __name__ == '__main__':
-    main()
-    # self = Trainer(batchstring='01', task='multi', dev=True, model_type='bioclinicalbert',
-    #                earlystopping=True)
+    # main()
+    self = Trainer(batchstring='01', task='multi', dev=True, model_type='bioclinicalbert',
+                   earlystopping=True)
     # self.run()
 
 
