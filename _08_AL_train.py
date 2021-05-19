@@ -295,23 +295,29 @@ def main():
     p.add("--dev", action='store_true')
     p.add("--model_type")
     p.add("--earlystopping", action='store_true')
+    p.add("--runall", action = 'store_true')
     options = p.parse_args()
     batchstring = options.batchstring
     singletask = options.singletask
     model_type = options.model_type
     earlystopping = options.earlystopping
-
     dev = options.dev
-    if singletask == False:
-        trobj = Trainer(batchstring=batchstring, task='multi', dev=dev, model_type=model_type,
-                        earlystopping=earlystopping)
-        trobj.run()
+
+    if options.runall == True:
+        batches = ['0'+str(i) for i in range(1,6)]
     else:
-        for task in TAGS:
-            print(f"starting {task}")
-            trobj = Trainer(batchstring=batchstring, task=task, dev=dev, model_type=model_type,
+        batches = batchstring
+    for batch in batches:
+        if singletask == False:
+            trobj = Trainer(batchstring=batch, task='multi', dev=dev, model_type=model_type,
                             earlystopping=earlystopping)
             trobj.run()
+        else:
+            for task in TAGS:
+                print(f"starting {task}")
+                trobj = Trainer(batchstring=batch, task=task, dev=dev, model_type=model_type,
+                                earlystopping=earlystopping)
+                trobj.run()
 
 
 

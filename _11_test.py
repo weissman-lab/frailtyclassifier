@@ -156,7 +156,7 @@ class TestPredictor:
         pred_df = self.df.merge(self.strdat)
 
         if self.model_type == 'w2v':
-            text = self.vectorizer(np.array([[s] for s in pred_df.sent]))
+            text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
             test_nan_inf(text)
         # text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
         labels = []
