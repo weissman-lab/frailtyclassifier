@@ -227,30 +227,20 @@ def main():
                         pp.run()
                 except:
                     send_message_to_slack(f"problem with batch {bs} tag {tag}, model type {model_type}")
+                try:
+                    pp = TestPredictor(batchstring=bs, task=tag, model_type=model_type, earlystopping = True)
+                    if not os.path.exists(
+                            f"{pp.ALdir}final_model/test_preds/test_preds_AL{pp.batchstring}{pp.suffix}.csv"):
+                        print(f"test preds for batch {bs} tag {tag} type {model_type}")
+                        pp.run()
+                except:
+                    send_message_to_slack(f"problem with batch {bs} tag {tag}, model type {model_type}, (earlystopping)")
 
 
 if __name__ == "__main__":
-    # self = TestPredictor(batchstring='01', task='Resp_imp')
     main()
 
     # self = TestPredictor(batchstring='03', task='Msk_prob')
     # TestPredictor(batchstring='03', task='Fall_risk').run()
     # self = TestPredictor(batchstring='03', task='multi')
     # self.run()
-
-# self = TestPredictor(batchstring='03', task='multi', use_training_dict = False, save = False)
-#
-# xx = preds
-# # xx = pd.read_csv('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/AL03/final_model/test_preds/preds_Fall_risk.csv')
-#
-# y = xx[[i for i in xx.columns if any([j in i for j in TAGS]) and 'pred' not in i]]
-# yhat = xx[[i for i in xx.columns if any([j in i for j in TAGS]) and 'pred' in i]]
-# yhat = yhat[[i+"_pred" for i in y.columns]]
-#
-# mse = ((yhat.values - y.values)**2).mean()
-# mst = ((y.values.mean(axis = 0) - y.values)**2).mean()
-# 1-mse/mst
-#
-# import matplotlib.pyplot as plt
-# plt.hist(yhat.Fall_risk_neg_pred)
-# plt.show()
