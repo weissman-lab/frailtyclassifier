@@ -13,7 +13,7 @@ pd.options.display.max_columns = 4000
 
 
 class TestPredictor:
-    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type='w2v'):
+    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type='w2v', earlystopping = False):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
@@ -25,7 +25,12 @@ class TestPredictor:
         self.suffix = "" if self.task == "multi" else f"_{self.task}"
         if model_type != "w2v":
             self.suffix += f"_{model_type}"
+        if earlystopping == True:
+            self.suffix += "_earlystopping"
+            if model_type == "w2v":
+                self.suffix = re.sub("_earlystopping", "_w2v_earlystopping", self.suffix)
         self.model_type = model_type
+        self.earlystopping = earlystopping
         # things defined in methods
         self.df = None
         self.strdat = None
@@ -95,9 +100,13 @@ class TestPredictor:
         self.df = df_label
 
     def compile_structured_data(self):
-        self.training_data = pd.read_csv(f"{self.ALdir}processed_data/full_set/full_df.csv", index_col=0)
+        if self.earlystopping == True:
+            self.training_data = pd.read_csv(f"{self.ALdir}processed_data/full_set_earlystopping/rNone_fNone_tr_df.csv", index_col=0)
+            skd = read_pickle(f"{self.ALdir}processed_data/full_set_earlystopping/sklearn_dict.pkl")
+        else:
+            self.training_data = pd.read_csv(f"{self.ALdir}processed_data/full_set/full_df.csv", index_col=0)
+            skd = read_pickle(f"{self.ALdir}processed_data/full_set/full_sklearn_dict.pkl")
         self.str_varnames = [i for i in self.training_data.columns if re.match("pca[0-9]", i)]
-        skd = read_pickle(f"{self.ALdir}processed_data/full_set/full_sklearn_dict.pkl")
         strdat = pd.read_csv(f"{self.outdir}structured_data_merged_cleaned.csv",
                              index_col=0)
         strdat = strdat.drop(columns=['RACE', 'LANGUAGE', 'MV_RACE', 'MV_LANGUAGE'])
@@ -119,7 +128,6 @@ class TestPredictor:
 
     def reconstitute_model(self):
         mod_dict = read_pickle(f"{self.ALdir}final_model/model_final_{self.batchstring}{self.suffix}.pkl")
-
         if self.use_training_dict == True:
             sents = self.training_data.sentence
         else:
@@ -144,8 +152,12 @@ class TestPredictor:
                                   )
 
         weights = model.get_weights()
-        for i in range(1, len(weights)):  # ignore the first weight matrix, which is the embeddings
-            weights[i] = mod_dict['weights'][i]
+        if self.model_type == "w2v":
+            for i in range(1, len(weights)):  # ignore the first weight matrix, which is the embeddings
+                weights[i] = mod_dict['weights'][i]
+        else:
+            for i in range(0, len(weights)):
+                weights[i] = mod_dict['weights'][i]
         model.set_weights(weights)
         # model.set_weights(mod_dict['weights'])
         self.model = model
@@ -200,6 +212,7 @@ class TestPredictor:
         sheepish_mkdir(f"{self.ALdir}final_model/test_preds")
         if self.save == True:
             preds.to_csv(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv")
+        return preds
 
 
 def main():
