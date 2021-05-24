@@ -123,7 +123,20 @@ def table_1_demographics():
     all_str2 = pd.concat([all_mean, all_median, all_n]).reset_index()
     all_str2.to_csv(f"{outdir}figures_tables/table_1.csv")
 
-    #table 1 - summary stats
+    #missingness in train data
+    train_miss = all_str[all_str.train_test == 'train']
+    percent_missing = train_miss.isnull().sum() * 100 / len(train_miss)
+    train_miss = pd.DataFrame({'column_name': train_miss.columns,
+                                     '% missing in training set': percent_missing})
+    #missingness in test data
+    test_miss = all_str[all_str.train_test == 'test']
+    percent_missing = test_miss.isnull().sum() * 100 / len(test_miss)
+    test_miss = pd.DataFrame({'column_name': test_miss.columns,
+                                     '% missing in test set': percent_missing})
+    missingness = train_miss.merge(test_miss)
+    missingness.to_csv(f"{outdir}figures_tables/missingness.csv")
+
+    #table 1 - summary stats (I think all_str2 supercedes this completely)
     def summ_stat(train_test):
         tab1_mean = train_test[mean_cols].mean()
         tab1_sd = train_test[mean_cols].std()
@@ -155,7 +168,7 @@ def table_1_demographics():
                                       'n_unique_meds', 'n_comorb', 'elixhauser'])].\
         to_csv(f"{outdir}figures_tables/table_1_test.csv")
 
-    return(tab1_train, tab1_test, all_str, new_AL_str)
+    return(all_str, all_str2)
 
 
 def lossplot(d, meanlen, d_final = None):
