@@ -4,10 +4,41 @@ library(tidyr)
 library(ggplot2)
 library(ggrepel)
 library(stringr)
+library(gmish)
+library(PRROC)
+library(ROCR)
+library(caret)
+library(ggsci)
 
+# Brier score
+Brier <- function(predictions, observations, positive_class) {
+  obs = as.numeric(observations == positive_class)
+  mean((predictions - obs)^2)
+}
+
+# scaled Brier score
+scaled_Brier <- function(predictions, observations, positive_class) {
+  1 - (Brier(predictions, observations, positive_class) / 
+         Brier(mean(observations), observations, positive_class))
+}
+
+# multiclass Brier score
+multi_Brier <- function(predictions, observations) {
+  mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
+}
+
+# multiclass scaled Brier score
+multi_scaled_Brier <- function(predictions, observations) {
+  event_rate_matrix <- matrix(colMeans(observations), 
+                              ncol = length(colMeans(observations)), 
+                              nrow = nrow(observations),
+                              byrow = TRUE)
+  1 - (multi_Brier(predictions, observations) / 
+         multi_Brier(event_rate_matrix, observations))
+}
 
 # set directories based on location
-dirs = c(paste0('/gwshare/frailty/output/saved_models/'),
+dirs = c(paste0('/gwshare/frailty/output/'),
          '/Users/martijac/Documents/Frailty/frailty_classifier/output/',
          '/media/drv2/andrewcd2/frailty/output/')
 for (d in 1:length(dirs)) {
@@ -19,438 +50,240 @@ for (d in 1:length(dirs)) {
 #constants
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
-
-
-# Calculate performance. Skip step #1 &2 for multi-task. Must go through 
-# steps 1 & 2 for single task models (NN, RF, enet) in order to properly
-# calculate mean and se across folds given that each frailty aspect can have a
-# different set of optimal hyperparameters.
-# 1.) for each batch, find the best hyperparameters for each model type (RF, 
-# enet, singleNN) for each frailty aspect
-# 2.) go back to each repeat/fold and find the mean performance across aspects
-# (brier_mean_aspects) for those hyperparameters (ie there may be different 
-# hyperparams for each frailty aspect)
-# 3.) find the mean and se for perfomance across all repeats/folds.
-
-#list relevant hyperparams
-hyperparams_enet <- c('SVD', 'lambda', 'alpha', 'case_weights')
-hyperparams_rf <- c('SVD', 'mtry', 'sample_frac', 'case_weights')
-hyperparams_nn <- c('n_dense', 'n_units', 'dropout', 'l1_l2_pen',
-                           'use_case_weights')
-#################### MEAN ####################
-#calculate performance
-#note: this should be run separately for each batch so that it finds the best
-#hyperparams specific to each bach
-perf_calc_MEAN <- function(raw_perf){
-  raw_perf <- as.data.frame(raw_perf)
-  if (raw_perf$model[1] == 'enet') {
-    hyperparams = hyperparams_enet
-    } else if (raw_perf$model[1] == 'rf') {
-      hyperparams = hyperparams_rf
-      } else if (raw_perf$model[1] == 'nn_single') {
-        hyperparams = hyperparams_nn}
-  #step 1 (best hyperparams for each frailty aspect)
-  group1 <- c('frail_lab', hyperparams)
-  step_1 <- raw_perf %>%
-    group_by_at(vars(all_of(group1))) %>%
-    summarise_at(vars(grep('sbrier', colnames(raw_perf), value = TRUE)),
-                 list(mean = mean, sd = sd)) %>%
-    na.omit() %>%
-    ungroup() %>%
-    group_by(frail_lab) %>%
-    arrange(desc(sbrier_multi_mean), .by_group = TRUE) %>%
-    slice(1)
-  #step 2 (mean performance of best hyperparams across all aspects for each fold)
-  hypcols <- c('frail_lab', hyperparams)
-  step_1$hyperp <- do.call(paste0, c(step_1[, hypcols]))
-  raw_perf$hyperp <- do.call(paste0, c(raw_perf[, hypcols]))
-  step_2 <- raw_perf %>%
-    filter(hyperp %in% step_1$hyperp) %>%
-    group_by(cv_repeat, fold) %>%
-    summarise_at(vars(grep('sbrier', colnames(raw_perf), value = TRUE)),
-                 list(all = mean)) %>%
-    ungroup()
-  #step 3 (mean & sd for performance of best hyperparams across folds)
-  step_3 <- step_2 %>%
-    summarise_at(vars(grep('sbrier', colnames(step_2), value = TRUE)),
-                 list(mean = mean, sd = sd))
-  step_3$model <- raw_perf$model[1]
-  step_3$batch <- raw_perf$batch[1]
-  return(list(select(step_1, -'hyperp'), step_3))
-}
-
-#combine summary performance for all batches & models
-mod_l <- list()
-for (m in 1:length(models)) {
-  if (models[m] == 'nn_single') {
-    batches <- batches
-  } else if (models[m] == 'enet'){
-    batches <- enet_batches
-  } else if (models[m] == 'rf'){
-    batches <- rf_batches
-  }
-  perf_l <- list()
-  for (b in 1:length(batches)) {
-    perf <- perf_calc_MEAN(get(paste0(models[m], '_performance'))[batch == batches[b],])
-    perf_l[[b]] <- perf[[2]][c('model', 'batch', 'sbrier_multi_all_mean',
-                                    'sbrier_multi_all_sd')]
-  }
-  mod_l <- c(mod_l, perf_l)
-}
-all_performance_mean <- rbindlist(mod_l)
-
-
-
-#################### MEDIAN ####################
-#calculate performance
-#note: this should be run separately for each batch so that it finds the best
-#hyperparams specific to each bach
-perf_calc_MEDIAN <- function(raw_perf){
-  raw_perf <- as.data.frame(raw_perf)
-  if (raw_perf$model[1] == 'enet') {
-    hyperparams = hyperparams_enet
-  } else if (raw_perf$model[1] == 'rf') {
-    hyperparams = hyperparams_rf
-  } else if (raw_perf$model[1] == 'nn_single') {
-    hyperparams = hyperparams_nn}
-  #step 1 (best hyperparams for each frailty aspect)
-  group1 <- c('frail_lab', hyperparams)
-  step_1 <- raw_perf %>%
-    group_by_at(vars(all_of(group1))) %>%
-    summarise_at(vars(grep('sbrier', colnames(raw_perf), value = TRUE)),
-                 list(median = median,
-                      iqr25 = ~quantile(., probs = 0.25, na.rm = TRUE),
-                      iqr75 = ~quantile(., probs = 0.75, na.rm = TRUE))) %>%
-    na.omit() %>%
-    ungroup() %>%
-    group_by(frail_lab) %>%
-    arrange(desc(sbrier_multi_median), .by_group = TRUE) %>%
-    slice(1)
-  #step 2 (median performance of best hyperparams across all aspects for each fold)
-  hypcols <- c('frail_lab', hyperparams)
-  step_1$hyperp <- do.call(paste0, c(step_1[, hypcols]))
-  raw_perf$hyperp <- do.call(paste0, c(raw_perf[, hypcols]))
-  step_2 <- raw_perf %>%
-    filter(hyperp %in% step_1$hyperp) %>%
-    group_by(cv_repeat, fold) %>%
-    summarise_at(vars(grep('sbrier', colnames(raw_perf), value = TRUE)),
-                 list(all = median)) %>%
-    ungroup()
-  #step 3 (median & se for performance of best hyperparams across folds)
-  step_3 <- step_2 %>%
-    summarise_at(vars(grep('sbrier', colnames(step_2), value = TRUE)),
-                 list(median = median,
-                      iqr25 = ~quantile(., probs = 0.25),
-                      iqr75 = ~quantile(., probs = 0.75)))
-  step_3$model <- raw_perf$model[1]
-  step_3$batch <- raw_perf$batch[1]
-  return(list(select(step_1, -'hyperp'), step_3))
-}
-
-#combine summary performance for all batches & models
-mod_l <- list()
-for (m in 1:length(models)) {
-  if (models[m] == 'nn_single') {
-    batches <- nn_batches
-  } else if (models[m] == 'enet'){
-    batches <- enet_batches
-  } else if (models[m] == 'rf'){
-    batches <- rf_batches
-  }
-  perf_l <- list()
-  for (b in 1:length(batches)) {
-    perf <- perf_calc_MEDIAN(get(paste0(models[m], '_performance'))[batch == batches[b],])
-    perf_l[[b]] <- perf[[2]][c('model', 'batch', 'sbrier_multi_all_median',
-                               'sbrier_multi_all_iqr25', 'sbrier_multi_all_iqr75')]
-  }
-  mod_l <- c(mod_l, perf_l)
-}
-all_performance_median <- rbindlist(mod_l)
-
-
-
-# add multi-task NN performance
-# (fewer steps to summarize because all aspects get the same hyperparams)
-nn_multi_performance <- fread(paste0(rootdir,
-                                     'saved_models/',
-                                     tail(nn_batches, 1),
-                                     '/learning_curve_mtask.csv'))
-nn_multi_performance[, 'cv_repeat'] <- nn_multi_performance[, 'repeat']
-nn_multi_performance[, 'sbrier_multi_all'] <- nn_multi_performance[, 'brier_mean_aspects']
-group <- c('batch', hyperparams_nn)
-nn_multi_performance_summ <- nn_multi_performance %>%
-  group_by_at(vars(all_of(group))) %>%
-  summarise_at(vars(grep('Fall_risk|Msk_prob|Nutrition|Resp_imp|brier', colnames(nn_multi_performance), value = TRUE)),
-               list(mean = mean,
-                    sd = sd,
-                    median = median,
-                    iqr25 = ~quantile(., probs = 0.25),
-                    iqr75 = ~quantile(., probs = 0.75)))
-nn_multi_performance_summ[, 'model'] <- 'nn_multi'
-nn_multi_perf_mean <- nn_multi_performance_summ %>%
-  group_by(batch) %>%
-  arrange(desc(sbrier_multi_all_mean)) %>%
-  select(c('model', 'batch', 'sbrier_multi_all_mean', 'sbrier_multi_all_sd')) %>%
-  slice(1) %>%
-  ungroup()
-nn_multi_perf_median <- nn_multi_performance_summ %>%
-  group_by(batch) %>%
-  arrange(desc(sbrier_multi_all_median)) %>%
-  select(c('model', 'batch', 'sbrier_multi_all_median', 'sbrier_multi_all_iqr25', 'sbrier_multi_all_iqr75')) %>%
-  slice(1) %>%
-  ungroup()
-
-#combine with other models
-all_performance_mean <- rbind(all_performance_mean, nn_multi_perf_mean)
-all_performance_median <- rbind(all_performance_median, nn_multi_perf_median)
+classes <- c('Positive', 'Negative', 'Neutral')
+cls <- c('_pos', '_neg', '_neut')
 
 
 
 
-#plot best performance: MEAN
-ggplot(all_performance_mean, aes(x = batch, y = sbrier_multi_all_mean, group=model)) +
-  #geom_line(aes(color = model)) +
-  geom_pointrange(aes(ymin = (sbrier_multi_all_mean - sbrier_multi_all_sd),
-                      ymax = (sbrier_multi_all_mean + sbrier_multi_all_sd),
-                      color = model),
-                  position = 'jitter') +
-  labs(title = 'Learning curve',
-       y = 'Scaled Brier Score, mean (SD)',
-       x = 'Batch') +
-  theme_bw() +
-  theme(legend.position = 'bottom')
 
-#table
-fwrite(filter(all_performance_mean, batch == 'AL04'),
-       paste0(rootdir, 'figures_tables/AL03_model_performance_mean.csv'))
+########################### HISTORICAL LEARNING CURVE #########################
 
-filter(all_performance_mean, batch == 'AL03')
+#load cross validated training performance
+train_performance_mean <- fread(paste0(rootdir,
+                                       'figures_tables/all_train_cv_performance.csv'))
+lc_newer <- train_performance_mean[(batch %in% c('AL03', 'AL04', 'AL05') &
+                                      model == 'nn_multi' &
+                                      text == 'word2vec'), -1]
+lc_newer <- lc_newer[, 1:3]
 
-#plot best performance: MEDIAN
-ggplot(all_performance_median, aes(x = batch, y = sbrier_multi_all_median, group=model)) +
-  #geom_line(aes(color = model)) +
-  geom_pointrange(aes(ymin = sbrier_multi_all_iqr25,
-                      ymax = sbrier_multi_all_iqr75,
-                      color = model),
-                  position = 'jitter') +
-  labs(title = 'Learning curve',
-       y = 'Scaled Brier Score, median (IQR)',
-       x = 'Batch') +
-  theme_bw() +
-  theme(legend.position = 'bottom')
+#load performance from AL01 and AL02 (before cross validation & sentences)
+lc_older <- fread(paste0(rootdir,
+                              'figures_tables/learning_curve_AL_mean.csv'),
+                       drop = 1)
+lc_older <- lc_older[batch %in% c('AL01', 'AL02'), ]
+colnames(lc_older) <- colnames(lc_newer)
+#combine
+lc_historical <- rbind(lc_older, lc_newer)
 
-fwrite(filter(all_performance_median, batch == 'AL03'),
-       paste0(rootdir, 'figures_tables/AL03_model_performance_median.csv'))
-
-
-
-#plot best performance for multi_NN by aspect: MEAN
-nn_asp <- list()
-for (f in 1:length(frail_lab)) {
-  cols <- paste0(frail_lab[f], '_mean')
-  nn <- nn_multi_performance_summ %>%
-    group_by(batch) %>%
-    arrange(desc(.data[[cols]])) %>%
-    slice(1) %>%
-    select('batch', paste0(frail_lab[f], '_mean'), paste0(frail_lab[f], '_sd'))
-  nn_asp[[f]] <- nn
-}
-NN_best_aspects <- Reduce(function(x,y) merge(x,y,by="batch",all=TRUE), nn_asp)
-nba_mean <- NN_best_aspects %>%
-  pivot_longer(cols = paste0(frail_lab, '_mean'),
-               names_to = c("Aspect", "crd"),
-               names_sep = "_mean",
-               values_to = 'sbrier_mean')%>%
-  select('batch', 'Aspect', 'sbrier_mean')
-nba_sd <- NN_best_aspects %>%
-  pivot_longer(cols = paste0(frail_lab, '_sd'),
-               names_to = c("Aspect", "crd"),
-               names_sep = "_sd",
-               values_to = 'sbrier_sd') %>%
-  select('batch', 'Aspect', 'sbrier_sd')
-NN_asp_mean <-left_join(nba_mean, nba_sd, by = c('batch', 'Aspect'))
-
-#plot
-ggplot(NN_asp_mean, aes(x = batch, y = sbrier_mean, group=Aspect)) +
-  #geom_line(aes(color = Aspect)) +
-  geom_pointrange(aes(ymin = (sbrier_mean - sbrier_sd),
-                      ymax = (sbrier_mean + sbrier_sd),
-                      color = Aspect),
-                  position = 'jitter') +
-  labs(title = 'Learning curve',
-       y = 'Scaled Brier Score, mean (sd)',
-       x = 'Batch') +
-  theme_bw()+
-  theme(legend.position = 'bottom')
-
-
-#plot best performance for multi_NN by aspect: MEDIAN
-nn_asp <- list()
-for (f in 1:length(frail_lab)) {
-  cols <- paste0(frail_lab[f], '_median')
-  nn <- nn_multi_performance %>%
-    group_by(batch) %>%
-    arrange(desc(.data[[cols]])) %>%
-    slice(1) %>%
-    select('batch', paste0(frail_lab[f], '_median'),
-           paste0(frail_lab[f], '_iqr25'),
-           paste0(frail_lab[f], '_iqr75'))
-  nn_asp[[f]] <- nn
-}
-NN_best_aspects <- Reduce(function(x, y) merge(x, y, by="batch", all=TRUE), nn_asp)
-nba_median <- NN_best_aspects %>%
-  pivot_longer(cols = paste0(frail_lab, '_median'),
-               names_to = c("Aspect", "crd"),
-               names_sep = "_median",
-               values_to = 'sbrier_median')%>%
-  select('batch', 'Aspect', 'sbrier_median')
-nba_iqr25 <- NN_best_aspects %>%
-  pivot_longer(cols = paste0(frail_lab, '_iqr25'),
-               names_to = c("Aspect", "crd"),
-               names_sep = "_iqr25",
-               values_to = 'sbrier_iqr25') %>%
-  select('batch', 'Aspect', 'sbrier_iqr25')
-nba_iqr75 <- NN_best_aspects %>%
-  pivot_longer(cols = paste0(frail_lab, '_iqr75'),
-               names_to = c("Aspect", "crd"),
-               names_sep = "_iqr75",
-               values_to = 'sbrier_iqr75') %>%
-  select('batch', 'Aspect', 'sbrier_iqr75')
-NN_asp_median <-left_join(nba_median, nba_iqr25, by = c('batch', 'Aspect'))
-NN_asp_median <-left_join(NN_asp_median, nba_iqr75, by = c('batch', 'Aspect'))
-
-ggplot(NN_asp_median, aes(x = batch, y = sbrier_median, group=Aspect)) +
-  #geom_line(aes(color = Aspect)) +
-  geom_pointrange(aes(ymin = sbrier_iqr25,
-                      ymax = sbrier_iqr75,
-                      color = Aspect),
-                  position = 'jitter') +
-  labs(title = 'Learning curve',
-       y = 'Scaled Brier Score, median (IQR)',
-       x = 'Batch') +
-  theme_bw() +
-  theme(legend.position = 'bottom')
-
-
-
-#plot performance by aspect for enet
-enet_AL04 <- perf_calc_MEAN(enet_performance[batch == 'AL04', ])[[1]]
-enet_AL04['batch'] <- 'AL04'
-enet_AL03 <- perf_calc_MEAN(enet_performance[batch == 'AL03', ])[[1]]
-enet_AL03['batch'] <- 'AL03'
-enet_asp_mean <- rbind(enet_AL03, enet_AL04)
-
-
-ggplot(enet_asp_mean, aes(x = batch, y = sbrier_multi_mean, group=frail_lab)) +
-  geom_pointrange(aes(ymin = (sbrier_multi_mean - sbrier_multi_sd),
-                      ymax = (sbrier_multi_mean + sbrier_multi_sd),
-                      color = frail_lab),
-                  position = 'jitter') +
-  labs(title = 'Learning curve',
-       y = 'Scaled Brier Score, mean (SD)',
-       x = 'Batch') +
-  theme_bw() +
-  theme(legend.position = 'bottom')
-
-
-
-###########
-# Historical learning curve
-lc_historical <- fread(paste0(rootdir, 'figures_tables/learning_curve_AL_mean.csv'))
-
-ggplot(lc_historical, aes(x = batch, y = brier_aspectwise, group=1)) +
+ggplot(lc_historical, aes(x = batch, y = sbrier_multi_all_mean, group=1)) +
   geom_line() +
-  geom_pointrange(aes(ymin = (brier_aspectwise - brier_aspectwise_se),
-                      ymax = (brier_aspectwise + brier_aspectwise_se))) +
+  geom_pointrange(aes(ymin = (sbrier_multi_all_mean - sbrier_multi_all_sd),
+                      ymax = (sbrier_multi_all_mean + sbrier_multi_all_sd))) +
   labs(title = 'Learning curve',
        y = 'Scaled Brier Score, mean (SE)',
        x = 'Batch') +
   theme(legend.position = 'bottom') +
   theme_bw()
 
-lc_historical <- fread(paste0(rootdir, 'figures_tables/learning_curve_AL_median.csv'))
 
-ggplot(lc_historical, aes(x = batch, y = brier_aspectwise, group=1)) +
-  geom_line() +
-  geom_pointrange(aes(ymin = brier_aspectwise_iqr25,
-                      ymax = brier_aspectwise_iqr75)) +
-  labs(title = 'Learning curve',
-       y = 'Scaled Brier Score, median (IQR)',
+
+
+
+########################## TEST SET PERFORMANCE BY BATCH ###################### 
+
+# Load test set performance
+all_test_perf <- fread(paste0(
+  rootdir,
+  'figures_tables/all_test_set_performance.csv'))
+
+all_test_perf <- mutate(all_test_perf,
+                      text = str_split(hyperparams, ' ', simplify = TRUE)[, 1],
+                      text = ifelse(text == 'embed', 'word2vec',
+                                    ifelse(text == '1000', 'TF-IDF 1000-d',
+                                           ifelse(text == '300', 'TF-IDF 1000-d', text))))
+
+all_test_perf <- all_test_perf %>%
+  mutate(Model = ifelse(model == 'enet', 'Elastic net',
+                        ifelse(model == 'nn_multi', 'Multi-task NN',
+                               ifelse(model == 'nn_single', 'Single-task NN',
+                                      ifelse(model == 'rf', 'Random forest', NA)))))
+
+all_test_perf_multiaspect <- all_test_perf %>%
+  group_by(Model, batch, text) %>%
+  summarise_at(vars(grep('sbrier', colnames(all_test_perf), value = TRUE)),
+               list(mean = mean), na.rm = TRUE)
+
+best_test_perf_multiaspect <- all_test_perf_multiaspect %>%
+  group_by(Model, batch) %>%
+  arrange(desc(sbrier_multi_mean)) %>%
+  slice(1) %>%
+  ungroup()
+
+#plot
+ggplot(best_test_perf_multiaspect, aes(x = batch, y = sbrier_multi_mean, group = Model)) +
+  geom_line(aes(color = Model)) +
+  geom_errorbar(aes(ymin = (sbrier_multi_mean - sbrier_multi_sd_mean),
+                      ymax = (sbrier_multi_mean + sbrier_multi_sd_mean),
+                      color = Model,
+                    width = 0.1)) +
+  labs(title = 'Performance on test set by model type',
+       y = 'Scaled Brier Score',
        x = 'Batch') +
+  theme_bw() +
   theme(legend.position = 'bottom') +
-  theme_bw()
+  scale_color_nejm()
 
 
 
 
+############################# TEST SET BEST MODEL ##############################
+test_all <- all_test_perf_multiaspect[all_test_perf_multiaspect$batch == 'AL05', ]
 
-# count sentences for each frailty aspect for each batch
-s_l <- list()
-for (b in 1:length(nn_batches)) {
-  d <- fread(paste0(rootdir,
-               'saved_models/',
-               nn_batches[b],
-               '/processed_data/full_set/full_df.csv'))
-  sent <- data.frame(batch = nn_batches[b])
-  sent$n_sent <- nrow(d)
-  sent$n_patients <- length(unique(d$PAT_ID))
-  sent$Msk_pos <- sum(d$Msk_prob_pos)
-  sent$Resp_pos <- sum(d$Resp_imp_pos)
-  sent$Fall_pos <- sum(d$Fall_risk_pos)
-  sent$Nutrition_pos <- sum(d$Nutrition_pos)
-  sent$Msk_neg <- sum(d$Msk_prob_neg)
-  sent$Resp_neg <- sum(d$Resp_imp_neg)
-  sent$Fall_neg <- sum(d$Fall_risk_neg)
-  sent$Nutrition_neg <- sum(d$Nutrition_neg)
-  s_l[[b]] <- sent
+test_all <- test_all %>%
+  group_by(Model) %>%
+  arrange(desc(sbrier_multi_mean), .by_group = TRUE)
+
+test_all['Text features'] <- test_all$text
+test_all['Multiclass SBS (SD)'] <- paste0(
+  as.character(round(test_all$sbrier_multi_mean, 2)),
+  ' (',
+  as.character(round(test_all$sbrier_multi_sd_mean, 2)),
+  ')')
+test_all['Positive SBS (SD)'] <- paste0(
+  as.character(round(test_all$sbrier_pos_mean, 2)),
+  ' (',
+  as.character(round(test_all$sbrier_pos_sd_mean, 2)),
+  ')')
+test_all['Negative SBS (SD)'] <- paste0(
+  as.character(round(test_all$sbrier_neg_mean, 2)),
+  ' (',
+  as.character(round(test_all$sbrier_neg_sd_mean, 2)),
+  ')')
+test_all['Neutral SBS (SD)'] <- paste0(
+  as.character(round(test_all$sbrier_neut_mean, 2)),
+  ' (',
+  as.character(round(test_all$sbrier_neut_sd_mean, 2)),
+  ')')
+
+cols <- c('Model', 'Text features',
+          grep('(SD)', colnames(test_all), value = TRUE))
+
+test_all <- rbind(test_all[(test_all$Model == 'Elastic net'), cols],
+                  test_all[(test_all$Model == 'Random forest'), cols],
+                  test_all[(test_all$Model == 'Single-task NN'), cols],
+                  test_all[(test_all$Model == 'Multi-task NN'), cols])
+
+fwrite(test_all,
+       paste0(rootdir,
+              'figures_tables/table3.csv'))
+
+
+
+
+############################### SENTENCE COUNTS ###############################
+
+# count sentences for each frailty aspect for each batch in training set
+if (file.exists(paste0(rootdir,
+                      'figures_tables/sentence_counts_train.csv'))){
+  sent_count_train <- fread(paste0(rootdir,
+                             'figures_tables/sentence_counts_train.csv'))
+} else{
+  s_l <- list()
+  for (b in 1:length(batches)) {
+    d <- fread(paste0(rootdir,
+                      'saved_models/',
+                      batches[b],
+                      '/processed_data/full_set/full_df.csv'))
+    sent <- data.frame(batch = batches[b])
+    sent$n_sent <- nrow(d)
+    sent$n_patients <- length(unique(d$PAT_ID))
+    sent$Msk_pos <- sum(d$Msk_prob_pos)
+    sent$Resp_pos <- sum(d$Resp_imp_pos)
+    sent$Fall_pos <- sum(d$Fall_risk_pos)
+    sent$Nutrition_pos <- sum(d$Nutrition_pos)
+    sent$Msk_neg <- sum(d$Msk_prob_neg)
+    sent$Resp_neg <- sum(d$Resp_imp_neg)
+    sent$Fall_neg <- sum(d$Fall_risk_neg)
+    sent$Nutrition_neg <- sum(d$Nutrition_neg)
+    s_l[[b]] <- sent
+  }
+  sent_count_train <- rbindlist(s_l)
+  
+  fwrite(sent_count,
+         paste0(rootdir,
+                'figures_tables/sentence_counts_train.csv'))
 }
-sent_count <- rbindlist(s_l)
 
-# check notes count for each batch
-note_raw <- fread(paste0(rootdir,
-                         '/notes_labeled_embedded_SENTENCES/notes_train_official.csv'))
-note_count <- note_raw %>%
-  group_by(batch) %>%
-  count()
-AL00 = sum(note_count[note_count$batch %in% c('batch_01', 'batch_02', 
-                                              'batch_03'), ]$n)
-AL01 = sum(note_count[note_count$batch %in% c('AL00'), ]$n, AL00)
-AL02 = sum(note_count[note_count$batch %in% c('AL01', 'AL01_v2',
-                                              'AL01_v2ALTERNATE'), ]$n, AL01)
-AL03 = sum(note_count[note_count$batch %in% c('AL02_v2'), ]$n, AL02)
-AL04 = sum(note_count[note_count$batch %in% c('AL03'), ]$n, AL03)
-check_note_count <- data.frame(n_patients= c(AL00, AL01, AL02, AL03, AL04),
-                         batch = c('AL00', 'AL01', 'AL02', 'AL03', 'AL04'))
-if (identical(sent_count$n_patients, check_note_count$n_patients[2:5]) == FALSE)
-  stop("note counts do not match")
+# count sentences for each frailty aspect for test notes
+if (file.exists(paste0(rootdir,
+                       'figures_tables/sentence_counts_test.csv'))){
+  sent_count_test <- fread(paste0(rootdir,
+                             'figures_tables/sentence_counts_test.csv'))
+} else{
+    d <- fread(paste0(rootdir,
+                      'saved_models/AL05/processed_data/test_set/full_df.csv'))
+    sent <- data.frame(batch = 'test')
+    sent$n_sent <- nrow(d)
+    sent$n_patients <- length(unique(d$PAT_ID))
+    sent$Msk_pos <- sum(d$Msk_prob_pos)
+    sent$Resp_pos <- sum(d$Resp_imp_pos)
+    sent$Fall_pos <- sum(d$Fall_risk_pos)
+    sent$Nutrition_pos <- sum(d$Nutrition_pos)
+    sent$Msk_neg <- sum(d$Msk_prob_neg)
+    sent$Resp_neg <- sum(d$Resp_imp_neg)
+    sent$Fall_neg <- sum(d$Fall_risk_neg)
+    sent$Nutrition_neg <- sum(d$Nutrition_neg)
+
+    sent_count_test <- sent
+    fwrite(sent,
+         paste0(rootdir,
+                'figures_tables/sentence_counts_test.csv'))
+}
+
+
+#sentences by batch
+ggplot(sent_count_train, aes(x = batch, y = n_sent)) +
+  geom_col() +
+  theme_bw() +
+  geom_label_repel(aes(label=n_sent), direction = 'y', nudge_y = 10, segment.size=0) +
+  labs(title = 'Cumulative number of sentences',
+       x = 'Batch')  +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.position = 'none')+
+  ylim(0, 80000)
 
 #Total sentence counts for latest batch
-AL04 <- filter(sent_count, batch == 'AL04')
+AL04 <- filter(sent_count_train, batch == 'AL04')
 Msk_sent <- AL04 %>%
-  pivot_longer(cols = grep('Msk', colnames(sent_count), value = TRUE),
+  pivot_longer(cols = grep('Msk', colnames(sent_count_train), value = TRUE),
                names_to = 'Class',
                values_to = 'Count') %>%
   mutate(Aspect = 'Msk') %>%
   select('Class', 'Count', 'Aspect')
 Resp_sent <- AL04 %>%
-  pivot_longer(cols = grep('Resp', colnames(sent_count), value = TRUE),
+  pivot_longer(cols = grep('Resp', colnames(sent_count_train), value = TRUE),
                names_to = 'Class',
                values_to = 'Count') %>%
   mutate(Aspect = 'Respiratory') %>%
   select('Class', 'Count', 'Aspect')
 Fall_sent <- AL04 %>%
-  pivot_longer(cols = grep('Fall', colnames(sent_count), value = TRUE),
+  pivot_longer(cols = grep('Fall', colnames(sent_count_train), value = TRUE),
                names_to = 'Class',
                values_to = 'Count') %>%
   mutate(Aspect = 'Fall risk') %>%
   select('Class', 'Count', 'Aspect')
 Nutrition_sent <- AL04 %>%
-  pivot_longer(cols = grep('Nutrition', colnames(sent_count), value = TRUE),
+  pivot_longer(cols = grep('Nutrition', colnames(sent_count_train), value = TRUE),
                names_to = 'Class',
                values_to = 'Count') %>%
   mutate(Aspect = 'Nutrition') %>%
   select('Class', 'Count', 'Aspect')
 asp_sent_count <- rbind(Msk_sent, Resp_sent, Fall_sent, Nutrition_sent)
+
+#number of sentences by aspect (pos & neg)
 ggplot(asp_sent_count, aes(x = Class, y = Count, group = Aspect)) +
   geom_col(aes(fill = Aspect)) +
   theme_bw() +
@@ -461,6 +294,7 @@ ggplot(asp_sent_count, aes(x = Class, y = Count, group = Aspect)) +
   labs(title = 'Number of sentences by aspect') +
   theme(legend.position = 'bottom')
 
+#Number of sentences by aspect (total)
 asp_sent_count_short <- asp_sent_count %>%
   group_by(Aspect) %>%
   summarise(Count = sum(Count))
@@ -473,191 +307,859 @@ ggplot(asp_sent_count_short, aes(x = Aspect, y = Count, group = Aspect)) +
                    segment.size=0) +
   labs(title = 'Number of sentences by aspect')
 
-#Percent non-neutral tokens
-rowSums(AL04[, 4:ncol(AL04)])/AL04$n_sent
+#Percent neutral sentences
+1 - rowSums(AL04[, 4:ncol(AL04)])/AL04$n_sent
 
 #patients by batch
-ggplot(sent_count, aes(x = batch, y = n_patients)) +
+ggplot(sent_count_train, aes(x = batch, y = n_patients)) +
   geom_col() +
   theme_bw() +
   geom_label_repel(aes(label=n_patients), direction = 'y', nudge_y = -0.05, segment.size=0)
 
-#sentences by batch
-ggplot(sent_count, aes(x = batch, y = n_sent)) +
-  geom_col() +
-  theme_bw() +
-  geom_label_repel(aes(label=n_sent), direction = 'y', nudge_y = 0.5, segment.size=0) +
-  labs(title = 'Number of sentences by batch',
-       x = 'Batch',
-       y = 'Number of sentences') 
+
+# Compare train & test sentence counts
+fc <- rbind(sent_count_train[sent_count_train$batch == 'AL05'], sent_count_test)
+final_counts <- transpose(fc)
+final_counts$label <- colnames(fc)
+colnames(final_counts) <- c('Train', 'Test', '')
+final_counts <- final_counts[-1, ]
+final_counts <- final_counts[, c('', 'Train', 'Test')]
+train_tot <- as.numeric(final_counts[1,2])
+test_tot <- as.numeric(final_counts[1,3])
+final_counts$Train <- paste0(final_counts$Train,
+                             ' (', 
+                             round(as.numeric(final_counts$Train)/train_tot*100, 
+                                   1),
+                             '%)')
+final_counts$Test <- paste0(final_counts$Test,
+                             ' (', 
+                             round(as.numeric(final_counts$Test)/test_tot*100, 
+                                   1),
+                             '%)')
+fwrite(final_counts,
+       paste0(rootdir,
+              'figures_tables/sentence_counts_all.csv'))
 
 
 
-#hyperparameters with best performance in the most recent batch
-best_enet <- perf_calc(enet_performance[batch == 'AL04', ])[[1]]
-best_rf <- perf_calc(rf_performance[batch == 'AL04', ])[[1]]
-best_nn_single <- perf_calc(nn_single_performance[batch == 'AL04', ])[[1]]
-print(best_enet)
-print(best_rf) 
-print(best_nn_single)
 
 
 
-#CPU time
-rf_time <- fread(paste0(
-  rootdir, 
-  'lin_trees_SENT/exp1292021/exp1292021_rf_cpu_time.csv'))
-enet_time <- fread(paste0(
-  rootdir,
-  'lin_trees_SENT/exp1292021/exp1292021_enet_cpu_time.csv'))
+################################ COMPUTE TIME ################################   
+#load data
+nn_single_performance <- fread(paste0(rootdir,
+                                      'saved_models/',
+                                      tail(batches, 1),
+                                      '/learning_curve_stask.csv'))
+nn_single_performance[, 'model'] <- 'nn_single'
 nn_single_performance$test <- nn_single_performance$model
 nn_single_performance$elapsed <- nn_single_performance$runtime
+nn_single_all_time <- nn_single_performance[batch == 'AL05']
+nn_multi_performance <- fread(paste0(rootdir,
+                                     'saved_models/',
+                                     tail(batches, 1),
+                                     '/learning_curve_mtask.csv'))
+nn_multi_performance[, 'model'] <- 'nn_multi'
+nn_multi_performance$test <- nn_multi_performance$model
+nn_multi_performance$elapsed <- nn_multi_performance$runtime
+nn_multi_all_time <- nn_multi_performance[batch == 'AL05']
+rf_time <- fread(paste0(
+  rootdir, 
+  'saved_models/AL05/lin_trees/expAL05_rf_cpu_time.csv'))
+enet_time <- fread(paste0(
+  rootdir,
+  'saved_models/AL05/lin_trees_enet/expAL05_enet_cpu_time.csv'))
 
+#function to summarize
 time_sum <- function(time) {
+  #divide by 25 lambdas per row for glmnet
+  if (time[['test']][1] == 'glmnet'){
+    time[['elapsed']] <- time[['elapsed']]/25
+  }
   d <- data.frame(model = time[['test']][1],
-             mean = round(mean(time[['elapsed']]), 2),
-             sd = round(sd(time[['elapsed']]), 2),
-             median = round(median(time[['elapsed']]), 2),
-             iqr25 = round(quantile(time[['elapsed']], probs = 0.25), 2),
-             iqr75 = round(quantile(time[['elapsed']], probs = 0.75), 2),
+             mean = round(mean(time[['elapsed']]), 1),
+             sd = round(sd(time[['elapsed']]), 1),
+             median = round(median(time[['elapsed']]), 1),
+             iqr25 = round(quantile(time[['elapsed']], probs = 0.25), 1),
+             iqr75 = round(quantile(time[['elapsed']], probs = 0.75), 1),
              row.names = NULL)
+  d['Seconds per model, mean (SD)'] <- paste0(as.character(d$mean),
+                                                      ' (',
+                                                      as.character(d$sd),
+                                                      ')')
+  d['Seconds per model, median (IQR)'] <- paste0(as.character(d$median),
+                                                         ' (',
+                                                         as.character(d$iqr25),
+                                                         ' - ',
+                                                         as.character(d$iqr75),
+                                                         ')')
   if (d[['model']] == 'rf'){
     d['Processor'] <- '64 CPU'
+    d['Total models (n)'] <- nrow(time)
+    d['Total compute time (hrs)'] <- round(sum(time[['elapsed']])/60/60, 1)
   }
   if (d[['model']] == 'glmnet'){
     d['Processor'] <- '1 CPU'
+    d['Total models (n)'] <- nrow(time)*25
+    d['Total compute time (hrs)'] <- round(sum(time[['elapsed']])*25/60/60, 1)
+    #note: total compute time for glmnet is for 1 CPU. We ran 96 CPUs in parallel.
   }
-  if (d[['model']] == 'nn_single'){
+  if (d[['model']] == 'nn_single' | d[['model']] == 'nn_multi'){
     d['Processor'] <- '1 GPU'
+    d['Total models (n)'] <- nrow(time)
+    d['Total compute time (hrs)'] <- round(sum(time[['elapsed']])/60/60, 1)
   }
-  return(d)
+  return(d[c(1, seq(7, ncol(d)-1, 1))])
 }
-
+#summarize
 rf_time <- time_sum(rf_time)
 enet_time <- time_sum(enet_time)
-enet_time[2:6] <- round(enet_time[2:6]/25, 1)
-nn_time <- time_sum(nn_single_performance)
-times <- rbind(rf_time, enet_time, nn_time)
+nn_single_time <- time_sum(nn_single_all_time)
+nn_multi_time <- time_sum(nn_multi_all_time)
+times_mean_median <- rbind(rf_time, enet_time, nn_single_time, nn_multi_time)
+#save
+fwrite(times_mean_median,
+       paste0(rootdir,
+              'figures_tables/compute_time.csv'))
 
 
 
-#Calibration
-op_func <- function(r, f, frail_lab, svd, alpha){
-  #load obs for one of the folds
-  obs <- fread(paste0('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_SENT/exp1292021/r', r, '_f', f, '_va_df.csv'))
-  obs <- obs[, c('sentence_id', grep(frail_lab, colnames(obs), value = TRUE), 'sentence'), with = FALSE]
+
+
+
+
+
+################################# CALIBRATION #################################
+#load obs
+#gather obs, preds, and sentences
+op_func <- function(frail, model) {
+  obs <- fread(paste0(
+    rootdir,
+    'saved_models/AL05/processed_data/test_set/full_df.csv'))
+  # Rename cols to classes
+  cols <- paste0(frail, cls)
+  for (c in seq_along(cols)){
+    colnames(obs)[grep(paste0(cols[c]), colnames(obs))] <- classes[c]
+  }
+  obs <- obs[, c('sentence_id', 'sentence', classes),
+             with = FALSE]
   #get the preds for the best model
-  preds <- fread(paste0('/Users/martijac/Documents/Frailty/frailty_classifier/output/lin_trees_SENT/exp1292021/enet_preds/exp1292021_preds_r', r, '_f', f, '_', frail_lab, '_svd_', svd, '_alpha', alpha, '_cw0.csv'))
-  preds <- preds[preds$lambda == 0.004217, ]
+  preds <- fread(paste0(
+    rootdir,
+    'saved_models/AL05/lin_trees_final_test/',
+    model,
+    '_preds/AL05_',
+    frail,
+    '_preds.csv'))
+  for (c in seq_along(cols)){
+    colnames(preds)[grep(paste0(cols[c]), colnames(preds))] <- classes[c]
+  }
+  if (identical(obs$sentence_id, preds$sentence_id) == FALSE)
+    stop ("obs do not match preds")
   #combine
-  obs_preds <- cbind(obs=obs, pred=preds)
+  obs_preds <- cbind(obs = obs,
+                     pred = preds[, c('Positive', 'Negative', 'Neutral'),
+                                  with = FALSE])
   return(obs_preds)
 }
 
-library(gmish)
-#pick a reasonably good fold
-# enet_performance %>%
-#   filter(frail_lab == 'Resp_imp' & SVD == 'embed' & lambda == 0.004217 & alpha == 0.1 & case_weights == FALSE) %>%
-#   arrange(desc(sbrier_pos)) %>%
-#   select(c('frail_lab', 'cv_repeat', 'fold', 'SVD', 'lambda', 'alpha', 'case_weights', 'sbrier_multi', 'sbrier_pos', 'sbrier_neg'))
-obs_preds <- op_func(1, 2, 'Resp_imp', 'embed', 1)
-#calib plot
-mc_calib_plot(obs.Resp_imp_pos + obs.Resp_imp_neg ~ pred.Resp_imp_pos +
-                pred.Resp_imp_neg, data = obs_preds, cuts = 5) +
+# Respiratory
+op <- op_func('Resp_imp', 'enet')
+mc_calib_plot(obs.Positive + obs.Negative + obs.Neutral ~ pred.Positive +
+                pred.Negative + pred.Neutral, data = op, cuts = 5) +
   labs(title = 'Respiratory') +
-  theme(legend.position = 'bottom') 
-  
-
-#pick a reasonably good fold
-# enet_performance %>%
-#   filter(frail_lab == 'Msk_prob' & SVD == 'embed' & lambda == 0.004217 & alpha == 0.1 & case_weights == FALSE) %>%
-#   arrange(desc(sbrier_pos)) %>%
-#   select(c('frail_lab', 'cv_repeat', 'fold', 'SVD', 'lambda', 'alpha', 'case_weights', 'sbrier_multi', 'sbrier_pos', 'sbrier_neg'))
-obs_preds <- op_func(3, 1, 'Msk_prob', 'embed', 1)
-#calib plot
-mc_calib_plot(obs.Msk_prob_pos + obs.Msk_prob_neg ~ pred.Msk_prob_pos +
-                pred.Msk_prob_neg, data = obs_preds, cuts = 5) +
+  theme(legend.position = 'none') +
+  scale_color_nejm(labels = c('Negative', 'Neutral', 'Positive'))
+# Msk
+op <- op_func('Msk_prob', 'enet')
+mc_calib_plot(obs.Positive + obs.Negative + obs.Neutral ~ pred.Positive +
+                pred.Negative + pred.Neutral, data = op, cuts = 5) +
   labs(title = 'Musculoskeletal') +
-  theme(legend.position = 'bottom') 
-
-
-#pick a reasonably good fold
-# enet_performance %>%
-#   filter(frail_lab == 'Nutrition' & SVD == '1000' & lambda == 0.004217 & alpha == 0.1 & case_weights == FALSE) %>%
-#   arrange(desc(sbrier_pos)) %>%
-#   select(c('frail_lab', 'cv_repeat', 'fold', 'SVD', 'lambda', 'alpha', 'case_weights', 'sbrier_multi', 'sbrier_pos', 'sbrier_neg'))
-obs_preds <- op_func(1, 8, 'Nutrition', '1000', 1)
-#calib plot
-mc_calib_plot(obs.Nutrition_pos + obs.Nutrition_neg ~ pred.Nutrition_pos +
-                pred.Nutrition_neg, data = obs_preds, cuts = 5) +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+# Fall risk
+op <- op_func('Fall_risk', 'enet')
+mc_calib_plot(obs.Positive + obs.Negative + obs.Neutral ~ pred.Positive +
+                pred.Negative + pred.Neutral, data = op, cuts = 5) +
+  labs(title = 'Fall risk') +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+# Nutrition
+op <- op_func('Nutrition', 'enet')
+mc_calib_plot(obs.Positive + obs.Negative + obs.Neutral ~ pred.Positive +
+                pred.Negative + pred.Neutral, data = op, cuts = 5) +
   labs(title = 'Nutrition') +
-  theme(legend.position = 'bottom') 
-
-#pick a reasonably good fold
-# enet_performance %>%
-#   filter(frail_lab == 'Fall_risk' & SVD == 'embed' & lambda == 0.004217 & alpha == 0.1 & case_weights == FALSE) %>%
-#   arrange(desc(sbrier_pos)) %>%
-#   select(c('frail_lab', 'cv_repeat', 'fold', 'SVD', 'lambda', 'alpha', 'case_weights', 'sbrier_multi', 'sbrier_pos', 'sbrier_neg'))
-obs_preds <- op_func(3, 3, 'Fall_risk', 'embed', 1)
-#calib plot
-mc_calib_plot(obs.Fall_risk_pos + obs.Fall_risk_neg ~ pred.Fall_risk_pos + 
-                pred.Fall_risk_neg, data = obs_preds, cuts = 5) +
-  labs(title = 'Fall Risk') +
-  theme(legend.position = 'bottom') 
+  theme(legend.position = 'none') +
+  scale_color_nejm()
 
 
 
 
 
-#TF-IDF vs embeddings overall
-summary(lm(sbrier_multi ~ SVD, 
-              data = enet_performance[SVD %in% c('1000', 'embed') &
-                                        batch == 'AL04', ]))
-summary(lm(sbrier_multi ~ SVD, 
-           data = rf_performance[SVD %in% c('1000', 'embed') &
-                                    batch == 'AL04', ]))
+################################# PR CURVES #################################
 
-#TF-IDF vs embeddings by frailty aspect by class for the best 5 models
-top_50 <- function(raw_perf){
-  raw_perf <- as.data.frame(raw_perf)
-  if (raw_perf$model[1] == 'enet') {
-    hyperparams = hyperparams_enet
-  } else if (raw_perf$model[1] == 'rf') {
-    hyperparams = hyperparams_rf
-  } else if (raw_perf$model[1] == 'nn_single') {
-    hyperparams = hyperparams_nn}
-  group1 <- c('frail_lab', hyperparams)
-  step_1 <- raw_perf %>%
-    filter(batch == 'AL04') %>%
-    group_by_at(vars(all_of(group1))) %>%
-    summarise_at(vars(grep('sbrier', colnames(raw_perf), value = TRUE)),
-                 list(mean = mean, se = se)) %>%
-    na.omit() %>%
-    ungroup() %>%
-    mutate(tfidf_embed = ifelse(SVD %in% c('300', '1000'),
-                                'TF-IDF',
-                                'Embeddings')) %>%
-    group_by(frail_lab, tfidf_embed) %>%
-    arrange(desc(sbrier_multi_mean), .by_group = TRUE) %>%
-    slice(1:50)
-  return(step_1)
+#PR curve function. Uses output from op_func
+pr_curv <- function(proc_op){
+  PR_pos <- pr.curve(scores.class0 = proc_op$pred.Positive,
+                     weights.class0 = proc_op$obs.Positive, curve = TRUE)
+  PR_pos <-data.frame(PR_pos$curve)
+  PR_pos$Class <- "Positive"
+  PR_neg <- pr.curve(scores.class0 = proc_op$pred.Negative,
+                     weights.class0 = proc_op$obs.Negative, curve = TRUE)
+  PR_neg <-data.frame(PR_neg$curve)
+  PR_neg$Class <- "Negative"
+  PR_neut <- pr.curve(scores.class0 = proc_op$pred.Neutral,
+                      weights.class0 = proc_op$obs.Neutral, curve = TRUE)
+  PR_neut <-data.frame(PR_neut$curve)
+  PR_neut$Class <- "Neutral"
+  PR_resp <- rbind(PR_pos, PR_neg, PR_neut)
+  return(PR_resp)
 }
 
-enet_top50 <- top_50(enet_performance)
-
-ggplot(enet_top50, aes(x = frail_lab, y = sbrier_multi_mean, ymin = (sbrier_multi_mean - sbrier_multi_se), ymax = (sbrier_multi_mean + sbrier_multi_se)))+
-  geom_pointrange(stat='identity', position = 'jitter', aes(color = tfidf_embed))+
-  scale_color_discrete(name = 'Frailty aspect') +
-  labs(title = 'Text features (top 50 linear models)', x = 'Text features', y = 'Scaled Brier score') +
+# Respiratory
+op <- op_func('Resp_imp', 'enet')
+pr_plt <- pr_curv(op)
+ggplot(pr_plt, aes(x = X1, y = X2, group = Class)) +
+  geom_line(aes(color = Class)) +
+  labs(title = 'Respiratory Impairment',
+       y = 'Precision',
+       x = 'Recall') +
   theme_bw() +
-  theme(legend.position = 'bottom')
-
-rf_top50 <- top_50(rf_performance)
-
-ggplot(rf_top50, aes(x = frail_lab, y = sbrier_multi_mean, ymin = (sbrier_multi_mean - sbrier_multi_se), ymax = (sbrier_multi_mean + sbrier_multi_se)))+
-  geom_pointrange(stat='identity', position = 'jitter', aes(color = tfidf_embed))+
-  scale_color_discrete(name = 'Frailty aspect') +
-  labs(title = 'Text features (top 50 random forests)', x = 'Text features', y = 'Scaled Brier score') +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+# Msk
+op <- op_func('Msk_prob', 'enet')
+pr_plt <- pr_curv(op)
+ggplot(pr_plt, aes(x = X1, y = X2, group = Class)) +
+  geom_line(aes(color = Class)) +
+  labs(title = 'Musculoskeletal',
+       y = 'Precision',
+       x = 'Recall') +
   theme_bw() +
-  theme(legend.position = 'bottom')
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+# Fall risk
+op <- op_func('Fall_risk', 'enet')
+pr_plt <- pr_curv(op)
+ggplot(pr_plt, aes(x = X1, y = X2, group = Class)) +
+  geom_line(aes(color = Class)) +
+  labs(title = 'Fall Risk',
+       y = 'Precision',
+       x = 'Recall') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+# Nutrition
+op <- op_func('Nutrition', 'enet')
+pr_plt <- pr_curv(op)
+ggplot(pr_plt, aes(x = X1, y = X2, group = Class)) +
+  geom_line(aes(color = Class)) +
+  labs(title = 'Nutrition',
+       y = 'Precision',
+       x = 'Recall') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+
+
+
+
+
+
+############################# ALGORITHMIC EQUITY #############################
+
+#load all patient data
+pat_data <- fread(paste0(
+  rootdir,
+  'figures_tables/patient_struc_data.csv'))
+rc <- c('White', 'Non_white')
+gd <- c('Male', 'Female')
+White <- pat_data[pat_data$Race_white == 1, ]$PAT_ID
+Non_white <- pat_data[!pat_data$Race_white == 1, ]$PAT_ID
+Male <- pat_data[pat_data$SEX_Male == 1, ]$PAT_ID
+Female <- pat_data[pat_data$SEX_Female == 1, ]$PAT_ID
+
+#gather obs and preds by group
+eq_perf <- function(frail, model, group) {
+  obs <- fread(paste0(
+    rootdir,
+    'saved_models/AL05/processed_data/test_set/full_df.csv'))
+  # Rename cols to classes
+  cols <- paste0(frail, cls)
+  for (c in seq_along(cols)){
+    colnames(obs)[grep(paste0(cols[c]), colnames(obs))] <- classes[c]
+  }
+  obs <- obs[, c('PAT_ID', 'sentence_id', classes),
+             with = FALSE]
+  #get obs by group
+  if (group == 'Male'){
+    obs_race <- obs[obs$PAT_ID %in% Male, ]
+  } else if (group == 'Female') {
+    obs_race <- obs[obs$PAT_ID %in% Female, ]
+  } else if (group == 'White') {
+    obs_race <- obs[obs$PAT_ID %in% White, ]
+  } else if (group == 'Non_white') {
+    obs_race <- obs[obs$PAT_ID %in% Non_white, ]
+  }
+  #get the preds for the best model
+  preds <- fread(paste0(
+    rootdir,
+    'saved_models/AL05/lin_trees_final_test/',
+    model,
+    '_preds/AL05_',
+    frail,
+    '_preds.csv'))
+  for (c in seq_along(cols)){
+    colnames(preds)[grep(paste0(cols[c]), colnames(preds))] <- classes[c]
+  }
+  if (identical(obs$sentence_id, preds$sentence_id) == FALSE)
+    stop ("obs do not match preds")
+  #get preds by group
+  preds_race <- preds[preds$sentence_id %in% obs_race$sentence_id, ]
+  op <- cbind(pred = preds_race, obs = obs_race)
+  return(op)
+}
+
+# calculate brier by race
+rc_brier <- function(frail, model) {
+  rp <- list()
+  for (r in seq_along(rc)){
+    hyper_grid <- data.frame(frail_lab = frail)
+    hyper_grid$model <- model
+    hyper_grid$Patient_race <- rc[r]
+    op <- eq_perf(frail, model, rc[r])
+    obs <- op[, c('obs.Neutral', 'obs.Positive', 'obs.Negative')]
+    preds <- op[, c('pred.Neutral', 'pred.Positive', 'pred.Negative')]
+    hyper_grid[['sbrier_multi']] <- multi_scaled_Brier(preds, obs)
+    hyper_grid[['sbrier_pos']] <-
+      scaled_Brier(op[['pred.Positive']], op[['obs.Positive']], 1)
+    hyper_grid[['sbrier_neg']] <-
+      scaled_Brier(op[['pred.Negative']], op[['obs.Negative']], 1)
+    hyper_grid[['sbrier_neut']] <-
+      scaled_Brier(op[['pred.Neutral']], op[['obs.Neutral']], 1)
+    rp[[r]] <- hyper_grid
+  }
+  perf_eq <- rbindlist(rp)
+  return(perf_eq)
+}
+
+# calculate brier by gender
+gen_brier <- function(frail, model) {
+  rp <- list()
+  for (r in seq_along(gd)){
+    hyper_grid <- data.frame(frail_lab = frail)
+    hyper_grid$model <- model
+    hyper_grid$Gender <- gd[r]
+    op <- eq_perf(frail, model, gd[r])
+    obs <- op[, c('obs.Neutral', 'obs.Positive', 'obs.Negative')]
+    preds <- op[, c('pred.Neutral', 'pred.Positive', 'pred.Negative')]
+    hyper_grid[['sbrier_multi']] <- multi_scaled_Brier(preds, obs)
+    hyper_grid[['sbrier_pos']] <-
+      scaled_Brier(op[['pred.Positive']], op[['obs.Positive']], 1)
+    hyper_grid[['sbrier_neg']] <-
+      scaled_Brier(op[['pred.Negative']], op[['obs.Negative']], 1)
+    hyper_grid[['sbrier_neut']] <-
+      scaled_Brier(op[['pred.Neutral']], op[['obs.Neutral']], 1)
+    rp[[r]] <- hyper_grid
+  }
+  perf_eq <- rbindlist(rp)
+  return(perf_eq)
+}
+
+#Race calculate and combine
+race_sbrier <- rbind(rc_brier('Resp_imp', 'enet'),
+                     rc_brier('Msk_prob', 'enet'),
+                     rc_brier('Nutrition', 'enet'),
+                     rc_brier('Fall_risk', 'enet'))
+cols <- grep('sbrier', colnames(race_sbrier), value = TRUE)
+race_sbrier[, (cols) := round(.SD, 2), .SDcols = cols]
+colnames(race_sbrier) <- c('Frailty aspect', 'Model', 'Patient race',
+                            'Multi-class SBS', 'Positive SBS',
+                            'Negative SBS', 'Neutral SBS')
+#save
+fwrite(race_sbrier[, -'Model'],
+       paste0(rootdir,
+              'figures_tables/race_sbrier.csv'))
+
+#Gender calculate and combine
+gen_sbrier <- rbind(gen_brier('Resp_imp', 'enet'),
+                    gen_brier('Msk_prob', 'enet'),
+                    gen_brier('Nutrition', 'enet'),
+                    gen_brier('Fall_risk', 'enet'))
+cols <- grep('sbrier', colnames(gen_sbrier), value = TRUE)
+gen_sbrier[, (cols) := round(.SD, 2), .SDcols = cols]
+colnames(gen_sbrier) <- c('Frailty aspect', 'Model', 'Gender',
+                           'Multi-class SBS', 'Positive SBS',
+                           'Negative SBS', 'Neutral SBS')
+#save
+fwrite(gen_sbrier[, -'Model'],
+       paste0(rootdir,
+              'figures_tables/gender_sbrier.csv'))
+
+#Race and Gender calculate and combine
+race_sbrier$Group <- race_sbrier$`Patient race`
+race_sbrier[Group == 'Non_white', 'N (%)'] <- 
+  paste0(
+    as.character(length(Non_white)),
+    ' (',
+    as.character(round(length(Non_white)/nrow(pat_data), 2)*100),
+    '%)')
+race_sbrier[Group == 'White', 'N (%)'] <-
+  paste0(
+    as.character(length(White)),
+    ' (',
+    as.character(round(length(White)/nrow(pat_data), 2)*100),
+    '%)')
+gen_sbrier$Group <- gen_sbrier$Gender
+gen_sbrier[Group == 'Female', 'N (%)'] <-
+  paste0(
+    as.character(length(Female)),
+    ' (',
+    as.character(round(length(Female)/nrow(pat_data), 2)*100),
+    '%)')
+gen_sbrier[Group == 'Male', 'N (%)'] <-
+  paste0(
+    as.character(length(Male)),
+    ' (',
+    as.character(round(length(Male)/nrow(pat_data), 2)*100),
+    '%)')
+cols <- c('Frailty aspect', 'Model', 'Group',
+                          'Multi-class SBS', 'Positive SBS',
+                          'Negative SBS', 'Neutral SBS')
+group_sbrier <- arrange(rbind(race_sbrier[, ..cols],
+                    gen_sbrier[, ..cols]), `Frailty aspect`)
+#save
+fwrite(group_sbrier[, -'Model'],
+       paste0(rootdir,
+              'figures_tables/group_sbrier.csv'))
+
+
+# Race Positive predictive value by threshold
+race_ppv_thresh <- function(frail, model) {
+  #calculate threshold and PPV
+  rp <- list()
+  for (r in seq_along(rc)){
+    op <- eq_perf(frail, model, rc[r])
+    op <- arrange(op, desc(pred.Positive))
+    ppv_posclass <- data.frame(Threshold = op$pred.Positive,
+                               test_pos = 1:nrow(op),
+                               true_pos = cumsum(op$obs.Positive))
+    ppv_posclass$PPV <- signif(ppv_posclass$true_pos/ppv_posclass$test_pos, 3)
+    ppv_posclass$Prediction <- 'Positive class'
+    
+    op <- arrange(op, desc(pred.Negative))
+    ppv_negclass <- data.frame(Threshold = op$pred.Negative,
+                               test_pos = 1:nrow(op),
+                               true_pos = cumsum(op$obs.Negative))
+    ppv_negclass$PPV <- signif(ppv_negclass$true_pos/ppv_negclass$test_pos, 3)
+    ppv_negclass$Prediction <- 'Positive class'
+    ppv_negclass$Prediction <- 'Negative class'
+    cols <- c('Threshold', 'PPV', 'Prediction')
+    ppv <- rbind(ppv_posclass[, cols], ppv_negclass[, cols])
+    ppv$Race <- rc[r]
+    rp[[r]] <- ppv
+  }
+  ppv <- rbindlist(rp)
+  return(ppv)
+}
+
+# STOPPED HERE - NEED TO REPEAT FOR EACH ASPECT
+# THEN DO THE SAME BELOW FOR GENDER.
+# THEN PUT IN POWERPOINT
+# THEN CHANGE THE COLORS FOR THE OTHER PLOTS
+# UPDATE FIGURE LEGENDS AND BLURBS WITH COLORS
+
+#Respiratory
+ppv <- race_ppv_thresh('Resp_imp', 'enet')
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Race, linetype = Prediction)) +
+  geom_line(aes(color = Race, linetype = Prediction)) +
+  labs(title = 'Respiratory',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+#Musculoskeletal
+ppv <- race_ppv_thresh('Msk_prob', 'enet')
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Race, linetype = Prediction)) +
+  geom_line(aes(color = Race, linetype = Prediction)) +
+  labs(title = 'Musculoskeletal',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+#Fall risk
+ppv <- race_ppv_thresh('Msk_prob', 'enet')
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Race, linetype = Prediction)) +
+  geom_line(aes(color = Race, linetype = Prediction)) +
+  labs(title = 'Fall risk',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+#Nutrition
+ppv <- race_ppv_thresh('Msk_prob', 'enet')
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Race, linetype = Prediction)) +
+  geom_line(aes(color = Race, linetype = Prediction)) +
+  labs(title = 'Nutrition',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+# Gender Positive predictive value by threshold
+gender_ppv_thresh <- function(frail, model) {
+  #calculate threshold and PPV
+  rp <- list()
+  for (r in seq_along(gd)){
+    op <- eq_perf(frail, model, gd[r])
+    op <- arrange(op, desc(pred.Positive))
+    ppv_posclass <- data.frame(Threshold = op$pred.Positive,
+                               test_pos = 1:nrow(op),
+                               true_pos = cumsum(op$obs.Positive))
+    ppv_posclass$PPV <- signif(ppv_posclass$true_pos/ppv_posclass$test_pos, 3)
+    ppv_posclass$Prediction <- 'Positive class'
+    
+    op <- arrange(op, desc(pred.Negative))
+    ppv_negclass <- data.frame(Threshold = op$pred.Negative,
+                               test_pos = 1:nrow(op),
+                               true_pos = cumsum(op$obs.Negative))
+    ppv_negclass$PPV <- signif(ppv_negclass$true_pos/ppv_negclass$test_pos, 3)
+    ppv_negclass$Prediction <- 'Positive class'
+    ppv_negclass$Prediction <- 'Negative class'
+    cols <- c('Threshold', 'PPV', 'Prediction')
+    ppv <- rbind(ppv_posclass[, cols], ppv_negclass[, cols])
+    ppv$Gender <- gd[r]
+    rp[[r]] <- ppv
+  }
+  ppv <- rbindlist(rp)
+  return(ppv)
+}
+
+#Respiratory
+ppv <- gender_ppv_thresh('Resp_imp', 'enet')
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Gender, linetype = Prediction)) +
+  geom_line(aes(color = Gender, linetype = Prediction)) +
+  labs(title = 'Respiratory',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+#Musculoskeletal
+ppv <- gender_ppv_thresh('Msk_prob', 'enet')
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Gender, linetype = Prediction)) +
+  geom_line(aes(color = Gender, linetype = Prediction)) +
+  labs(title = 'Musculoskeletal',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+#Fall risk
+ppv <- gender_ppv_thresh('Msk_prob', 'enet')
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Gender, linetype = Prediction)) +
+  geom_line(aes(color = Gender, linetype = Prediction)) +
+  labs(title = 'Fall risk',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+#Nutrition
+ppv <- gender_ppv_thresh('Msk_prob', 'enet')
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Gender, linetype = Prediction)) +
+  geom_line(aes(color = Gender, linetype = Prediction)) +
+  labs(title = 'Nutrition',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none') +
+  scale_color_nejm()
+
+# plot ppv by threshold
+ppv1 <- race_ppv_thresh('Resp_imp', 'enet')
+ppv1$Group <- ppv1$Race
+ppv2 <- gender_ppv_thresh('Resp_imp', 'enet')
+ppv2$Group <- ppv2$Gender
+ppv <- rbind(ppv1[, c('Threshold', 'PPV', 'Prediction', 'Group')],
+      ppv2[, c('Threshold', 'PPV', 'Prediction', 'Group')])
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Group, linetype = Prediction)) +
+  geom_line(aes(color = Group, linetype = Prediction)) +
+  labs(title = 'Respiratory',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none')
+#scale_color_manual(values = wes_palette(n = 4, name = "Cavalcanti1", type = 'discrete'))
+
+ppv <- race_ppv_thresh('Msk_prob', 'enet')
+ppv1$Group <- ppv1$Race
+ppv2 <- gender_ppv_thresh('Msk_prob', 'enet')
+ppv2$Group <- ppv2$Gender
+ppv <- rbind(ppv1[, c('Threshold', 'PPV', 'Prediction', 'Group')],
+             ppv2[, c('Threshold', 'PPV', 'Prediction', 'Group')])
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Group, linetype = Prediction)) +
+  geom_line(aes(color = Group, linetype = Prediction)) +
+  labs(title = 'Musculoskeletal',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none')
+
+ppv <- race_ppv_thresh('Fall_risk', 'enet')
+ppv1$Group <- ppv1$Race
+ppv2 <- gender_ppv_thresh('Fall_risk', 'enet')
+ppv2$Group <- ppv2$Gender
+ppv <- rbind(ppv1[, c('Threshold', 'PPV', 'Prediction', 'Group')],
+             ppv2[, c('Threshold', 'PPV', 'Prediction', 'Group')])
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Group, linetype = Prediction)) +
+  geom_line(aes(color = Group, linetype = Prediction)) +
+  labs(title = 'Fall risk',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'none')
+
+ppv <- race_ppv_thresh('Nutrition', 'enet')
+ppv1$Group <- ppv1$Race
+ppv2 <- gender_ppv_thresh('Nutrition', 'enet')
+ppv2$Group <- ppv2$Gender
+ppv <- rbind(ppv1[, c('Threshold', 'PPV', 'Prediction', 'Group')],
+             ppv2[, c('Threshold', 'PPV', 'Prediction', 'Group')])
+ggplot(ppv, aes(x = Threshold, y = PPV, color = Group, linetype = Prediction)) +
+  geom_line(aes(color = Group, linetype = Prediction)) +
+  labs(title = 'Nutrition',
+       y = 'PPV',
+       x = 'Threshold') +
+  theme_bw() +
+  theme(legend.position = 'right')
+
+
+
+
+
+
+
+
+############################### ERROR ANALYSIS ###############################
+
+#general ppv function (from above but not specific to race/gender)
+ppv_thresh <- function(frail, model, thresh){
+  op <- op_func(frail, model)
+  op <- arrange(op, desc(pred.Positive))
+  ppv_posclass <- data.frame(Threshold = op$pred.Positive,
+                             test_pos = 1:nrow(op),
+                             true_pos = cumsum(op$obs.Positive))
+  ppv_posclass$PPV <- signif(ppv_posclass$true_pos/ppv_posclass$test_pos, 3)
+  ppv_posclass$Prediction <- 'Positive class'
+  
+  op <- arrange(op, desc(pred.Negative))
+  ppv_negclass <- data.frame(Threshold = op$pred.Negative,
+                             test_pos = 1:nrow(op),
+                             true_pos = cumsum(op$obs.Negative))
+  ppv_negclass$PPV <- signif(ppv_negclass$true_pos/ppv_negclass$test_pos, 3)
+  ppv_negclass$Prediction <- 'Positive class'
+  ppv_negclass$Prediction <- 'Negative class'
+  cols <- c('Threshold', 'PPV', 'Prediction')
+  ppv <- rbind(ppv_posclass[, cols], ppv_negclass[, cols])
+  ppv_thresh <- ppv %>%
+    filter(PPV > thresh) %>%
+    arrange(Threshold) %>%
+    group_by(Prediction) %>%
+    slice(1)
+  pos_thresh <- ppv_thresh[ppv_thresh$Prediction == 'Positive class', ]$Threshold
+  neg_thresh <- ppv_thresh[ppv_thresh$Prediction == 'Negative class', ]$Threshold
+  op$pred_pos_bin <- ifelse(op$pred.Positive > pos_thresh, 1, 0)
+  op$pred_neg_bin <- ifelse(op$pred.Negative > neg_thresh, 1, 0)
+  return(op)
+}
+
+#get binary predictions for a given sensitivity threshold
+sensitivity_thresh <- function(frail, model, thresh){
+  op <- op_func(frail, model)
+  op <- arrange(op, desc(pred.Positive))
+  sens_posclass <- data.frame(Threshold = op$pred.Positive,
+                             true_pos = cumsum(op$obs.Positive),
+                             total_pos = sum(op$obs.Positive))
+  sens_posclass$Sensitivity <- signif(sens_posclass$true_pos/sens_posclass$total_pos, 3)
+  sens_posclass$Prediction <- 'Positive class'
+  
+  op <- arrange(op, desc(pred.Negative))
+  sens_negclass <- data.frame(Threshold = op$pred.Negative,
+                             true_pos = cumsum(op$obs.Negative),
+                             total_pos = sum(op$obs.Negative))
+  sens_negclass$Sensitivity <- signif(sens_negclass$true_pos/sens_negclass$total_pos, 3)
+  sens_negclass$Prediction <- 'Negative class'
+  cols <- c('Threshold', 'Sensitivity', 'Prediction')
+  sens <- rbind(sens_posclass[, cols], sens_negclass[, cols])
+  sens_thresh <- sens %>%
+    filter(Sensitivity > thresh) %>%
+    arrange(desc(Threshold)) %>%
+    group_by(Prediction) %>%
+    slice(1)
+  pos_thresh <- sens_thresh[sens_thresh$Prediction == 'Positive class', ]$Threshold
+  neg_thresh <- sens_thresh[sens_thresh$Prediction == 'Negative class', ]$Threshold
+  op$pred_pos_bin <- ifelse(op$pred.Positive > pos_thresh, 1, 0)
+  op$pred_neg_bin <- ifelse(op$pred.Negative > neg_thresh, 1, 0)
+  return(op)
+}
+
+
+#Respiratory
+op <- ppv_thresh('Resp_imp', 'enet', 0.75)
+#positive class confusion matrix
+confusionMatrix(factor(op$pred_pos_bin), factor(op$obs.Positive), positive = '1')
+#negative class confusion matrix
+confusionMatrix(factor(op$pred_neg_bin), factor(op$obs.Negative), positive = '1')
+#Positive class false positive sentences
+op[(op$pred_pos_bin == 1 & op$obs.Positive == 0), ]$obs.sentence
+#Positive class false negative sentences
+op[(op$pred_pos_bin == 0 & op$obs.Positive == 1), ]$obs.sentence
+#Negative class false positive sentences
+op[(op$pred_neg_bin == 1 & op$obs.Negative == 0), ]$obs.sentence
+#Negative class false negative sentences
+op[(op$pred_neg_bin == 0 & op$obs.Negative == 1), ]$obs.sentence
+#Sensitivity
+sens <- sensitivity_thresh('Resp_imp', 'enet', 0.80)
+#Positive class sensitivity
+confusionMatrix(factor(sens$pred_pos_bin), factor(sens$obs.Positive), positive = '1')
+#Negative class sensitivity
+confusionMatrix(factor(sens$pred_neg_bin), factor(sens$obs.Negative), positive = '1')
+
+
+#Musculoskeletal
+op <- ppv_thresh('Msk_prob', 'enet', 0.75)
+#confusion matrix
+confusionMatrix(factor(op$pred_pos_bin), factor(op$obs.Positive), positive = '1')
+#negative class confusion matrix
+confusionMatrix(factor(op$pred_neg_bin), factor(op$obs.Negative), positive = '1')
+#Positive class false positive sentences
+op[(op$pred_pos_bin == 1 & op$obs.Positive == 0), ]$obs.sentence
+#Positive class false negative sentences
+op[(op$pred_pos_bin == 0 & op$obs.Positive == 1), ]$obs.sentence
+#Negative class false positive sentences
+op[(op$pred_neg_bin == 1 & op$obs.Negative == 0), ]$obs.sentence
+#Negative class false negative sentences
+op[(op$pred_neg_bin == 0 & op$obs.Negative == 1), ]$obs.sentence
+#Sensitivity
+sens <- sensitivity_thresh('Msk_prob', 'enet', 0.80)
+#Positive class sensitivity
+confusionMatrix(factor(sens$pred_pos_bin), factor(sens$obs.Positive), positive = '1')
+#Negative class sensitivity
+confusionMatrix(factor(sens$pred_neg_bin), factor(sens$obs.Negative), positive = '1')
+
+
+#Fall risk
+op <- ppv_thresh('Fall_risk', 'enet', 0.75)
+#confusion matrix
+confusionMatrix(factor(op$pred_pos_bin), factor(op$obs.Positive), positive = '1')
+#Positive class false positive sentences
+op[(op$pred_pos_bin == 1 & op$obs.Positive == 0), ]$obs.sentence
+#Positive class false negative sentences
+op[(op$pred_pos_bin == 0 & op$obs.Positive == 1), ]$obs.sentence
+#Negative class false positive sentences
+op[(op$pred_neg_bin == 1 & op$obs.Negative == 0), ]$obs.sentence
+#Negative class false negative sentences
+op[(op$pred_neg_bin == 0 & op$obs.Negative == 1), ]$obs.sentence
+#Sensitivity
+sens <- sensitivity_thresh('Fall_risk', 'enet', 0.80)
+#Positive class sensitivity
+confusionMatrix(factor(sens$pred_pos_bin), factor(sens$obs.Positive), positive = '1')
+#Negative class sensitivity
+confusionMatrix(factor(sens$pred_neg_bin), factor(sens$obs.Negative), positive = '1')
+
+#Nutrition
+op <- ppv_thresh('Nutrition', 'enet', 0.33)
+#confusion matrix
+confusionMatrix(factor(op$pred_pos_bin), factor(op$obs.Positive), positive = '1')
+#Positive class false positive sentences
+op[(op$pred_pos_bin == 1 & op$obs.Positive == 0), ]$obs.sentence
+#Positive class false negative sentences
+op[(op$pred_pos_bin == 0 & op$obs.Positive == 1), ]$obs.sentence
+#Negative class false positive sentences
+op[(op$pred_neg_bin == 1 & op$obs.Negative == 0), ]$obs.sentence
+#Negative class false negative sentences
+op[(op$pred_neg_bin == 0 & op$obs.Negative == 1), ]$obs.sentence
+#Sensitivity
+sens <- sensitivity_thresh('Nutrition', 'enet', 0.80)
+#Positive class sensitivity
+confusionMatrix(factor(sens$pred_pos_bin), factor(sens$obs.Positive), positive = '1')
+#Negative class sensitivity
+confusionMatrix(factor(sens$pred_neg_bin), factor(sens$obs.Negative), positive = '1')
+
+
+
+
+############################# TF-IDF vs EMBEDDINGS #############################
+# # the code below analyzes performance of TF-IDF vs embeddings in cross 
+# # validation on the training set. We only ran the best models on the test set,
+# # so we never ran any of the TF-IDF models becasue they were always worse
+# # than embeddings
+# enet_test_perf <- fread(paste0(
+#   rootdir, 'figures_tables/enet_test_set_performance.csv'))
+# summary(lm(sbrier_multi ~ SVD, 
+#            data = enet_performance[SVD %in% c('1000', 'embed') &
+#                                      batch == 'AL05', ]))
+# summary(lm(sbrier_multi ~ SVD, 
+#            data = rf_performance[SVD %in% c('1000', 'embed') &
+#                                    batch == 'AL05', ]))
+# #TF-IDF vs embeddings by frailty aspect by class for the best 5 models
+# top_50 <- function(raw_perf){
+#   raw_perf <- as.data.frame(raw_perf)
+#   if (raw_perf$model[1] == 'enet') {
+#     hyperparams = hyperparams_enet
+#   } else if (raw_perf$model[1] == 'rf') {
+#     hyperparams = hyperparams_rf
+#   } else if (raw_perf$model[1] == 'nn_single') {
+#     hyperparams = hyperparams_nn}
+#   group1 <- c('frail_lab', hyperparams)
+#   step_1 <- raw_perf %>%
+#     filter(batch == 'AL04') %>%
+#     group_by_at(vars(all_of(group1))) %>%
+#     summarise_at(vars(grep('sbrier', colnames(raw_perf), value = TRUE)),
+#                  list(mean = mean, se = se)) %>%
+#     na.omit() %>%
+#     ungroup() %>%
+#     mutate(tfidf_embed = ifelse(SVD %in% c('300', '1000'),
+#                                 'TF-IDF',
+#                                 'Embeddings')) %>%
+#     group_by(frail_lab, tfidf_embed) %>%
+#     arrange(desc(sbrier_multi_mean), .by_group = TRUE) %>%
+#     slice(1:50)
+#   return(step_1)
+# }
+# enet_top50 <- top_50(enet_performance)
+# ggplot(enet_top50, aes(x = frail_lab, y = sbrier_multi_mean, ymin = (sbrier_multi_mean - sbrier_multi_se), ymax = (sbrier_multi_mean + sbrier_multi_se)))+
+#   geom_pointrange(stat='identity', position = 'jitter', aes(color = tfidf_embed))+
+#   scale_color_discrete(name = 'Frailty aspect') +
+#   labs(title = 'Text features (top 50 linear models)', x = 'Text features', y = 'Scaled Brier score') +
+#   theme_bw() +
+#   theme(legend.position = 'bottom')
+# rf_top50 <- top_50(rf_performance)
+# ggplot(rf_top50, aes(x = frail_lab, y = sbrier_multi_mean, ymin = (sbrier_multi_mean - sbrier_multi_se), ymax = (sbrier_multi_mean + sbrier_multi_se)))+
+#   geom_pointrange(stat='identity', position = 'jitter', aes(color = tfidf_embed))+
+#   scale_color_discrete(name = 'Frailty aspect') +
+#   labs(title = 'Text features (top 50 random forests)', x = 'Text features', y = 'Scaled Brier score') +
+#   theme_bw() +
+#   theme(legend.position = 'bottom')
+
+
+
+
+
+
+
+
+
 
