@@ -25,15 +25,18 @@ def main():
     #Multi-task
     # hyperparameter grid
     hp_grid = {'batchstring': [batchstring],
+               'embeddings': ['w2v', 'roberta', 'bioclinicalbert'],
                'n_dense': [1, 2],
                'n_units': [64, 256],
                'dropout': [.1, .5],
                'l1_l2': [0, 1e-4],
                'case_weights': [False],
                'repeat': [1,2,3],
-               'fold': list(range(10))}
+               'fold': list(range(10)),
+               }
     hp_grid = expand_grid(hp_grid)
     hp_grid.insert(0, 'index', list(range(hp_grid.shape[0])))
+
     hp_grid.to_csv(f"{ALdir}hyperparameter_grid.csv")
     
     scram_idx = np.random.choice(hp_grid.shape[0], hp_grid.shape[0], replace = False)
@@ -48,6 +51,7 @@ def main():
 
     # single task
     hp_grid = {'batchstring': [batchstring],
+               'embeddings': ['w2v', 'roberta', 'bioclinicalbert'],
                'n_dense': [1, 2],
                'n_units': [64, 256],
                'dropout': [.1, .5],

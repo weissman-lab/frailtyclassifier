@@ -27,6 +27,7 @@ class DataProcessor():
         sheepish_mkdir(f"{self.ALdir}/processed_data/embeddings")
         sheepish_mkdir(f"{self.ALdir}/processed_data/trvadata")
         sheepish_mkdir(f"{self.ALdir}/processed_data/full_set")
+        sheepish_mkdir(f"{self.ALdir}/processed_data/full_set_earlystopping")
         sheepish_mkdir(f"{self.ALdir}/processed_data/caseweights")
         sheepish_mkdir(f"{self.ALdir}/processed_data/sklearn_artifacts")
         summarize_train_test_split()
@@ -44,6 +45,8 @@ class DataProcessor():
             self.fold_definition.to_csv(f"{self.ALdir}/processed_data/fold_definition.csv")
         else:
             self.fold_definition = pd.read_csv(f"{self.ALdir}/processed_data/fold_definition.csv", index_col=0)
+        # defined in methods
+        self.tr_pids = None
 
     def establish_folds(self, seed=0, recurse=True):
         # this function ensures folds all have representation from each class
@@ -279,17 +282,55 @@ class DataProcessor():
                     emb=emb,
                     pids=pids)
 
+    def stratify_trva(self):
+        '''
+        Function picks a random seed that is maximally balanced between the training and validaiton set labels
+        It tries out several random seeds, and picks the one that minimizes the mean squared deviation in label
+        prevalence across labels
+        '''
+        savepath = f"{self.ALdir}/processed_data/full_set_earlystopping/trva_split.pkl"
+        df = self.data_dict['df_label']
+        if os.path.exists(savepath):
+            self.tr_pids = read_pickle(savepath)['training_pids']
+        else:
+            seedres = []
+            for seed in range(1000):
+                np.random.seed(seed)
+                tr = np.random.choice(a = df.PAT_ID.unique(), size = int(df.PAT_ID.nunique()*.8), replace = False)
+                labs = [i for i in df.columns if any([j for j in OUT_VARNAMES if j in i and "_cw" not in i])]
+                tr_prev = df.loc[df.PAT_ID.isin(tr), labs]
+                va_prev = df.loc[~df.PAT_ID.isin(tr), labs]
+                msd = ((tr_prev.mean() - va_prev.mean())**2).mean()
+                seedres.append(dict(seed = seed, msd = msd))
+            seeddf = pd.DataFrame(seedres)
+            best_seed = seeddf.loc[seeddf.msd == seeddf.msd.min(), 'seed'].iloc[0]
+            np.random.seed(best_seed)
+            tr = np.random.choice(a=df.PAT_ID.unique(), size=int(df.PAT_ID.nunique() * .8), replace=False)
+            tosave = dict(seed = best_seed,
+                          training_pids = list(tr))
+            write_pickle(tosave, savepath)
+            self.tr_pids = list(tr)
+
     def process_fold(self,
                      fold,
-                     repeat):
+                     repeat,
+                     final_80_20 = False):
         # dump some variables from the data dict into local scope for easier code
         strdat = self.data_dict['strdat']
         emb = self.data_dict['emb']
         df_label = self.data_dict['df_label']
-        tr = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] != fold, 'PAT_ID'].tolist()
-        va = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == fold, 'PAT_ID'].tolist()
-        print("here is the validation set:")
-        print(self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == fold])
+        if final_80_20 == False:
+            tr = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] != fold, 'PAT_ID'].tolist()
+            va = self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == fold, 'PAT_ID'].tolist()
+            print("here is the validation set:")
+            print(self.fold_definition.loc[self.fold_definition[f'repeat{repeat}'] == fold])
+            outloc = 'trvadata' # the final dave path will be ALdir/processed_data/outloc
+        else:
+            self.stratify_trva() # dump the training PIDs into self.tr_pids
+            tr = self.tr_pids
+            va = list(self.data_dict['df_label']\
+                      .loc[~self.data_dict['df_label'].PAT_ID.isin(self.tr_pids), 'PAT_ID'].unique())
+            outloc = 'full_set_earlystopping' # the final dave path will be ALdir/processed_data/outloc
         # impute
         imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
         strdat_imp_tr = imputer.fit_transform(strdat.loc[strdat.PAT_ID.isin(tr), STR_VARNAMES])
@@ -397,20 +438,22 @@ class DataProcessor():
         sklearn_dict['svd_300'] = svd_300
         sklearn_dict['svd_1000'] = svd_1000
         # Output for r
-        df_tr.to_csv(f"{self.ALdir}/processed_data/trvadata/r{repeat}_f{fold}_tr_df.csv")
-        df_va.to_csv(f"{self.ALdir}/processed_data/trvadata/r{repeat}_f{fold}_va_df.csv")
-        # f_tr_cw.to_csv(f"{trvadatadir}r{r + 1}_f{f + 1}_tr_cw.csv")
-        embeddings_tr.to_csv(f"{self.ALdir}/processed_data/embeddings/r{repeat}_f{fold}_tr_embed_min_max_mean_SENT.csv")
-        embeddings_va.to_csv(f"{self.ALdir}/processed_data/embeddings/r{repeat}_f{fold}_va_embed_min_max_mean_SENT.csv")
-        f_tr_svd300.to_csv(f"{self.ALdir}/processed_data/svd/r{repeat}_f{fold}_tr_svd300.csv")
-        f_tr_svd1000.to_csv(f"{self.ALdir}/processed_data/svd/r{repeat}_f{fold}_tr_svd1000.csv")
-        f_va_svd300.to_csv(f"{self.ALdir}/processed_data/svd/r{repeat}_f{fold}_va_svd300.csv")
-        f_va_svd1000.to_csv(f"{self.ALdir}/processed_data/svd/r{repeat}_f{fold}_va_svd1000.csv")
-        # case weights
-        cwdf.to_csv(f"{self.ALdir}/processed_data/caseweights/r{repeat}_f{fold}_tr_caseweights.csv")
-        # sklearn artifacts
-        write_pickle(sklearn_dict, f"{self.ALdir}/processed_data/sklearn_artifacts/r{repeat}_f{fold}sklearn_dict.pkl")
-        print(f"Saved data from repeat {repeat}, fold {fold}")
+        df_tr.to_csv(f"{self.ALdir}/processed_data/{outloc}/r{repeat}_f{fold}_tr_df.csv")
+        df_va.to_csv(f"{self.ALdir}/processed_data/{outloc}/r{repeat}_f{fold}_va_df.csv")
+        if outloc =='trvadata':
+            embeddings_tr.to_csv(f"{self.ALdir}/processed_data/embeddings/r{repeat}_f{fold}_tr_embed_min_max_mean_SENT.csv")
+            embeddings_va.to_csv(f"{self.ALdir}/processed_data/embeddings/r{repeat}_f{fold}_va_embed_min_max_mean_SENT.csv")
+            f_tr_svd300.to_csv(f"{self.ALdir}/processed_data/svd/r{repeat}_f{fold}_tr_svd300.csv")
+            f_tr_svd1000.to_csv(f"{self.ALdir}/processed_data/svd/r{repeat}_f{fold}_tr_svd1000.csv")
+            f_va_svd300.to_csv(f"{self.ALdir}/processed_data/svd/r{repeat}_f{fold}_va_svd300.csv")
+            f_va_svd1000.to_csv(f"{self.ALdir}/processed_data/svd/r{repeat}_f{fold}_va_svd1000.csv")
+            # case weights
+            cwdf.to_csv(f"{self.ALdir}/processed_data/caseweights/r{repeat}_f{fold}_tr_caseweights.csv")
+            # sklearn artifacts
+            write_pickle(sklearn_dict, f"{self.ALdir}/processed_data/sklearn_artifacts/r{repeat}_f{fold}sklearn_dict.pkl")
+            print(f"Saved data from repeat {repeat}, fold {fold}")
+        else:
+            write_pickle(sklearn_dict, f"{self.ALdir}/processed_data/{outloc}/sklearn_dict.pkl")
 
     def process_full_training_set(self):
         strdat = self.data_dict['strdat']
@@ -509,6 +552,7 @@ def main():
     p.add("-b", "--batchstring", help="batch string, i.e.: 00 or 01 or 02")
     p.add("--do_folds", action='store_true', help="process the data for all the folds")
     p.add("--do_full", action='store_true', help="process the full dataset for training")
+    p.add("--do_final_80_20", action='store_true', help="create a 80/20 train-val split using the full training set")
     options = p.parse_args()
     batchstring = options.batchstring
 
@@ -521,7 +565,10 @@ def main():
     if options.do_full == True:
         processor.process_full_training_set()
 
+    if options.do_final_80_20 == True:
+        processor.process_fold(repeat=None, fold=None, final_80_20 = True)
+
 
 if __name__ == '__main__':
+    # self = DataProcessor('01')
     main()
-    # self = DataProcessor('04')

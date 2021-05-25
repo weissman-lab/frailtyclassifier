@@ -1,6 +1,8 @@
 
 SENTENCE_LENGTH = 20 # set standard sentence length. Inputs will be truncated or padded
 
+ROBERTA_MAX_TOKS = 200
+
 TAGS = ['Fall_risk', 'Msk_prob',  'Nutrition', 'Resp_imp']
 
 OUT_VARNAMES = ['Msk_prob', 'Nutrition', 'Resp_imp', 'Fall_risk']
