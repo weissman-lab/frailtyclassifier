@@ -13,8 +13,8 @@ pd.options.display.max_columns = 4000
 
 
 class TestPredictor:
-    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type='w2v', earlystopping = False,
-                 dimtest = False):
+    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type='w2v', earlystopping=False,
+                 dimtest=False):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
@@ -103,7 +103,8 @@ class TestPredictor:
 
     def compile_structured_data(self):
         if self.earlystopping == True:
-            self.training_data = pd.read_csv(f"{self.ALdir}processed_data/full_set_earlystopping/rNone_fNone_tr_df.csv", index_col=0)
+            self.training_data = pd.read_csv(f"{self.ALdir}processed_data/full_set_earlystopping/rNone_fNone_tr_df.csv",
+                                             index_col=0)
             skd = read_pickle(f"{self.ALdir}processed_data/full_set_earlystopping/sklearn_dict.pkl")
         else:
             self.training_data = pd.read_csv(f"{self.ALdir}processed_data/full_set/full_df.csv", index_col=0)
@@ -235,13 +236,31 @@ def main():
                 except:
                     send_message_to_slack(f"problem with batch {bs} tag {tag}, model type {model_type}")
                 try:
-                    pp = TestPredictor(batchstring=bs, task=tag, model_type=model_type, earlystopping = True)
+                    pp = TestPredictor(batchstring=bs, task=tag, model_type=model_type, earlystopping=True)
                     if not os.path.exists(
                             f"{pp.ALdir}final_model/test_preds/test_preds_AL{pp.batchstring}{pp.suffix}.csv"):
                         print(f"test preds for batch {bs} tag {tag} type {model_type}")
                         pp.run()
                 except:
-                    send_message_to_slack(f"problem with batch {bs} tag {tag}, model type {model_type}, (earlystopping)")
+                    send_message_to_slack(
+                        f"problem with batch {bs} tag {tag}, model type {model_type}, (earlystopping)")
+
+
+def dimtest():
+    for bs in ["0" + str(i + 1) for i in range(5)]:
+        for tag in TAGS + ['multi']:
+            for model_type in ['w2v', 'bioclinicalbert', 'roberta']:
+                pp = TestPredictor(batchstring=bs, task=tag, model_type=model_type, dimtest=True, save=False)
+                print(f"test preds for batch {bs} tag {tag} type {model_type}")
+                pp.run()
+                # try:
+                #     pp = TestPredictor(batchstring=bs, task=tag, model_type=model_type, earlystopping = True)
+                #     if not os.path.exists(
+                #             f"{pp.ALdir}final_model/test_preds/test_preds_AL{pp.batchstring}{pp.suffix}.csv"):
+                #         print(f"test preds for batch {bs} tag {tag} type {model_type}")
+                #         pp.run()
+                # except:
+                #     send_message_to_slack(f"problem with batch {bs} tag {tag}, model type {model_type}, (earlystopping)")
 
 
 if __name__ == "__main__":
