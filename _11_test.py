@@ -13,7 +13,8 @@ pd.options.display.max_columns = 4000
 
 
 class TestPredictor:
-    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type='w2v', earlystopping = False):
+    def __init__(self, batchstring, task, use_training_dict=False, save=True, model_type='w2v', earlystopping = False,
+                 dimtest = False):
         assert task in ['multi', 'Resp_imp', 'Msk_prob', 'Nutrition', 'Fall_risk']
         self.outdir = f"./output/"
         self.datadir = f"./data/"
@@ -31,6 +32,7 @@ class TestPredictor:
                 self.suffix = re.sub("_earlystopping", "_w2v_earlystopping", self.suffix)
         self.model_type = model_type
         self.earlystopping = earlystopping
+        self.dimtest = dimtest
         # things defined in methods
         self.df = None
         self.strdat = None
@@ -186,7 +188,9 @@ class TestPredictor:
         test_nan_inf(labels)
         test_nan_inf(struc)
         X = [self.vectorizer['tr'], struc] if not self.model_type == 'w2v' else [text, struc]
-
+        if self.dimtest == True:
+            print(f"for {self.task} {self.model_type}:")
+            print(f"dimension of training data is {X[0].shape} and {X[1].shape}")
         yhat = self.model.predict(X)
         if self.task == 'multi':
             yhat_df = []
@@ -201,6 +205,9 @@ class TestPredictor:
             out = pd.concat([pred_df, yhat_df], axis=1)
             for k in ['pca'] + [j for j in TAGS if self.task != j]:
                 out = out.drop(columns=[i for i in out.columns if k in i])
+        if self.dimtest == True:
+            print(f"dimension of output data is {out.shape}")
+
         return out
 
     def run(self):
