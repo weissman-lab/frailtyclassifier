@@ -59,6 +59,25 @@ multi_scaled_Brier_boot <- function(data, idx) {
          multi_Brier(event_rate_matrix, observations))
 }
 
+# bootstrap PR AUC
+PR_AUC_boot <- function(data, idx) {
+  df <- data[idx, ]
+  predictions <- df[, 1]
+  observations <- df[, 2]
+  pr.curve(scores.class0 = predictions,
+           weights.class0 = observations)$auc.integral
+}
+
+# bootstrap ROC AUC
+ROC_AUC_boot <- function(data, idx) {
+  df <- data[idx, ]
+  predictions <- df[, 1]
+  observations <- df[, 2]
+  roc.curve(scores.class0 = predictions,
+            weights.class0 = observations)$auc
+}
+
+
 # set directories based on location
 dirs = c(paste0('/gwshare/frailty/output/saved_models/'),
          '/Users/martijac/Documents/Frailty/frailty_classifier/output/saved_models/',
@@ -73,6 +92,7 @@ for (d in 1:length(dirs)) {
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 models <- c('enet', 'rf', 'nn_single')
 batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
+boot_reps <- 1000
 
 #gather enet performance
 ep_list <- list()
@@ -298,14 +318,15 @@ nn_multi_perf <- select(nn_multi_hyperparams,
                           'sbrier_multi_all_sd'))
 train_performance_mean <- rbind(train_performance_mean, nn_multi_perf)
 
+
 fwrite(train_performance_mean,
        paste0('/gwshare/frailty/output/figures_tables/all_train_cv_performance.csv'))
 
 
 
-# TEST SET PERFORMANCE
 
-boot_reps <- 1000
+
+########################### TEST SET PERFORMANCE ########################### 
 
 #multi-task neural nets
 if (file.exists('/gwshare/frailty/output/figures_tables/nn_multi_test_set_performance.csv')) {
@@ -319,7 +340,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/nn_multi_test_set_perfor
       } else if (nn_text[t] == 'BioClinicalBERT') { tl <- '_bioclinicalbert'
       } else if (nn_text[t] == 'RoBERTa') { tl <- '_roberta'}
       test_preds <- fread(paste0(rootdir, batches[b],
-                                 '/final_model/test_preds/test_preds_',
+                                 '/final_model/test_preds_v2/test_preds_',
                                  batches[b],
                                  tl,
                                  '.csv'))
@@ -347,34 +368,63 @@ if (file.exists('/gwshare/frailty/output/figures_tables/nn_multi_test_set_perfor
         #Scaled Brier scores with bootstrapped CIs
         b_multi <- cbind(preds, obs)
         sbrier_multi <- boot(b_multi, multi_scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_multi <- boot.ci(sbrier_multi, conf = 0.95, type = c('basic'))
         sb$sbrier_multi <- sbrier_multi$t0
-        sb$sbrier_multi_sd <- sd(sbrier_multi$t)
+        sb$sbrier_multi_5 <- sbrier_multi$basic[4]
+        sb$sbrier_multi_95 <- sbrier_multi$basic[5]
         b_neg <- cbind(preds[[1]], obs[[1]])
         sbrier_neg <- boot(b_neg, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_neg <- boot.ci(sbrier_neg, conf = 0.95, type = c('basic'))
         sb$sbrier_neg <- sbrier_neg$t0
-        sb$sbrier_neg_sd <- sd(sbrier_neg$t)
+        sb$sbrier_neg_5 <- sbrier_neg$basic[4]
+        sb$sbrier_neg_95 <- sbrier_neg$basic[5]
         b_neut <- cbind(preds[[2]], obs[[2]])
         sbrier_neut <- boot(b_neut, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_neut <- boot.ci(sbrier_neut, conf = 0.95, type = c('basic'))
         sb$sbrier_neut <- sbrier_neut$t0
-        sb$sbrier_neut_sd <- sd(sbrier_neut$t)
+        sb$sbrier_neut_5 <- sbrier_neut$basic[4]
+        sb$sbrier_neut_95 <- sbrier_neut$basic[5]
         b_pos <- cbind(preds[[3]], obs[[3]])
         sbrier_pos <- boot(b_pos, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_pos <- boot.ci(sbrier_pos, conf = 0.95, type = c('basic'))
         sb$sbrier_pos <- sbrier_pos$t0
-        sb$sbrier_pos_sd <- sd(sbrier_pos$t)
-        #Precision-recall area under the curve
-        sb$PR_AUC_neg = pr.curve(scores.class0 = preds[[1]],
-                                 weights.class0 = obs[[1]])$auc.integral
-        sb$PR_AUC_neut = pr.curve(scores.class0 = preds[[2]],
-                                          weights.class0 = obs[[2]])$auc.integral
-        sb$PR_AUC_pos = pr.curve(scores.class0 = preds[[3]],
-                                         weights.class0 = obs[[3]])$auc.integral
-        #Receiver operating characteristic area under the curve
-        sb$ROC_AUC_neg = roc.curve(scores.class0 = preds[[1]],
-                                   weights.class0 = obs[[1]])$auc
-        sb$ROC_AUC_neut = roc.curve(scores.class0 = preds[[2]],
-                                    weights.class0 = obs[[2]])$auc
-        sb$ROC_AUC_pos = roc.curve(scores.class0 = preds[[3]],
-                                   weights.class0 = obs[[3]])$auc
+        sb$sbrier_pos_5 <- sbrier_pos$basic[4]
+        sb$sbrier_pos_95 <- sbrier_pos$basic[5]
+        
+        #Precision-recall area AUC with bootstrap CIs
+        PR_AUC_neg <- boot(b_neg, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_neg <- boot.ci(PR_AUC_neg, conf = 0.95, type = c('basic'))
+        sb$PR_AUC_neg <- PR_AUC_neg$t0
+        sb$PR_AUC_neg_5 <- PR_AUC_neg$basic[4]
+        sb$PR_AUC_neg_95 <- PR_AUC_neg$basic[5]
+        PR_AUC_neut <- boot(b_neut, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_neut <- boot.ci(PR_AUC_neut, conf = 0.95, type = c('basic'))
+        sb$PR_AUC_neut <- PR_AUC_neut$t0
+        sb$PR_AUC_neut_5 <- PR_AUC_neut$basic[4]
+        sb$PR_AUC_neut_95 <- PR_AUC_neut$basic[5]
+        PR_AUC_pos <- boot(b_pos, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_pos <- boot.ci(PR_AUC_pos, conf = 0.95, type = c('basic'))
+        sb$PR_AUC_pos <- PR_AUC_pos$t0
+        sb$PR_AUC_pos_5 <- PR_AUC_pos$basic[4]
+        sb$PR_AUC_pos_95 <- PR_AUC_pos$basic[5]
+        
+        #Receiver operating characteristic AUC with bootstrap CIs
+        ROC_AUC_neg <- boot(b_neg, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_neg <- boot.ci(ROC_AUC_neg, conf = 0.95, type = c('basic'))
+        sb$ROC_AUC_neg <- ROC_AUC_neg$t0
+        sb$ROC_AUC_neg_5 <- ROC_AUC_neg$basic[4]
+        sb$ROC_AUC_neg_95 <- ROC_AUC_neg$basic[5]
+        ROC_AUC_neut <- boot(b_neut, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_neut <- boot.ci(ROC_AUC_neut, conf = 0.95, type = c('basic'))
+        sb$ROC_AUC_neut <- ROC_AUC_neut$t0
+        sb$ROC_AUC_neut_5 <- ROC_AUC_neut$basic[4]
+        sb$ROC_AUC_neut_95 <- ROC_AUC_neut$basic[5]
+        ROC_AUC_pos <- boot(b_pos, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_pos <- boot.ci(ROC_AUC_pos, conf = 0.95, type = c('basic'))
+        sb$ROC_AUC_pos <- ROC_AUC_pos$t0
+        sb$ROC_AUC_pos_5 <- ROC_AUC_pos$basic[4]
+        sb$ROC_AUC_pos_95 <- ROC_AUC_pos$basic[5]
+        
         sbs[[f]] <- sb
       }
       sbs_l <- rbindlist(sbs)
@@ -388,6 +438,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/nn_multi_test_set_perfor
   
   fwrite(nn_multi_test_perf,
          '/gwshare/frailty/output/figures_tables/nn_multi_test_set_performance.csv')
+  
 }
 
 
@@ -406,7 +457,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/nn_single_test_set_perfo
         } else if (nn_text[t] == 'RoBERTa') { tl <- '_roberta'}
         test_preds <- fread(paste0(rootdir,
                                    batches[b],
-                                   '/final_model/test_preds/test_preds_',
+                                   '/final_model/test_preds_v2/test_preds_',
                                    batches[b],
                                    '_',
                                    frail_lab[f],
@@ -435,34 +486,63 @@ if (file.exists('/gwshare/frailty/output/figures_tables/nn_single_test_set_perfo
         #Scaled Brier scores with bootstrapped CIs
         b_multi <- cbind(preds, obs)
         sbrier_multi <- boot(b_multi, multi_scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_multi <- boot.ci(sbrier_multi, conf = 0.95, type = c('basic'))
         sb$sbrier_multi <- sbrier_multi$t0
-        sb$sbrier_multi_sd <- sd(sbrier_multi$t)
+        sb$sbrier_multi_5 <- sbrier_multi$basic[4]
+        sb$sbrier_multi_95 <- sbrier_multi$basic[5]
         b_neg <- cbind(preds[[1]], obs[[1]])
         sbrier_neg <- boot(b_neg, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_neg <- boot.ci(sbrier_neg, conf = 0.95, type = c('basic'))
         sb$sbrier_neg <- sbrier_neg$t0
-        sb$sbrier_neg_sd <- sd(sbrier_neg$t)
+        sb$sbrier_neg_5 <- sbrier_neg$basic[4]
+        sb$sbrier_neg_95 <- sbrier_neg$basic[5]
         b_neut <- cbind(preds[[2]], obs[[2]])
         sbrier_neut <- boot(b_neut, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_neut <- boot.ci(sbrier_neut, conf = 0.95, type = c('basic'))
         sb$sbrier_neut <- sbrier_neut$t0
-        sb$sbrier_neut_sd <- sd(sbrier_neut$t)
+        sb$sbrier_neut_5 <- sbrier_neut$basic[4]
+        sb$sbrier_neut_95 <- sbrier_neut$basic[5]
         b_pos <- cbind(preds[[3]], obs[[3]])
         sbrier_pos <- boot(b_pos, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_pos <- boot.ci(sbrier_pos, conf = 0.95, type = c('basic'))
         sb$sbrier_pos <- sbrier_pos$t0
-        sb$sbrier_pos_sd <- sd(sbrier_pos$t)
-        #Precision-recall area under the curve
-        sb$PR_AUC_neg = pr.curve(scores.class0 = preds[[1]],
-                                 weights.class0 = obs[[1]])$auc.integral
-        sb$PR_AUC_neut = pr.curve(scores.class0 = preds[[2]],
-                                  weights.class0 = obs[[2]])$auc.integral
-        sb$PR_AUC_pos = pr.curve(scores.class0 = preds[[3]],
-                                 weights.class0 = obs[[3]])$auc.integral
-        #Receiver operating characteristic area under the curve
-        sb$ROC_AUC_neg = roc.curve(scores.class0 = preds[[1]],
-                                   weights.class0 = obs[[1]])$auc
-        sb$ROC_AUC_neut = roc.curve(scores.class0 = preds[[2]],
-                                    weights.class0 = obs[[2]])$auc
-        sb$ROC_AUC_pos = roc.curve(scores.class0 = preds[[3]],
-                                   weights.class0 = obs[[3]])$auc
+        sb$sbrier_pos_5 <- sbrier_pos$basic[4]
+        sb$sbrier_pos_95 <- sbrier_pos$basic[5]
+        
+        #Precision-recall area AUC with bootstrap CIs
+        PR_AUC_neg <- boot(b_neg, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_neg <- boot.ci(PR_AUC_neg, conf = 0.95, type = c('basic'))
+        sb$PR_AUC_neg <- PR_AUC_neg$t0
+        sb$PR_AUC_neg_5 <- PR_AUC_neg$basic[4]
+        sb$PR_AUC_neg_95 <- PR_AUC_neg$basic[5]
+        PR_AUC_neut <- boot(b_neut, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_neut <- boot.ci(PR_AUC_neut, conf = 0.95, type = c('basic'))
+        sb$PR_AUC_neut <- PR_AUC_neut$t0
+        sb$PR_AUC_neut_5 <- PR_AUC_neut$basic[4]
+        sb$PR_AUC_neut_95 <- PR_AUC_neut$basic[5]
+        PR_AUC_pos <- boot(b_pos, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_pos <- boot.ci(PR_AUC_pos, conf = 0.95, type = c('basic'))
+        sb$PR_AUC_pos <- PR_AUC_pos$t0
+        sb$PR_AUC_pos_5 <- PR_AUC_pos$basic[4]
+        sb$PR_AUC_pos_95 <- PR_AUC_pos$basic[5]
+        
+        #Receiver operating characteristic AUC with bootstrap CIs
+        ROC_AUC_neg <- boot(b_neg, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_neg <- boot.ci(ROC_AUC_neg, conf = 0.95, type = c('basic'))
+        sb$ROC_AUC_neg <- ROC_AUC_neg$t0
+        sb$ROC_AUC_neg_5 <- ROC_AUC_neg$basic[4]
+        sb$ROC_AUC_neg_95 <- ROC_AUC_neg$basic[5]
+        ROC_AUC_neut <- boot(b_neut, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_neut <- boot.ci(ROC_AUC_neut, conf = 0.95, type = c('basic'))
+        sb$ROC_AUC_neut <- ROC_AUC_neut$t0
+        sb$ROC_AUC_neut_5 <- ROC_AUC_neut$basic[4]
+        sb$ROC_AUC_neut_95 <- ROC_AUC_neut$basic[5]
+        ROC_AUC_pos <- boot(b_pos, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_pos <- boot.ci(ROC_AUC_pos, conf = 0.95, type = c('basic'))
+        sb$ROC_AUC_pos <- ROC_AUC_pos$t0
+        sb$ROC_AUC_pos_5 <- ROC_AUC_pos$basic[4]
+        sb$ROC_AUC_pos_95 <- ROC_AUC_pos$basic[5]
+        
         sbs[[f]] <- sb
       }
       sbs_l <- rbindlist(sbs)
@@ -476,6 +556,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/nn_single_test_set_perfo
   
   fwrite(nn_single_test_perf,
          '/gwshare/frailty/output/figures_tables/nn_single_test_set_performance.csv')
+  
 }
 
 
@@ -652,46 +733,57 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
                                    ifelse(.[[3]] == 1, 3, NA))))
     y_train_factor <- as.factor(y_train$factr)
     y_test <- test_df[, ..y_cols]
+      
+    if (file.exists(paste0(
+      rf_predsdir, rf_hyperparams$batch[r], '_',
+      rf_hyperparams$SVD[r], '_',
+      rf_hyperparams$frail_lab[r], '_preds.csv'))) {
+      
+      preds <- as.matrix(fread(paste0(
+        rf_predsdir, rf_hyperparams$batch[r], '_',
+        rf_hyperparams$SVD[r], '_',
+        rf_hyperparams$frail_lab[r], '_preds.csv'))[, 1:3])
+      
+    } else {
+      frail_rf <- ranger(y = y_train_factor,
+                         x = x_train,
+                         num.threads = detectCores(),
+                         probability = TRUE,
+                         num.trees = 400,
+                         mtry = rf_hyperparams$mtry[r],
+                         sample.fraction = rf_hyperparams$sample_frac[r],
+                         case.weights = cw_train_only,
+                         oob.error = FALSE,
+                         importance = 'impurity')
     
-    frail_rf <- ranger(y = y_train_factor,
-                       x = x_train,
-                       num.threads = detectCores(),
-                       probability = TRUE,
-                       num.trees = 400,
-                       mtry = rf_hyperparams$mtry[r],
-                       sample.fraction = rf_hyperparams$sample_frac[r],
-                       case.weights = cw_train_only,
-                       oob.error = FALSE,
-                       importance = 'impurity')
-  
-    #save variable importance
-    importance <- importance(frail_rf)
-    i_names <- names(importance)
-    importance <- transpose(as.data.table(importance))
-    colnames(importance) <- i_names
-    importance$batch <- rf_hyperparams$batch[r]
-    importance$frail_lab <- rf_hyperparams$frail_lab[r]
-    importance$SVD <- rf_hyperparams$SVD[r]
-    importance$mtry <- rf_hyperparams$mtry[r]
-    importance$sample_frac <- rf_hyperparams$sample_frac[r]
-    importance$case_weights <- rf_hyperparams$case_weights[r]
-    fwrite(importance, 
-           paste0(rf_importancedir, rf_hyperparams$batch[r], '_',
-                  rf_hyperparams$SVD[r], '_',
-                  rf_hyperparams$frail_lab[r], '_importance.csv'))
-    
-    #make predictions on test fold
-    preds <- predict(frail_rf, data=x_test)$predictions
-    colnames(preds) <- y_cols
-    preds_save <- as.data.table(preds)
-    preds_save$sentence_id <- test_df$sentence_id
-    
-    #save predictions
-    fwrite(preds_save, 
-           paste0(rf_predsdir, rf_hyperparams$batch[r], '_',
-                  rf_hyperparams$SVD[r], '_',
-                  rf_hyperparams$frail_lab[r], '_importance.csv'))
-    
+      #save variable importance
+      importance <- importance(frail_rf)
+      i_names <- names(importance)
+      importance <- transpose(as.data.table(importance))
+      colnames(importance) <- i_names
+      importance$batch <- rf_hyperparams$batch[r]
+      importance$frail_lab <- rf_hyperparams$frail_lab[r]
+      importance$SVD <- rf_hyperparams$SVD[r]
+      importance$mtry <- rf_hyperparams$mtry[r]
+      importance$sample_frac <- rf_hyperparams$sample_frac[r]
+      importance$case_weights <- rf_hyperparams$case_weights[r]
+      fwrite(importance, 
+             paste0(rf_importancedir, rf_hyperparams$batch[r], '_',
+                    rf_hyperparams$SVD[r], '_',
+                    rf_hyperparams$frail_lab[r], '_importance.csv'))
+      
+      #make predictions on test fold
+      preds <- predict(frail_rf, data=x_test)$predictions
+      colnames(preds) <- y_cols
+      preds_save <- as.data.table(preds)
+      preds_save$sentence_id <- test_df$sentence_id
+      
+      #save predictions
+      fwrite(preds_save, 
+             paste0(rf_predsdir, rf_hyperparams$batch[r], '_',
+                    rf_hyperparams$SVD[r], '_',
+                    rf_hyperparams$frail_lab[r], '_preds.csv'))
+    }
     #label each row
     hyper_grid <- data.frame(batch = rf_hyperparams$batch[r])
     hyper_grid$frail_lab <- rf_hyperparams$frail_lab[r]
@@ -699,38 +791,66 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
     hyper_grid$mtry <- rf_hyperparams$mtry[r]
     hyper_grid$sample_frac <- rf_hyperparams$sample_frac[r]
     hyper_grid$case_weights <- rf_hyperparams$case_weights[r]
+    
     #Scaled Brier scores with bootstrapped CIs
     b_multi <- cbind(preds, y_test)
     sbrier_multi <- boot(b_multi, multi_scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+    sbrier_multi <- boot.ci(sbrier_multi, conf = 0.95, type = c('basic'))
     hyper_grid$sbrier_multi <- sbrier_multi$t0
-    hyper_grid$sbrier_multi_sd <- sd(sbrier_multi$t)
-    b_neut <- cbind(preds[, 1], y_test[[1]])
-    sbrier_neut <- boot(b_neut, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
-    hyper_grid$sbrier_neut <- sbrier_neut$t0
-    hyper_grid$sbrier_neut_sd <- sd(sbrier_neut$t)
-    b_pos <- cbind(preds[, 2], y_test[[2]])
-    sbrier_pos <- boot(b_pos, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
-    hyper_grid$sbrier_pos <- sbrier_pos$t0
-    hyper_grid$sbrier_pos_sd <- sd(sbrier_pos$t)
+    hyper_grid$sbrier_multi_5 <- sbrier_multi$basic[4]
+    hyper_grid$sbrier_multi_95 <- sbrier_multi$basic[5]
     b_neg <- cbind(preds[, 3], y_test[[3]])
     sbrier_neg <- boot(b_neg, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+    sbrier_neg <- boot.ci(sbrier_neg, conf = 0.95, type = c('basic'))
     hyper_grid$sbrier_neg <- sbrier_neg$t0
-    hyper_grid$sbrier_neg_sd <- sd(sbrier_neg$t)
-    #Precision-recall area under the curve
-    hyper_grid$PR_AUC_neut <- pr.curve(scores.class0 = preds[, 1],
-                                       weights.class0 = y_test[[1]])$auc.integral
-    hyper_grid$PR_AUC_pos <- pr.curve(scores.class0 = preds[, 2],
-                                      weights.class0 = y_test[[2]])$auc.integral
-    hyper_grid$PR_AUC_neg <- pr.curve(scores.class0 = preds[, 3],
-                                      weights.class0 = y_test[[3]])$auc.integral
-    #Receiver operating characteristic area under the curve
-    hyper_grid$ROC_AUC_neut <- roc.curve(scores.class0 = preds[, 1],
-                                         weights.class0 = y_test[[1]])$auc
-    hyper_grid$ROC_AUC_pos <- roc.curve(scores.class0 = preds[, 2],
-                                        weights.class0 = y_test[[2]])$auc
-    hyper_grid$ROC_AUC_neg <- roc.curve(scores.class0 = preds[, 3],
-                                        weights.class0 = y_test[[3]])$auc
+    hyper_grid$sbrier_neg_5 <- sbrier_neg$basic[4]
+    hyper_grid$sbrier_neg_95 <- sbrier_neg$basic[5]
+    b_neut <- cbind(preds[, 1], y_test[[1]])
+    sbrier_neut <- boot(b_neut, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+    sbrier_neut <- boot.ci(sbrier_neut, conf = 0.95, type = c('basic'))
+    hyper_grid$sbrier_neut <- sbrier_neut$t0
+    hyper_grid$sbrier_neut_5 <- sbrier_neut$basic[4]
+    hyper_grid$sbrier_neut_95 <- sbrier_neut$basic[5]
+    b_pos <- cbind(preds[, 2], y_test[[2]])
+    sbrier_pos <- boot(b_pos, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+    sbrier_pos <- boot.ci(sbrier_pos, conf = 0.95, type = c('basic'))
+    hyper_grid$sbrier_pos <- sbrier_pos$t0
+    hyper_grid$sbrier_pos_5 <- sbrier_pos$basic[4]
+    hyper_grid$sbrier_pos_95 <- sbrier_pos$basic[5]
+  
+    #Precision-recall area AUC with bootstrap CIs
+    PR_AUC_neut <- boot(b_neut, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+    PR_AUC_neut <- boot.ci(PR_AUC_neut, conf = 0.95, type = c('basic'))
+    hyper_grid$PR_AUC_neut <- PR_AUC_neut$t0
+    hyper_grid$PR_AUC_neut_5 <- PR_AUC_neut$basic[4]
+    hyper_grid$PR_AUC_neut_95 <- PR_AUC_neut$basic[5]
+    PR_AUC_pos <- boot(b_pos, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+    PR_AUC_pos <- boot.ci(PR_AUC_pos, conf = 0.95, type = c('basic'))
+    hyper_grid$PR_AUC_pos <- PR_AUC_pos$t0
+    hyper_grid$PR_AUC_pos_5 <- PR_AUC_pos$basic[4]
+    hyper_grid$PR_AUC_pos_95 <- PR_AUC_pos$basic[5]
+    PR_AUC_neg <- boot(b_neg, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+    PR_AUC_neg <- boot.ci(PR_AUC_neg, conf = 0.95, type = c('basic'))
+    hyper_grid$PR_AUC_neg <- PR_AUC_neg$t0
+    hyper_grid$PR_AUC_neg_5 <- PR_AUC_neg$basic[4]
+    hyper_grid$PR_AUC_neg_95 <- PR_AUC_neg$basic[5]
     
+    #Receiver operating characteristic AUC with bootstrap CIs
+    ROC_AUC_neut <- boot(b_neut, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+    ROC_AUC_neut <- boot.ci(ROC_AUC_neut, conf = 0.95, type = c('basic'))
+    hyper_grid$ROC_AUC_neut <- ROC_AUC_neut$t0
+    hyper_grid$ROC_AUC_neut_5 <- ROC_AUC_neut$basic[4]
+    hyper_grid$ROC_AUC_neut_95 <- ROC_AUC_neut$basic[5]
+    ROC_AUC_pos <- boot(b_pos, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+    ROC_AUC_pos <- boot.ci(ROC_AUC_pos, conf = 0.95, type = c('basic'))
+    hyper_grid$ROC_AUC_pos <- ROC_AUC_pos$t0
+    hyper_grid$ROC_AUC_pos_5 <- ROC_AUC_pos$basic[4]
+    hyper_grid$ROC_AUC_pos_95 <- ROC_AUC_pos$basic[5]
+    ROC_AUC_neg <- boot(b_neg, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+    ROC_AUC_neg <- boot.ci(ROC_AUC_neg, conf = 0.95, type = c('basic'))
+    hyper_grid$ROC_AUC_neg <- ROC_AUC_neg$t0
+    hyper_grid$ROC_AUC_neg_5 <- ROC_AUC_neg$basic[4]
+    hyper_grid$ROC_AUC_neg_95 <- ROC_AUC_neg$basic[5]
     #save hyper_grid for each rf run
     fwrite(hyper_grid, 
            paste0(rf_modeldir, rf_hyperparams$batch[r], '_',
@@ -754,11 +874,13 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
   rf_test_perf <- rbindlist(md_l)
   
   cols <- c('model', 'batch', 'frail_lab',
-            grep('sbrier', colnames(rf_test_perf), value = TRUE))
+            grep('sbrier', colnames(rf_test_perf), value = TRUE),
+            grep('AUC', colnames(rf_test_perf), value = TRUE))
   print(rf_test_perf[, ..cols])
   
   fwrite(rf_test_perf,
          paste0('/gwshare/frailty/output/figures_tables/RF_test_set_performance.csv'))
+  
 }
 
 
@@ -899,47 +1021,61 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
         y_train <- data.matrix(train_df[, ..y_cols])
         y_test <- data.matrix(test_df[, ..y_cols])
         
+
+        # note: performs MUCH better if given ~20+ lambda values (some models
+        # are very slow and struggle to converge with only 5 lambdas)
         lambda_seq <- c(10^seq(1, log10(enet_hyperparams$lambda[r]),
-                               length.out = 5))
-        #lambda_seq <- seq(100, enet_hyperparams$lambda[r], length.out = 10)
-        #lambda_seq <- signif(c(10^seq(2, 0, length.out = 5)), 4)
+                               length.out = 20))
         
-        #train model
-        frail_logit <- glmnet(x_train, 
-                              y_train,
-                              family = 'multinomial',
-                              alpha = enet_hyperparams$alpha[r],
-                              lambda = lambda_seq,
-                              weights = cw_train_only,
-                              maxit = 1e7)
+        if (file.exists(paste0(enet_predsdir, enet_hyperparams$batch[r], '_',
+                               enet_hyperparams$SVD[r], '_',
+                               enet_hyperparams$frail_lab[r], '_preds.csv'))) {
+          
+          preds <- as.matrix(fread(paste0(
+            enet_predsdir, enet_hyperparams$batch[r], '_',
+            enet_hyperparams$SVD[r], '_',
+            enet_hyperparams$frail_lab[r], '_preds.csv'))[, 1:3])
+          
+        } else {
         
-        #save coefficients
-        coefs <- predict(frail_logit, x_test, type = 'coefficients')
-        for (c in 1:length(coefs)){
-          coefs_s <- coefs[[y_cols[c]]]
-          coefs_save <- as.data.table(t(as.matrix(coefs_s)))
-          colnames(coefs_save)[1] <- 'intercept'
-          coefs_save$lambda <- as.character(frail_logit$lambda)
-          coefs_save$frail_lab <- y_cols[c]
-          coefs_save$SVD <- enet_hyperparams$SVD[r]
-          coefs_save$alpha <- enet_hyperparams$alpha[r]
-          coefs_save$case_weights <- enet_hyperparams$case_weights[r]
-          fwrite(coefs_save,
-                 paste0(enet_coefsdir, enet_hyperparams$batch[r], '_',
+          #train model
+          frail_logit <- glmnet(x_train, 
+                                y_train,
+                                family = 'multinomial',
+                                alpha = enet_hyperparams$alpha[r],
+                                lambda = lambda_seq,
+                                weights = cw_train_only,
+                                maxit = 1e7)
+          
+          #save coefficients
+          coefs <- predict(frail_logit, x_test, type = 'coefficients')
+          for (c in 1:length(coefs)){
+            coefs_s <- coefs[[y_cols[c]]]
+            coefs_save <- as.data.table(t(as.matrix(coefs_s)))
+            colnames(coefs_save)[1] <- 'intercept'
+            coefs_save$lambda <- as.character(frail_logit$lambda)
+            coefs_save$frail_lab <- y_cols[c]
+            coefs_save$SVD <- enet_hyperparams$SVD[r]
+            coefs_save$alpha <- enet_hyperparams$alpha[r]
+            coefs_save$case_weights <- enet_hyperparams$case_weights[r]
+            fwrite(coefs_save,
+                   paste0(enet_coefsdir, enet_hyperparams$batch[r], '_',
+                          enet_hyperparams$SVD[r], '_',
+                          y_cols[c], '_coefs.csv'))
+          }
+          #make predictions on validation fold for each alpha
+          alpha_preds <- predict(frail_logit, x_test, type = 'response')
+          #get the predictions we care about
+          preds <- alpha_preds[, , length(lambda_seq)]
+          preds_save <- as.data.table(preds)
+          preds_save$lambda <- lambda_seq[length(lambda_seq)]
+          preds_save$sentence_id <- test_df$sentence_id
+          fwrite(preds_save, 
+                 paste0(enet_predsdir, enet_hyperparams$batch[r], '_',
                         enet_hyperparams$SVD[r], '_',
-                        y_cols[c], '_coefs.csv'))
+                        enet_hyperparams$frail_lab[r], '_preds.csv'))
+          
         }
-        #make predictions on validation fold for each alpha
-        alpha_preds <- predict(frail_logit, x_test, type = 'response')
-        #get the predictions we care about
-        preds <- alpha_preds[, , length(lambda_seq)]
-        preds_save <- as.data.table(preds)
-        preds_save$lambda <- lambda_seq[length(lambda_seq)]
-        preds_save$sentence_id <- test_df$sentence_id
-        fwrite(preds_save, 
-               paste0(enet_predsdir, enet_hyperparams$batch[r], '_',
-                      enet_hyperparams$SVD[r], '_',
-                      enet_hyperparams$frail_lab[r], '_preds.csv'))
         #performance metrics
         hyper_grid <- data.frame(batch = enet_hyperparams$batch[r])
         hyper_grid$frail_lab <- enet_hyperparams$frail_lab[r]
@@ -948,43 +1084,73 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
         hyper_grid$alpha <- enet_hyperparams$alpha[r]
         hyper_grid$case_weights <- enet_hyperparams$case_weights[r]
         
+        
         #Scaled Brier scores with bootstrapped CIs
         b_multi <- cbind(preds, y_test)
         sbrier_multi <- boot(b_multi, multi_scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_multi <- boot.ci(sbrier_multi, conf = 0.95, type = c('basic'))
         hyper_grid$sbrier_multi <- sbrier_multi$t0
-        hyper_grid$sbrier_multi_sd <- sd(sbrier_multi$t)
-        b_neut <- cbind(preds[, 1], y_test[, 1])
-        sbrier_neut <- boot(b_neut, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
-        hyper_grid$sbrier_neut <- sbrier_neut$t0
-        hyper_grid$sbrier_neut_sd <- sd(sbrier_neut$t)
-        b_pos <- cbind(preds[, 2], y_test[, 2])
-        sbrier_pos <- boot(b_pos, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
-        hyper_grid$sbrier_pos <- sbrier_pos$t0
-        hyper_grid$sbrier_pos_sd <- sd(sbrier_pos$t)
+        hyper_grid$sbrier_multi_5 <- sbrier_multi$basic[4]
+        hyper_grid$sbrier_multi_95 <- sbrier_multi$basic[5]
         b_neg <- cbind(preds[, 3], y_test[, 3])
         sbrier_neg <- boot(b_neg, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_neg <- boot.ci(sbrier_neg, conf = 0.95, type = c('basic'))
         hyper_grid$sbrier_neg <- sbrier_neg$t0
-        hyper_grid$sbrier_neg_sd <- sd(sbrier_neg$t)
-        #Precision-recall area under the curve
-        hyper_grid$PR_AUC_neut = pr.curve(scores.class0 = preds[, 1],
-                                             weights.class0 = y_test[, 1])$auc.integral
-        hyper_grid$PR_AUC_pos = pr.curve(scores.class0 = preds[, 2],
-                                            weights.class0 = y_test[, 2])$auc.integral
-        hyper_grid$PR_AUC_neg = pr.curve(scores.class0 = preds[, 3],
-                                            weights.class0 = y_test[, 3])$auc.integral
-        #Receiver operating characteristic area under the curve
-        hyper_grid$ROC_AUC_neut = roc.curve(scores.class0 = preds[, 1],
-                                               weights.class0 = y_test[, 1])$auc
-        hyper_grid$ROC_AUC_pos = roc.curve(scores.class0 = preds[, 2],
-                                              weights.class0 = y_test[, 2])$auc
-        hyper_grid$ROC_AUC_neg = roc.curve(scores.class0 = preds[, 3],
-                                              weights.class0 = y_test[, 3])$auc
+        hyper_grid$sbrier_neg_5 <- sbrier_neg$basic[4]
+        hyper_grid$sbrier_neg_95 <- sbrier_neg$basic[5]
+        b_neut <- cbind(preds[, 1], y_test[, 1])
+        sbrier_neut <- boot(b_neut, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_neut <- boot.ci(sbrier_neut, conf = 0.95, type = c('basic'))
+        hyper_grid$sbrier_neut <- sbrier_neut$t0
+        hyper_grid$sbrier_neut_5 <- sbrier_neut$basic[4]
+        hyper_grid$sbrier_neut_95 <- sbrier_neut$basic[5]
+        b_pos <- cbind(preds[, 2], y_test[, 2])
+        sbrier_pos <- boot(b_pos, scaled_Brier_boot, R = boot_reps, parallel = 'multicore')
+        sbrier_pos <- boot.ci(sbrier_pos, conf = 0.95, type = c('basic'))
+        hyper_grid$sbrier_pos <- sbrier_pos$t0
+        hyper_grid$sbrier_pos_5 <- sbrier_pos$basic[4]
+        hyper_grid$sbrier_pos_95 <- sbrier_pos$basic[5]
+        
+        #Precision-recall area AUC with bootstrap CIs
+        PR_AUC_neut <- boot(b_neut, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_neut <- boot.ci(PR_AUC_neut, conf = 0.95, type = c('basic'))
+        hyper_grid$PR_AUC_neut <- PR_AUC_neut$t0
+        hyper_grid$PR_AUC_neut_5 <- PR_AUC_neut$basic[4]
+        hyper_grid$PR_AUC_neut_95 <- PR_AUC_neut$basic[5]
+        PR_AUC_pos <- boot(b_pos, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_pos <- boot.ci(PR_AUC_pos, conf = 0.95, type = c('basic'))
+        hyper_grid$PR_AUC_pos <- PR_AUC_pos$t0
+        hyper_grid$PR_AUC_pos_5 <- PR_AUC_pos$basic[4]
+        hyper_grid$PR_AUC_pos_95 <- PR_AUC_pos$basic[5]
+        PR_AUC_neg <- boot(b_neg, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
+        PR_AUC_neg <- boot.ci(PR_AUC_neg, conf = 0.95, type = c('basic'))
+        hyper_grid$PR_AUC_neg <- PR_AUC_neg$t0
+        hyper_grid$PR_AUC_neg_5 <- PR_AUC_neg$basic[4]
+        hyper_grid$PR_AUC_neg_95 <- PR_AUC_neg$basic[5]
+        
+        #Receiver operating characteristic AUC with bootstrap CIs
+        ROC_AUC_neut <- boot(b_neut, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_neut <- boot.ci(ROC_AUC_neut, conf = 0.95, type = c('basic'))
+        hyper_grid$ROC_AUC_neut <- ROC_AUC_neut$t0
+        hyper_grid$ROC_AUC_neut_5 <- ROC_AUC_neut$basic[4]
+        hyper_grid$ROC_AUC_neut_95 <- ROC_AUC_neut$basic[5]
+        ROC_AUC_pos <- boot(b_pos, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_pos <- boot.ci(ROC_AUC_pos, conf = 0.95, type = c('basic'))
+        hyper_grid$ROC_AUC_pos <- ROC_AUC_pos$t0
+        hyper_grid$ROC_AUC_pos_5 <- ROC_AUC_pos$basic[4]
+        hyper_grid$ROC_AUC_pos_95 <- ROC_AUC_pos$basic[5]
+        ROC_AUC_neg <- boot(b_neg, ROC_AUC_boot, R = boot_reps, parallel = 'multicore')
+        ROC_AUC_neg <- boot.ci(ROC_AUC_neg, conf = 0.95, type = c('basic'))
+        hyper_grid$ROC_AUC_neg <- ROC_AUC_neg$t0
+        hyper_grid$ROC_AUC_neg_5 <- ROC_AUC_neg$basic[4]
+        hyper_grid$ROC_AUC_neg_95 <- ROC_AUC_neg$basic[5]
         
         #save performance
         fwrite(hyper_grid, 
                paste0(enet_modeldir, enet_hyperparams$batch[r], '_',
                       enet_hyperparams$SVD[r], '_',
                       enet_hyperparams$frail_lab[r], '_performance.csv'))
+        
       },
       
       #writing generic error messages to trace back later. Was not able to get 
@@ -1013,12 +1179,14 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
     md$model <- 'enet'
     md_l[[w]] <- md
   }
-  enet_test_perf <- rbindlist(md_l)
-  cols <- c('model', 'batch', 'frail_lab',
-            grep('sbrier', colnames(enet_test_perf), value = TRUE))
+  enet_test_perf <- rbindlist(md_l, fill = TRUE)
+  cols <- c('model', 'SVD', 'batch', 'frail_lab',
+            grep('sbrier', colnames(enet_test_perf), value = TRUE),
+            grep('AUC', colnames(enet_test_perf), value = TRUE))
   print(enet_test_perf[, ..cols])
   fwrite(enet_test_perf,
          paste0('/gwshare/frailty/output/figures_tables/enet_test_set_performance.csv'))
+  
 }
 
 
@@ -1029,19 +1197,24 @@ enet_test_perf$hyperparams <-
                               ' lambda_', lambda,
                               ' alpha_', alpha,
                               ' cw_', case_weights))$hyperparams
+
+enet_test_perf$text <- enet_test_perf$SVD
+
 rf_test_perf$hyperparams <- 
   mutate(rf_hyperparams_full,
          hyperparams = paste0(SVD,
                               ' mtry_', mtry,
                               ' samplefrac_', sample_frac,
                               ' cw_', case_weights))$hyperparams
+
+rf_test_perf$text <- rf_test_perf$SVD
+
 nn_single_test_perf
 nn_multi_test_perf
 
-cols <- c('model', 'batch', 'frail_lab', 'hyperparams',
+cols <- c('model', 'text', 'batch', 'frail_lab', 'hyperparams',
           grep('sbrier', colnames(nn_single_test_perf), value = TRUE),
-          'PR_AUC_neg', 'PR_AUC_neut', 'PR_AUC_pos',
-          'ROC_AUC_neg', 'ROC_AUC_neut', 'ROC_AUC_pos')
+          grep('AUC', colnames(nn_single_test_perf), value = TRUE))
 
 all_test_perf <- rbind(enet_test_perf[, ..cols],
                        rf_test_perf[, ..cols],
