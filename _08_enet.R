@@ -17,6 +17,33 @@ if (length(exp)==0) {
   stop("AL round must be specified as an argument", call.=FALSE)
 }
 
+# Brier score
+Brier <- function(predictions, observations, positive_class) {
+  obs = as.numeric(observations == positive_class)
+  mean((predictions - obs)^2)
+}
+
+# scaled Brier score
+scaled_Brier <- function(predictions, observations, positive_class) {
+  1 - (Brier(predictions, observations, positive_class) / 
+         Brier(mean(observations), observations, positive_class))
+}
+
+# multiclass Brier score
+multi_Brier <- function(predictions, observations) {
+  mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
+}
+
+# multiclass scaled Brier score
+multi_scaled_Brier <- function(predictions, observations) {
+  event_rate_matrix <- matrix(colMeans(observations), 
+                              ncol = length(colMeans(observations)), 
+                              nrow = nrow(observations),
+                              byrow = TRUE)
+  1 - (multi_Brier(predictions, observations) / 
+         multi_Brier(event_rate_matrix, observations))
+}
+
 #repeats & folds
 repeats <- seq(1, 3)
 folds <- seq(0, 9)
@@ -58,33 +85,37 @@ dir.create(enet_durationdir)
 dir.create(enet_coefsdir)
 dir.create(enet_predsdir)
 
+#set sequence of lambda values to test
+lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
 
-# Brier score
-Brier <- function(predictions, observations, positive_class) {
-  obs = as.numeric(observations == positive_class)
-  mean((predictions - obs)^2)
-}
+#tuning grid
+mg1 <- expand_grid(
+  repeats = repeats,
+  fold = folds,
+  svd = svd,
+  frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+  alpha = c(0.9, 0.5, 0.1),
+  case_weights = c(TRUE, FALSE)
+)
+#label alpha (for naming .csv files)
+mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
+                                    ifelse(alpha == 0.5, 5,
+                                           ifelse(alpha == 0.1, 1, NA))))
 
-# scaled Brier score
-scaled_Brier <- function(predictions, observations, positive_class) {
-  1 - (Brier(predictions, observations, positive_class) / 
-         Brier(mean(observations), observations, positive_class))
-}
+#check for models that have already been completed & remove them from the grid
+mg1 <- mg1 %>%
+  mutate(filename = 
+           paste0('exp', exp, '_hypergrid_r', repeats, '_f', fold, '_',
+                  frail_lab, '_svd_', svd, '_alpha', alpha_l, '_cw',
+                  as.integer(case_weights), '.csv')) %>%
+  filter(!filename %in% list.files(enet_modeldir))%>%
+  select(-'filename')
 
-# multiclass Brier score
-multi_Brier <- function(predictions, observations) {
-  mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
-}
+#update constants for loading data
+repeats <- unique(mg1$repeats)
+folds <- unique(mg1$fold)
+svd <- unique(mg1$svd)
 
-# multiclass scaled Brier score
-multi_scaled_Brier <- function(predictions, observations) {
-  event_rate_matrix <- matrix(colMeans(observations), 
-                              ncol = length(colMeans(observations)), 
-                              nrow = nrow(observations),
-                              byrow = TRUE)
-  1 - (multi_Brier(predictions, observations) / 
-         multi_Brier(event_rate_matrix, observations))
-}
 
 #repeated k-fold cross validation
 for (p in 1:length(repeats)) {
@@ -307,31 +338,6 @@ for (p in 1:length(repeats)) {
 }
 
 
-
-#set sequence of lambda values to test
-lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
-#tuning grid
-mg1 <- expand_grid(
-  repeats = repeats,
-  fold = folds,
-  svd = svd,
-  frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-  alpha = c(0.9, 0.5, 0.1),
-  case_weights = c(TRUE, FALSE)
-)
-#label alpha (for naming .csv files)
-mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
-                                    ifelse(alpha == 0.5, 5,
-                                           ifelse(alpha == 0.1, 1, NA))))
-
-#check for models that have already been completed & remove them from the grid
-mg1 <- mg1 %>%
-  mutate(filename = 
-           paste0('exp', exp, '_hypergrid_r', repeats, '_f', fold, '_',
-                  frail_lab, '_svd_', svd, '_alpha', alpha_l, '_cw',
-                  as.integer(case_weights), '.csv')) %>%
-  filter(!filename %in% list.files(enet_modeldir))%>%
-  select(-'filename')
 
 #run glmnet if incomplete
 if ((nrow(mg1) == 0) == FALSE) {
