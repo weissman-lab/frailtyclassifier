@@ -21,7 +21,7 @@ if (length(exp)==0) {
 repeats <- seq(1, 3)
 folds <- seq(0, 9)
 #text features
-svd <- c('embed', '300', '1000')
+svd <- c('bioclinicalbert', 'roberta', 'embed', '300', '1000')
 #include structured data?
 inc_struc = TRUE
 #set seed
@@ -104,7 +104,93 @@ for (p in 1:length(repeats)) {
       stop("caseweights do not match training data")
   }
   for (s in 1:length(svd)) {
-    if (svd[s] == 'embed') {
+    if (svd[s] == 'bioclinicalbert') {
+      train <- foreach (d = 1:length(folds)) %dopar% {
+        # load embeddings for each fold (drop index and 1st row junk)
+        embeddings_tr <- fread(
+          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_tr_bioclinicalbert.csv'),
+          skip = 1, drop = 1)
+        colnames(embeddings_tr) <- paste0('d', seq(1, 768))
+        pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
+        pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+        # test that embeddings match structured data
+        if ((nrow(embeddings_tr) == nrow(pca_tr)) == FALSE)
+          stop("bioclinicalbert does not match training data")
+        #embeddings without vs with structured data
+        if (inc_struc == FALSE) {
+          #get only embeddings columns
+          embeddings_tr <- data.matrix(embeddings_tr)
+        } else {
+          # concatenate embeddings with structured data
+          embeddings_tr <- data.matrix(cbind(embeddings_tr, pca_tr[, ..pca_cols]))
+        }
+        return(embeddings_tr)
+      }
+      validation <- foreach (d = 1:length(folds)) %dopar% {
+        # load embeddings for each fold (drop index)
+        embeddings_va <- fread(
+          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_va_bioclinicalbert.csv'),
+          skip = 1, drop = 1)
+        colnames(embeddings_va) <- paste0('d', seq(1, 768))
+        pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
+        pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+        # test that embeddings match structured data
+        if ((nrow(embeddings_va) == nrow(pca_va)) == FALSE)
+          stop("bioclinicalbert does not match validation data")
+        #embeddings without vs with structured data
+        if (inc_struc == FALSE) {
+          #get only embeddings columns
+          embeddings_va <- data.matrix(embeddings_va)
+        } else {
+          # concatenate embeddings with structured data
+          embeddings_va <- data.matrix(cbind(embeddings_va, pca_va[, ..pca_cols]))
+        }
+        return(embeddings_va)
+      }
+    } else if (svd[s] == 'roberta') {
+      train <- foreach (d = 1:length(folds)) %dopar% {
+        # load embeddings for each fold (drop index and 1st row junk)
+        embeddings_tr <- fread(
+          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_tr_roberta.csv'),
+          skip = 1, drop = 1)
+        colnames(embeddings_tr) <- paste0('d', seq(1, 768))
+        pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
+        pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+        # test that embeddings match structured data
+        if ((nrow(embeddings_tr) == nrow(pca_tr)) == FALSE)
+          stop("roberta does not match training data")
+        #embeddings without vs with structured data
+        if (inc_struc == FALSE) {
+          #get only embeddings columns
+          embeddings_tr <- data.matrix(embeddings_tr)
+        } else {
+          # concatenate embeddings with structured data
+          embeddings_tr <- data.matrix(cbind(embeddings_tr, pca_tr[, ..pca_cols]))
+        }
+        return(embeddings_tr)
+      }
+      validation <- foreach (d = 1:length(folds)) %dopar% {
+        # load embeddings for each fold (drop index)
+        embeddings_va <- fread(
+          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_va_roberta.csv'),
+          skip = 1, drop = 1)
+        colnames(embeddings_va) <- paste0('d', seq(1, 768))
+        pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
+        pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+        # test that embeddings match structured data
+        if ((nrow(embeddings_va) == nrow(pca_va)) == FALSE)
+          stop("roberta does not match validation data")
+        #embeddings without vs with structured data
+        if (inc_struc == FALSE) {
+          #get only embeddings columns
+          embeddings_va <- data.matrix(embeddings_va)
+        } else {
+          # concatenate embeddings with structured data
+          embeddings_va <- data.matrix(cbind(embeddings_va, pca_va[, ..pca_cols]))
+        }
+        return(embeddings_va)
+      }
+    } else if (svd[s] == 'embed') {
       train <- foreach (d = 1:length(folds)) %dopar% {
         # load embeddings for each fold (drop index)
         embeddings_tr <- fread(
