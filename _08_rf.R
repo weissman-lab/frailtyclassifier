@@ -22,7 +22,7 @@ if (length(batchstring)==0) {
 REPEATS <- seq(1, 3)
 FOLDS <- seq(0, 9)
 #text features
-SVD <- c('embed', '300', '1000')
+SVD <- c('bioclinicalbert', 'roberta', 'embed', '300', '1000')
 #include structured data?
 INC_STRUC = TRUE
 
