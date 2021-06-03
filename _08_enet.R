@@ -17,11 +17,38 @@ if (length(exp)==0) {
   stop("AL round must be specified as an argument", call.=FALSE)
 }
 
+# Brier score
+Brier <- function(predictions, observations, positive_class) {
+  obs = as.numeric(observations == positive_class)
+  mean((predictions - obs)^2)
+}
+
+# scaled Brier score
+scaled_Brier <- function(predictions, observations, positive_class) {
+  1 - (Brier(predictions, observations, positive_class) / 
+         Brier(mean(observations), observations, positive_class))
+}
+
+# multiclass Brier score
+multi_Brier <- function(predictions, observations) {
+  mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
+}
+
+# multiclass scaled Brier score
+multi_scaled_Brier <- function(predictions, observations) {
+  event_rate_matrix <- matrix(colMeans(observations), 
+                              ncol = length(colMeans(observations)), 
+                              nrow = nrow(observations),
+                              byrow = TRUE)
+  1 - (multi_Brier(predictions, observations) / 
+         multi_Brier(event_rate_matrix, observations))
+}
+
 #repeats & folds
 repeats <- seq(1, 3)
 folds <- seq(0, 9)
 #text features
-svd <- c('embed', '300', '1000')
+svd <- c('bioclinicalbert', 'roberta', 'embed', '300', '1000')
 #include structured data?
 inc_struc = TRUE
 #set seed
@@ -58,33 +85,37 @@ dir.create(enet_durationdir)
 dir.create(enet_coefsdir)
 dir.create(enet_predsdir)
 
+#set sequence of lambda values to test
+lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
 
-# Brier score
-Brier <- function(predictions, observations, positive_class) {
-  obs = as.numeric(observations == positive_class)
-  mean((predictions - obs)^2)
-}
+#tuning grid
+mg1 <- expand_grid(
+  repeats = repeats,
+  fold = folds,
+  svd = svd,
+  frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
+  alpha = c(0.9, 0.5, 0.1),
+  case_weights = c(TRUE, FALSE)
+)
+#label alpha (for naming .csv files)
+mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
+                                    ifelse(alpha == 0.5, 5,
+                                           ifelse(alpha == 0.1, 1, NA))))
 
-# scaled Brier score
-scaled_Brier <- function(predictions, observations, positive_class) {
-  1 - (Brier(predictions, observations, positive_class) / 
-         Brier(mean(observations), observations, positive_class))
-}
+#check for models that have already been completed & remove them from the grid
+mg1 <- mg1 %>%
+  mutate(filename = 
+           paste0('exp', exp, '_hypergrid_r', repeats, '_f', fold, '_',
+                  frail_lab, '_svd_', svd, '_alpha', alpha_l, '_cw',
+                  as.integer(case_weights), '.csv')) %>%
+  filter(!filename %in% list.files(enet_modeldir))%>%
+  select(-'filename')
 
-# multiclass Brier score
-multi_Brier <- function(predictions, observations) {
-  mean(rowSums((data.matrix(predictions) - data.matrix(observations))^2))
-}
+#update constants for loading data
+repeats <- unique(mg1$repeats)
+folds <- unique(mg1$fold)
+svd <- unique(mg1$svd)
 
-# multiclass scaled Brier score
-multi_scaled_Brier <- function(predictions, observations) {
-  event_rate_matrix <- matrix(colMeans(observations), 
-                              ncol = length(colMeans(observations)), 
-                              nrow = nrow(observations),
-                              byrow = TRUE)
-  1 - (multi_Brier(predictions, observations) / 
-         multi_Brier(event_rate_matrix, observations))
-}
 
 #repeated k-fold cross validation
 for (p in 1:length(repeats)) {
@@ -104,7 +135,93 @@ for (p in 1:length(repeats)) {
       stop("caseweights do not match training data")
   }
   for (s in 1:length(svd)) {
-    if (svd[s] == 'embed') {
+    if (svd[s] == 'bioclinicalbert') {
+      train <- foreach (d = 1:length(folds)) %dopar% {
+        # load embeddings for each fold (drop index and 1st row junk)
+        embeddings_tr <- fread(
+          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_tr_bioclinicalbert.csv'),
+          skip = 1, drop = 1)
+        colnames(embeddings_tr) <- paste0('d', seq(1, 768))
+        pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
+        pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+        # test that embeddings match structured data
+        if ((nrow(embeddings_tr) == nrow(pca_tr)) == FALSE)
+          stop("bioclinicalbert does not match training data")
+        #embeddings without vs with structured data
+        if (inc_struc == FALSE) {
+          #get only embeddings columns
+          embeddings_tr <- data.matrix(embeddings_tr)
+        } else {
+          # concatenate embeddings with structured data
+          embeddings_tr <- data.matrix(cbind(embeddings_tr, pca_tr[, ..pca_cols]))
+        }
+        return(embeddings_tr)
+      }
+      validation <- foreach (d = 1:length(folds)) %dopar% {
+        # load embeddings for each fold (drop index)
+        embeddings_va <- fread(
+          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_va_bioclinicalbert.csv'),
+          skip = 1, drop = 1)
+        colnames(embeddings_va) <- paste0('d', seq(1, 768))
+        pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
+        pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+        # test that embeddings match structured data
+        if ((nrow(embeddings_va) == nrow(pca_va)) == FALSE)
+          stop("bioclinicalbert does not match validation data")
+        #embeddings without vs with structured data
+        if (inc_struc == FALSE) {
+          #get only embeddings columns
+          embeddings_va <- data.matrix(embeddings_va)
+        } else {
+          # concatenate embeddings with structured data
+          embeddings_va <- data.matrix(cbind(embeddings_va, pca_va[, ..pca_cols]))
+        }
+        return(embeddings_va)
+      }
+    } else if (svd[s] == 'roberta') {
+      train <- foreach (d = 1:length(folds)) %dopar% {
+        # load embeddings for each fold (drop index and 1st row junk)
+        embeddings_tr <- fread(
+          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_tr_roberta.csv'),
+          skip = 1, drop = 1)
+        colnames(embeddings_tr) <- paste0('d', seq(1, 768))
+        pca_tr <- get(paste0('r', repeats[p], '_f', folds[d], '_tr'))
+        pca_cols <- grep('pca', colnames(pca_tr), value = TRUE)
+        # test that embeddings match structured data
+        if ((nrow(embeddings_tr) == nrow(pca_tr)) == FALSE)
+          stop("roberta does not match training data")
+        #embeddings without vs with structured data
+        if (inc_struc == FALSE) {
+          #get only embeddings columns
+          embeddings_tr <- data.matrix(embeddings_tr)
+        } else {
+          # concatenate embeddings with structured data
+          embeddings_tr <- data.matrix(cbind(embeddings_tr, pca_tr[, ..pca_cols]))
+        }
+        return(embeddings_tr)
+      }
+      validation <- foreach (d = 1:length(folds)) %dopar% {
+        # load embeddings for each fold (drop index)
+        embeddings_va <- fread(
+          paste0(embeddingsdir, 'r', repeats[p], '_f', folds[d], '_va_roberta.csv'),
+          skip = 1, drop = 1)
+        colnames(embeddings_va) <- paste0('d', seq(1, 768))
+        pca_va <- get(paste0('r', repeats[p], '_f', folds[d], '_va'))
+        pca_cols <- grep('pca', colnames(pca_va), value = TRUE)
+        # test that embeddings match structured data
+        if ((nrow(embeddings_va) == nrow(pca_va)) == FALSE)
+          stop("roberta does not match validation data")
+        #embeddings without vs with structured data
+        if (inc_struc == FALSE) {
+          #get only embeddings columns
+          embeddings_va <- data.matrix(embeddings_va)
+        } else {
+          # concatenate embeddings with structured data
+          embeddings_va <- data.matrix(cbind(embeddings_va, pca_va[, ..pca_cols]))
+        }
+        return(embeddings_va)
+      }
+    } else if (svd[s] == 'embed') {
       train <- foreach (d = 1:length(folds)) %dopar% {
         # load embeddings for each fold (drop index)
         embeddings_tr <- fread(
@@ -221,31 +338,6 @@ for (p in 1:length(repeats)) {
 }
 
 
-
-#set sequence of lambda values to test
-lambda_seq <- signif(c(10^seq(2, -5, length.out = 25)), 4)
-#tuning grid
-mg1 <- expand_grid(
-  repeats = repeats,
-  fold = folds,
-  svd = svd,
-  frail_lab = c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp'),
-  alpha = c(0.9, 0.5, 0.1),
-  case_weights = c(TRUE, FALSE)
-)
-#label alpha (for naming .csv files)
-mg1 <- mutate(mg1, alpha_l = ifelse(alpha == 0.9, 9,
-                                    ifelse(alpha == 0.5, 5,
-                                           ifelse(alpha == 0.1, 1, NA))))
-
-#check for models that have already been completed & remove them from the grid
-mg1 <- mg1 %>%
-  mutate(filename = 
-           paste0('exp', exp, '_hypergrid_r', repeats, '_f', fold, '_',
-                  frail_lab, '_svd_', svd, '_alpha', alpha_l, '_cw',
-                  as.integer(case_weights), '.csv')) %>%
-  filter(!filename %in% list.files(enet_modeldir))%>%
-  select(-'filename')
 
 #run glmnet if incomplete
 if ((nrow(mg1) == 0) == FALSE) {
