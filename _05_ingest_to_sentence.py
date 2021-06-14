@@ -1,4 +1,3 @@
-
 import multiprocessing as mp
 import os
 import re
@@ -16,7 +15,6 @@ pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
 
-
 def process_webanno_output(output_file_path):
     output_dir = re.sub('\.zip', '', output_file_path)
     os.system(f"mkdir {output_dir}")
@@ -30,16 +28,6 @@ def process_webanno_output(output_file_path):
         cmd = f"unzip -n {output_dir}/curation/{i}/\*.zip -d {output_dir}/curation/{i}/"
         os.system(cmd)
 
-# removed this from global env (in case it interferes with scispacy library in _05_ingest_to_sentence.py
-# nlp = spacy.load("en", disable=['parser', 'tagger', 'ner'])
-#
-# # stepping through the files, use the spacy nlp function to build a data frame of tokens and their spans
-# tags = ['Frailty_nos', "Msk_prob", "Nutrition", "Resp_imp", 'Fall_risk']
-# mapping_dict = dict(frailty_nos_tags="Frailty_nos",
-#                     msk_prob_tags="Msk_prob",
-#                     nutrition="Nutrition",
-#                     resp_imp_tags="Resp_imp",
-#                     fall_risk_tags="Fall_risk")
 
 def remove_headers(fi):
     '''
@@ -51,21 +39,22 @@ def remove_headers(fi):
     If all that is true, those obs will be removed
     '''
     # make sure that all of the separators are the correct number of dashes
-    dash_token_indices = [fi.index[i] for i in fi.index if fi.token[i] == '--------------------------------------------------------------']
+    dash_token_indices = [fi.index[i] for i in fi.index if
+                          fi.token[i] == '--------------------------------------------------------------']
     # make sure that there is an even number of them
-    assert len(dash_token_indices) %2 == 0
+    assert len(dash_token_indices) % 2 == 0
     # make sure that they all have the same distance apart
-    spanlengths = [dash_token_indices[i] - dash_token_indices[i-1] for i in range(1, len(dash_token_indices),2)]
+    spanlengths = [dash_token_indices[i] - dash_token_indices[i - 1] for i in range(1, len(dash_token_indices), 2)]
     if len(list(set(spanlengths))) != 1:
         breakpoint()
-    assert(len(list(set(spanlengths)))) == 1
+    assert (len(list(set(spanlengths)))) == 1
     # make sure there is at least one year inside these spans
-    for i in range(1, len(dash_token_indices),2):
-        jstring = "".join(fi.token[(dash_token_indices[i-1]):(dash_token_indices[i]+1)])
+    for i in range(1, len(dash_token_indices), 2):
+        jstring = "".join(fi.token[(dash_token_indices[i - 1]):(dash_token_indices[i] + 1)])
         assert re.search("(19[789]\d|20[012]\d)", jstring)
     # if these pass, lose the spans
-    for i in range(1, len(dash_token_indices),2):
-        fi = fi.drop(index=list(range((dash_token_indices[i-1]-1),(dash_token_indices[i]+2))))
+    for i in range(1, len(dash_token_indices), 2):
+        fi = fi.drop(index=list(range((dash_token_indices[i - 1] - 1), (dash_token_indices[i] + 2))))
     # now drop the newlines -- they're not in the dictionary
     fi = fi[fi.token != "\n"]
     fi = fi[fi.token != "\n "]
@@ -83,6 +72,7 @@ def embeddings_catcher(tok, embeddings):
     except Exception:
         return np.zeros(embeddings.vector_size)
 
+
 def set_custom_boundaries(doc):
     # carriage return is a sentence boundary
     newline = re.compile("\n")
@@ -95,7 +85,8 @@ def set_custom_boundaries(doc):
             doc[token.i + 1].is_sent_start = True
     return doc
 
-#modified 'tokenize_and_label' and 'featurize' to output sentences
+
+# modified 'tokenize_and_label' and 'featurize' to output sentences
 def tokenize_and_label_sent(output_file_path,
                             annotator_of_record="CURATION_USER"):
     webanno_unzipped_dir = re.sub("\.zip", "", output_file_path)
@@ -214,10 +205,7 @@ def featurize_sent(file,
     output = pd.concat([fi] + outlist, axis=1)
     return output.reset_index(drop=True)
 
-# zipfile = './annotation/frailty_phenotype_AL_00_2020-06-29_0939.zip'
-# zipfile = '/Users/crandrew/projects/GW_PAIR_frailty_classifier/annotation/frailty_phenotype_AL_02_2021-01-26_1538/'
-# outdir = './old_misc/foodir/'
-# embeddings = './data/w2v_oa_all_300d.bin'
+
 def main():
     p = ArgParser()
     p.add("-z", "--zipfile", help="zip file to ingest")
@@ -250,4 +238,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

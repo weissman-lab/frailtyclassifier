@@ -1,13 +1,7 @@
-
-
 #!/bin/bash
-
 
 embeddings=./data/w2v_oa_all_300d.bin
 outdir=./output/notes_labeled_embedded_SENTENCES/test/
-
-
-
 
 files=$(ls -d ./annotation/test/* | grep .zip )
 for f in $files

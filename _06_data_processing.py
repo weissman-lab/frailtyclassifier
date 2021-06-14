@@ -570,5 +570,4 @@ def main():
 
 
 if __name__ == '__main__':
-    # self = DataProcessor('01')
     main()

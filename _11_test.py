@@ -162,7 +162,6 @@ class TestPredictor:
             for i in range(0, len(weights)):
                 weights[i] = mod_dict['weights'][i]
         model.set_weights(weights)
-        # model.set_weights(mod_dict['weights'])
         self.model = model
         self.vectorizer = vectorizer
 
@@ -173,7 +172,6 @@ class TestPredictor:
         if self.model_type == 'w2v':
             text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
             test_nan_inf(text)
-        # text = self.vectorizer(np.array([[s] for s in pred_df.sentence]))
         labels = []
         if self.task == 'multi':
             for n in TAGS:
@@ -212,7 +210,6 @@ class TestPredictor:
         return out
 
     def run(self):
-        # if not os.path.isfile(f"{self.ALdir}final_model/test_preds/test_preds_AL{self.batchstring}{self.suffix}.csv"):
         self.compile_text()
         self.compile_structured_data()
         self.reconstitute_model()
@@ -235,15 +232,6 @@ def main():
                         pp.run()
                 except:
                     send_message_to_slack(f"problem with batch {bs} tag {tag}, model type {model_type}")
-                # try:
-                #     pp = TestPredictor(batchstring=bs, task=tag, model_type=model_type, earlystopping=True)
-                #     if not os.path.exists(
-                #             f"{pp.ALdir}final_model/test_preds/test_preds_AL{pp.batchstring}{pp.suffix}.csv"):
-                #         print(f"test preds for batch {bs} tag {tag} type {model_type}")
-                #         pp.run()
-                # except:
-                #     send_message_to_slack(
-                #         f"problem with batch {bs} tag {tag}, model type {model_type}, (earlystopping)")
 
 
 
@@ -251,7 +239,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-    # self = TestPredictor(batchstring='03', task='Msk_prob')
-    # TestPredictor(batchstring='03', task='Fall_risk').run()
-    # self = TestPredictor(batchstring='03', task='multi')
-    # self.run()

@@ -41,23 +41,6 @@ class BCBEmbedder:
         torch.cuda.empty_cache()
         return cls
 
-    # def get_avg_embedding(self, y):
-    #     assert self.model_type == 'roberta-base'
-    #     y = "<s>" + y + "</s>"
-    #     tok_y = self.tokenizer.tokenize(y)
-    #     indexed_tokens = self.tokenizer.convert_tokens_to_ids(tok_y)
-    #     segments_ids = [1] * len(tok_y)
-    #     tokens_tensor = torch.tensor([indexed_tokens]).to(self.device)
-    #     segments_tensors = torch.tensor([segments_ids]).to(self.device)
-    #     with torch.no_grad():
-    #         outputs = self.model(tokens_tensor, segments_tensors)
-    #         out = outputs[2][-1][:, 1:, :].cpu()
-    #     out = np.mean(np.array(out), axis = 1)
-    #     avg = np.array(out).squeeze()
-    #     del out
-    #     torch.cuda.empty_cache()
-    #     return avg
-
     def get_avg_embedding(self, y):
         assert self.model_type == 'roberta-base'
         y = "<s>" + str(y) + "</s>"
@@ -87,6 +70,3 @@ class BCBEmbedder:
 
 if __name__ == "__main__":
     pass
-    # self = BCBEmbedder('bioclinicalbert')
-    # sentence_list = train_sent[:10]
-    # y = sentence_list[0]

@@ -23,17 +23,6 @@ def AL_CV(index,
           repeat,
           fold,
           tags=TAGS):
-    # index = 482
-    # batchstring = '01'
-    # embeddings = 'bioclinicalbert'
-    # n_units = 22
-    # n_dense = 2
-    # dropout = .5
-    # l1_l2_pen = .00001
-    # use_case_weights = False
-    # repeat = 3
-    # fold = 9
-    # tags = TAGS
     #################
     outdir = f"{os.getcwd()}/output/"
     datadir = f"{os.getcwd()}/data/"
@@ -93,9 +82,6 @@ def AL_CV(index,
             return 2
 
         with mirrored_strategy.scope():
-
-            '''If the model is to be a transformer, either create or load the data'''
-
             model, vectorizer = mmfun(emb_path=f"{datadir}w2v_oa_all_300d.bin",
                                       sentence_length=SENTENCE_LENGTH,
                                       meta_shape=len(str_varnames),
@@ -163,7 +149,6 @@ def AL_CV(index,
 
         #############################
         # fit the model
-
         start_time = time.time()
         xtr = [vectorizer['tr'], tr_struc] if not embeddings == 'w2v' else [tr_text, tr_struc]
         xva = [vectorizer['va'], va_struc] if not embeddings == 'w2v' else [va_text, va_struc]
@@ -249,37 +234,3 @@ def AL_CV(index,
 
 if __name__ == "__main__":
     pass
-
-#     tok = vectorizer(train_sent.tolist())
-#     tr_ids, tr_atm = [], []
-#     for i in range(len(train_sent)):
-#         if len(tok['input_ids'][i]) <= ROBERTA_MAX_TOKS:
-#             id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
-#             att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
-#         else:
-#             id = tok['input_ids'][i][:ROBERTA_MAX_TOKS]
-#             att = tok['attention_mask'][i][:ROBERTA_MAX_TOKS]
-#         assert len(id) == ROBERTA_MAX_TOKS
-#         assert len(att) == ROBERTA_MAX_TOKS
-#         tr_ids.append(id)
-#         tr_atm.append(att)
-#     tr_ids = tf.stack(tr_ids)
-#     tr_atm = tf.stack(tr_atm)
-#     assert tr_ids.shape == tr_atm.shape
-#
-#     tok = vectorizer(test_sent.tolist())
-#     va_ids, va_atm = [], []
-#     for i in range(len(test_sent)):
-#         if len(tok['input_ids'][i]) <= ROBERTA_MAX_TOKS:
-#             id = tok['input_ids'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['input_ids'][i])))
-#             att = tok['attention_mask'][i] + ([0] * (ROBERTA_MAX_TOKS - len(tok['attention_mask'][i])))
-#         else:
-#             id = tok['input_ids'][i][:ROBERTA_MAX_TOKS]
-#             att = tok['attention_mask'][i][:ROBERTA_MAX_TOKS]
-#         va_ids.append(id)
-#         va_atm.append(att)
-#     va_ids = tf.stack(va_ids)
-#     va_atm = tf.stack(va_atm)
-#     assert va_ids.shape == va_atm.shape
-#
-# else:

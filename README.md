@@ -1,8 +1,12 @@
-# Usage
+# Frailty Classifier
+
+## Data extraction and processing
+
+All data were extracted from electronic health records of patients of University of Pennsylvania health system, and as such cannot be shared.  Code used to extract and process the data can be found in `./data_pulling_cleaning`.
 
 ## Note ingestion
 
-To create data from curated webanno projects, use `shell_scripts/ingest.sh`.  Modify that script to point to whichever webanno zip by modifying the target of the grep statement, and ensure that the environment variables for the embeddings and the output directory are as intended.  Unless something changes (this was written 19 March 2021), those should be 
+Clinical notes were uploaded to a secure [webanno](https://webanno.github.io/webanno/) server.  To create data from curated webanno projects, use `shell_scripts/ingest.sh`.  Modify that script to point to whichever webanno zip by modifying the target of the grep statement, and ensure that the environment variables for the embeddings and the output directory are as intended.  These are: 
 
 ```
 embeddings=./data/w2v_oa_all_300d.bin
@@ -24,27 +28,20 @@ The main script is `_07_AL_CV.py`.  It takes the `batchstring` argument, as abov
 
 ### Using terraform and a swarm of machines
 
-To run in parallel, use the following startup bash script from a terraform job:
+To run in parallel, use terraform to provision a swarm of virtual machines, and give them the following bash script to run as part of a cloud init:
 
 ```
 IP=$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1)
-echo "$IP"
 
-# # sudo apt-get update && sudo apt-get dist-upgrade -y
 sudo apt-get install nfs-common python3-pip -y
 
-echo "attach shared drive"
+echo "attach shared NFS drive to machines"
 sudo cp /etc/fstab /etc/fstabed
-sudo echo "170.166.23.6:/data      /share                  nfs     rw              1 2     " >> /etc/fstab
 sudo echo "10.146.0.247:/gwshare   /gwshare        nfs     rw      1 2" >> /etc/fstab
-sudo mkdir /share
 sudo mkdir /gwshare
 sudo mount -a
 
-
-curl -X POST -H 'Content-type: application/json' --data '{"text":"'$IP'"}' https://hooks.slack.com/services/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
-
-# docker
+# install docker on VMs
 sudo apt-get remove docker docker-engine docker.io containerd runc -Y
 sudo apt-get update -Y
 sudo apt-get install \
@@ -59,16 +56,15 @@ curl https://get.docker.com | sh && sudo systemctl --now enable docker
 sudo usermod -aG docker signals
 sudo docker build -t frailty_active_learning /gwshare/frailty/docker/
 sudo systemctl start docker
-curl -X POST -H 'Content-type: application/json' --data '{"text":"'$IP'"}' https://hooks.slack.com/services/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
 
 sudo docker run --gpus all -v /share/gwlab/frailty:/usr/src/app frailty_active_learning _07_AL_CV.py -b <<batchstring>>
-IP=$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1)
-curl -X POST -H 'Content-type: application/json' --data '{"text":"'$IP'"}' https://hooks.slack.com/services/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
 ```
 
 Note the hard-coded batchstring down near the bottom.   
 
-This will spin up the number of machines specified in `terraform.tfvars` (not part of this repo).  The machines will loop through the hyperparameter grid in parallel.  There is a system in place to avoid most clobbering/overwriting, based on tokens.  When a given worker is done looping through the hyperparameter grid, it will send a slack message to Andrew Crane-Droesch (this is hard-coded).
+The machines will loop through the hyperparameter grid in parallel.  There is a system in place to avoid most clobbering/overwriting, based on tokens.  
+
+Note that the code will try to send slack messages.  The easiset way to enable these is to change the default argument in `utils.misc.send_message_to_slack`
 
 ## Fitting the final model
 
@@ -76,8 +72,16 @@ This is done with `_08_AL_train.py`.  It only takes `<<batchstring>>` as an argu
 
 ## Predicting unlabeled notes
 
-Done with `_09_AL_predict.py`.  It only takes `<<batchstring>>` as an argument.  Unlabeled notes are batched into 100 batches by the last 2 digits of their `PAT_ID`, and the script loops through the batches, saving json.bz2 data frames with the entropies of the notes predicted for.  As with cross-validation, this can be run in parallel on a cluster, using terraform.  Clobbering is avoided through a tokening system.
+Done with `_09_AL_predict.py`.  It only takes `<<batchstring>>` as an argument.  Unlabeled notes are batched into 100 batches by the last 2 digits of their `PAT_ID`, and the script loops through the batches, saving json.bz2 data frames with the entropies of the notes predicted.  As with cross-validation, this can be run in parallel on a cluster, using terraform.  Clobbering is avoided through a tokening system.
 
 ## Pulling the subsequent AL batch
 
 Done with `_10_pull_best_notes.py`.  It only takes `<<batchstring>>` as an argument.  
+
+## Testing
+Done with `_11_test.py`.
+
+## Notes on environment
+
+Development was done on a mac, using conda.  All neural nets were trained on linux (ubuntu) using docker via the dockerfile in `./docker`
+

@@ -6,7 +6,7 @@
 /output
 /.DS_Store
 **/.DS_Store
-/old_misc
+old_misc
 /figures
 /notebooks
 /docs/papers
@@ -15,8 +15,6 @@
 
 # editor cruft
 *~
-
-# ipython
 *.ipynb
 *.docx
 .Rproj.user
@@ -24,3 +22,4 @@
 frailty.tar.gz
 foo.*
 *.pyc
+.Rapp*
