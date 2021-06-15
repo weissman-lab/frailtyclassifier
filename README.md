@@ -36,9 +36,8 @@ IP=$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1)
 sudo apt-get install nfs-common python3-pip -y
 
 echo "attach shared NFS drive to machines"
-sudo cp /etc/fstab /etc/fstabed
-sudo echo "10.146.0.247:/gwshare   /gwshare        nfs     rw      1 2" >> /etc/fstab
-sudo mkdir /gwshare
+sudo echo "your_shared_drive_address   /share        nfs     rw      1 2" >> /etc/fstab
+sudo mkdir /share
 sudo mount -a
 
 # install docker on VMs
