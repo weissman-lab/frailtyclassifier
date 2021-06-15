@@ -13,7 +13,7 @@ embeddings=./data/w2v_oa_all_300d.bin
 outdir=./output/notes_labeled_embedded_SENTENCES/
 ```
 
-The shell script calls the `main` function in `_05_ingest_to_sentences.py`. We used 300-dimensional word2vec embeddings trained on the PubMed Open Access Subset and are available for download [here](https://github.com/weissman-lab/clinical_embeddings).
+The shell script calls the `main` function in `_05_ingest_to_sentences.py`. We used 300-dimensional word2vec embeddings trained on the PubMed Open Access Subset that are available for download [here](https://github.com/weissman-lab/clinical_embeddings).
 
 ## Creation of training/validation data, and full training data
 
