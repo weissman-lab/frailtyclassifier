@@ -24,7 +24,9 @@ Call `_06_data_processing.py -b <<batchstring>> --do_folds --do_full` where batc
 
 ## Doing cross-validation
 
-The main script is `_07_AL_CV.py`.  It takes the `batchstring` argument, as above.  It will loop through the hyperparameter grid, serially fitting all the models in it.  This is several hundred models.
+The main script for neural network models is `_07_AL_CV.py`.  It takes the `batchstring` argument, as above.  It will loop through the hyperparameter grid, serially fitting all the models in it.  This is several hundred models.
+
+The main script for elastic net models is `_08_enet.R` and the main script for random forest models is `_08_rf.R`. They both take `batchstring` as an argument, and they will run each set of hyperparameters for a set number of folds and repeats.
 
 ### Using terraform and a swarm of machines
 
@@ -65,9 +67,9 @@ The machines will loop through the hyperparameter grid in parallel.  There is a 
 
 Note that the code will try to send slack messages.  The easiset way to enable these is to change the default argument in `utils.misc.send_message_to_slack`
 
-## Fitting the final model
+## Fitting the final model and predicting unlabeled notes
 
-This is done with `_08_AL_train.py`.  It only takes `<<batchstring>>` as an argument.  
+For neural network models, this is done with `_08_AL_train.py`.  It only takes `<<batchstring>>` as an argument.  
 
 ## Predicting unlabeled notes
 
@@ -78,7 +80,7 @@ Done with `_09_AL_predict.py`.  It only takes `<<batchstring>>` as an argument. 
 Done with `_10_pull_best_notes.py`.  It only takes `<<batchstring>>` as an argument.  
 
 ## Testing
-Done with `_11_test.py`.
+Done with `_11_test.py` for neural network models and `_11_test_rf_enet.R` for random forest and elastic net models.
 
 ## Notes on environment
 
