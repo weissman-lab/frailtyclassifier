@@ -1,4 +1,3 @@
-
 library(data.table)
 library(PRROC)
 library(glmnet)
@@ -10,6 +9,10 @@ library(ranger)
 library(rbenchmark)
 registerDoParallel(detectCores())
 
+
+# Runs random forest models on training data for a single batch
+# Capable of running on multiple machines simultaneously with terraform
+# Calculates performance metrics, cpu time, and variable importance
 
 #Experiment number from cmd line:
 batchstring <- commandArgs(trailingOnly = TRUE)
@@ -26,17 +29,8 @@ SVD <- c('bioclinicalbert', 'roberta', 'embed', '300', '1000')
 #include structured data?
 INC_STRUC = TRUE
 
-#set directories based on location
-dirs = c(paste0('./output/saved_models/', batchstring, '/'),
-         paste0('/gwshare/frailty/output/saved_models/', batchstring, '/'),
-         '/Users/martijac/Documents/Frailty/frailty_classifier/output/',
-         paste0('/Users/crandrew/projects/GW_PAIR_frailty_classifier/output/saved_models/', batchstring, '/'),
-         '/media/drv2/andrewcd2/frailty/output/')
-for (d in 1:length(dirs)) {
-  if (dir.exists(dirs[d])) {
-    rootdir = dirs[d]
-  }
-}
+#set directories
+rootdir <- paste0('./output/saved_models/', batchstring, '/')
 datadir <- paste0(rootdir, 'processed_data/')
 SVDdir <- paste0(datadir, 'svd/') 
 embeddingsdir <- paste0(datadir, 'embeddings/')
@@ -54,16 +48,6 @@ rf_importancedir <- paste0(outdir,'rf_importance/')
 rf_predsdir <- paste0(outdir,'rf_preds/')
 #directory for clobber check:
 rf_clobberdir <- paste0(outdir,'rf_clobber/')
-# #directory for performance for each enet model:
-# enet_modeldir <- paste0(outdir,'enet_models/')
-# #directory for duration for each enet model:
-# enet_durationdir <- paste0(outdir,'enet_durations/')
-# #directory for coefficients:
-# enet_coefsdir <- paste0(outdir,'enet_coefs/')
-# #directory for predictions:
-# enet_predsdir <- paste0(outdir,'enet_preds/')
-# #directory for clobber check:
-# enet_clobberdir <- paste0(outdir,'enet_clobber/')
 #make directories
 dir.create(outdir)
 dir.create(rf_durationdir)
@@ -71,11 +55,6 @@ dir.create(rf_modeldir)
 dir.create(rf_importancedir)
 dir.create(rf_predsdir)
 dir.create(rf_clobberdir)
-# dir.create(enet_modeldir)
-# dir.create(enet_durationdir)
-# dir.create(enet_coefsdir)
-# dir.create(enet_predsdir)
-# dir.create(enet_clobberdir)
 
 
 # load module

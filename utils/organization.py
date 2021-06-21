@@ -4,10 +4,7 @@ import pandas as pd
 
 def find_outdir():
     # get the correct directories
-    dirs = ["/Users/martijac/Documents/Frailty/frailty_classifier/output/",
-            "/media/drv2/andrewcd2/frailty/output/",
-            "/gwshare/frailty/output/",
-            "./output/"]
+    dirs = ["./output/"]
     for d in dirs:
         if os.path.exists(d):
             outdir = d

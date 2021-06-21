@@ -10,6 +10,13 @@ library(rbenchmark)
 registerDoParallel(detectCores())
 
 
+# Runs elastic net regression models on training data for a single batch
+# Takes batch as an argument when running from the command line (e.g. 
+# Rscript --vanilla _08_enet.R AL01).
+# Calculates and summarizes performance metrics, cpu time, and regression
+# coefficients
+
+
 #Experiment number from cmd line:
 exp <- commandArgs(trailingOnly = TRUE)
 #test if there is an exp number argument: if not, return an error
@@ -54,15 +61,8 @@ inc_struc = TRUE
 #set seed
 seed = 92120
 
-#set directories based on location
-dirs = c(paste0('/gwshare/frailty/output/saved_models/', exp, '/'),
-         '/Users/martijac/Documents/Frailty/frailty_classifier/output/',
-         '/media/drv2/andrewcd2/frailty/output/')
-for (d in 1:length(dirs)) {
-  if (dir.exists(dirs[d])) {
-    rootdir = dirs[d]
-  }
-}
+#set directories
+rootdir <- paste0('./output/saved_models/', exp, '/')
 datadir <- paste0(rootdir, 'processed_data/')
 SVDdir <- paste0(datadir, 'svd/') 
 embeddingsdir <- paste0(datadir, 'embeddings/')

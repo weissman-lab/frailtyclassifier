@@ -1,3 +1,5 @@
+# Contains helper functions for running _08_rf.R
+
 
 # Brier score
 Brier <- function(predictions, observations, positive_class) {
