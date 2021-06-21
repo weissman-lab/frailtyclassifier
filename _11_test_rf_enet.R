@@ -10,6 +10,14 @@ library(foreach)
 library(doParallel)
 registerDoParallel(detectCores())
 
+#	- For RF and enets, fits a model on the full training set using the best
+#   hyperparameters from cross validation (_08_enet.R and _08_rf.R)
+# - For all models (neural networks, RF, and enets), calculates performance
+#   metrics with bootstrapped CIs for predictions on the test set
+# - Summarizes all training set and test set performance and outputs .csv files 
+#   that can be used in figures_tables.R to visualize the results
+
+
 # Brier score
 Brier <- function(predictions, observations, positive_class) {
   obs = as.numeric(observations == positive_class)
@@ -79,20 +87,21 @@ ROC_AUC_boot <- function(data, idx) {
 
 
 # set directories based on location
-dirs = c(paste0('/gwshare/frailty/output/saved_models/'),
-         '/Users/martijac/Documents/Frailty/frailty_classifier/output/saved_models/',
-         '/media/drv2/andrewcd2/frailty/output/saved_models/')
-for (d in 1:length(dirs)) {
-  if (dir.exists(dirs[d])) {
-    rootdir = dirs[d]
-  }
-}
+rootdir <- './output/saved_models/'
 
 #constants
 frail_lab <- c('Msk_prob', 'Fall_risk', 'Nutrition', 'Resp_imp')
 models <- c('enet', 'rf', 'nn_single')
 batches <- c('AL01', 'AL02', 'AL03', 'AL04', 'AL05')
 boot_reps <- 1000
+#list text features/embeddings
+rf_enet_text <- c('bioclinicalbert', 'roberta', 'embed', '300', '1000')
+nn_text <- c('word2vec', 'BioClinicalBERT', 'RoBERTa')
+#list relevant hyperparams
+hyperparams_enet <- c('SVD', 'lambda', 'alpha', 'case_weights')
+hyperparams_rf <- c('SVD', 'mtry', 'sample_frac', 'case_weights')
+hyperparams_nn <- c('text', 'n_dense', 'n_units', 'dropout', 'l1_l2_pen',
+                    'use_case_weights')
 
 #gather enet performance
 ep_list <- list()
@@ -117,19 +126,61 @@ for (b in 1:length(batches)){
   rf_list[[b]] <- rf
 }
 rf_performance <- rbindlist(rf_list)
+# Check if new models have been run based on constants. Consolidate performance
+# for new models.
+if (nrow(rf_performance) < (length(frail_lab) *
+                            length(batches) *
+                            length(rf_enet_text) *
+                            30 # folds & repeats
+                            *3 # mtry
+                            *3 # sample_frac
+                            *2 # case_weights
+)) {
+  for (b in 1:length(batches)) {
+    # rf output directories
+    rf_modeldir <- paste0(rootdir, batches[b], '/lin_trees/rf_models/')
+    rf_durationdir <- paste0(rootdir, batches[b], '/lin_trees/rf_durations/')
+    rf_importancedir <- paste0(rootdir, batches[b], '/lin_trees/rf_importance/')
+    #Summarize performance for all completed RF models
+    rf_output <- grep('_hypergrid_', list.files(rf_modeldir), value = TRUE)
+    rf_output <- lapply(paste0(rf_modeldir, rf_output), fread)
+    rf_output <- rbindlist(rf_output)
+    fwrite(rf_output, paste0(rootdir, batches[b], '/lin_trees/exp', batches[b], '_rf_performance.csv'))
+    #Summarize benchmarking for all completed RF models
+    rf_bench <- grep('_duration_hyper_', list.files(rf_durationdir), value = TRUE)
+    rf_bench <- lapply(paste0(rf_durationdir, rf_bench), fread)
+    rf_bench <- rbindlist(rf_bench)
+    fwrite(rf_bench, paste0(rootdir, batches[b], '/lin_trees/exp', batches[b], '_rf_cpu_time.csv'))
+    #Summarize variable importance
+    rf_importance <- grep('_importance_r', list.files(rf_importancedir), value = TRUE)
+    rf_importance <- lapply(paste0(rf_importancedir, rf_importance), fread)
+    rf_importance <- rbindlist(rf_importance, fill = TRUE)
+    fwrite(rf_importance, paste0(rootdir, batches[b], '/lin_trees/exp', batches[b], '_rf_importance.csv'))
+  }
+  rf_list <- list()
+  for (b in 1:length(batches)){
+    rf <- fread(paste0(rootdir,
+                       batches[b], '/lin_trees/exp',
+                       batches[b], '_rf_performance.csv'))
+    rf$model <- 'rf'
+    rf$batch <- batches[b]
+    rf_list[[b]] <- rf
+  }
+  rf_performance <- rbindlist(rf_list)
+}
 
 #gather single-task NN performance
 nn_single_performance_w2v <- fread(paste0(rootdir,
-                                      tail(batches, 1),
-                                      '/learning_curve_stask.csv'))
+                                          tail(batches, 1),
+                                          '/learning_curve_stask.csv'))
 nn_single_performance_w2v$text <- 'word2vec'
 nn_single_performance_bert <- fread(paste0(rootdir,
-                                      tail(batches, 1),
-                                      '/learning_curve_stask_bert.csv'))
+                                           tail(batches, 1),
+                                           '/learning_curve_stask_bert.csv'))
 nn_single_performance_bert$text <- 'BioClinicalBERT'
 nn_single_performance_roberta <- fread(paste0(rootdir,
-                                           tail(batches, 1),
-                                           '/learning_curve_stask_roberta.csv'))
+                                              tail(batches, 1),
+                                              '/learning_curve_stask_roberta.csv'))
 nn_single_performance_roberta$text <- 'RoBERTa'
 nn_single_performance <- rbind(nn_single_performance_w2v,
                                nn_single_performance_bert,
@@ -148,17 +199,6 @@ nn_single_performance[, 'frail_lab'] <- str_sub(nn_single_performance$tags, 3, -
 nn_single_performance[, 'model'] <- 'nn_single'
 nn_single_performance[, 'cv_repeat'] <- nn_single_performance[, 'repeat']
 
-
-#list text features/embeddings
-rf_enet_text <- c('embed', '300', '1000')
-nn_text <- c('word2vec', 'BioClinicalBERT', 'RoBERTa')
-
-#list relevant hyperparams
-hyperparams_enet <- c('SVD', 'lambda', 'alpha', 'case_weights')
-hyperparams_rf <- c('SVD', 'mtry', 'sample_frac', 'case_weights')
-hyperparams_nn <- c('text', 'n_dense', 'n_units', 'dropout', 'l1_l2_pen',
-                    'use_case_weights')
-
 # step 1: find the best hyperparams for each aspect and calculate performance
 # step 2: using the best hyperparams only, calcuLate the mean scaled brier
 # across all aspects (sbrier_multi_all) for each fold
@@ -174,7 +214,7 @@ perf_calc_MEAN <- function(raw_perf){
     hyperparams = hyperparams_rf
   } else if (raw_perf$model[1] == 'nn_single') {
     hyperparams = hyperparams_nn
-    }
+  }
   # step 1:
   group1 <- c('frail_lab', hyperparams)
   step_1 <- raw_perf %>%
@@ -214,7 +254,7 @@ for (t in 1:length(rf_enet_text)) {
   perf_l <- list()
   for (b in 1:length(batches)) {
     perf <- perf_calc_MEAN(enet_performance[(batch == batches[b] &
-                                              SVD == rf_enet_text[t]),])[[1]]
+                                               SVD == rf_enet_text[t]),])[[1]]
     perf_l[[b]] <- perf
   }
   txt_l <- c(txt_l, perf_l)
@@ -227,7 +267,7 @@ for (t in 1:length(rf_enet_text)) {
   perf_l <- list()
   for (b in 1:length(batches)) {
     perf <- perf_calc_MEAN(rf_performance[(batch == batches[b] &
-                                            SVD == rf_enet_text[t]),])[[1]]
+                                             SVD == rf_enet_text[t]),])[[1]]
     perf_l[[b]] <- perf
   }
   txt_l <- c(txt_l, perf_l)
@@ -250,16 +290,16 @@ nn_single_hyperparams <- rbindlist(txt_l)
 #Get best nn multi task hyperparams
 # (fewer steps to summarize because all aspects get the same hyperparams)
 nn_multi_performance_w2v <- fread(paste0(rootdir,
-                                          tail(batches, 1),
-                                          '/learning_curve_mtask.csv'))
+                                         tail(batches, 1),
+                                         '/learning_curve_mtask.csv'))
 nn_multi_performance_w2v$text <- 'word2vec'
 nn_multi_performance_bert <- fread(paste0(rootdir,
-                                           tail(batches, 1),
-                                           '/learning_curve_mtask_bert.csv'))
+                                          tail(batches, 1),
+                                          '/learning_curve_mtask_bert.csv'))
 nn_multi_performance_bert$text <- 'BioClinicalBERT'
 nn_multi_performance_roberta <- fread(paste0(rootdir,
-                                              tail(batches, 1),
-                                              '/learning_curve_mtask_roberta.csv'))
+                                             tail(batches, 1),
+                                             '/learning_curve_mtask_roberta.csv'))
 nn_multi_performance_roberta$text <- 'RoBERTa'
 nn_multi_performance <- rbind(nn_multi_performance_w2v,
                               nn_multi_performance_bert,
@@ -295,16 +335,16 @@ for (m in 1:length(models)) {
     perf_l <- list()
     for (b in 1:length(batches)) {
       if (models[m] == 'nn_single') {
-      perf <- perf_calc_MEAN(get(paste0(models[m], '_performance'))[batch == batches[b] &
-                                                                      text == text[t],])
+        perf <- perf_calc_MEAN(get(paste0(models[m], '_performance'))[batch == batches[b] &
+                                                                        text == text[t],])
       } else {
-      perf <- perf_calc_MEAN(get(paste0(models[m], '_performance'))[batch == batches[b] &
-                                                                      SVD == text[t],])
+        perf <- perf_calc_MEAN(get(paste0(models[m], '_performance'))[batch == batches[b] &
+                                                                        SVD == text[t],])
       }
-       perf <- perf[[2]][c('model', 'batch', 'sbrier_multi_all_mean',
-                                 'sbrier_multi_all_sd')]
-       perf$text <- text[t]
-       perf_l[[b]] <- perf
+      perf <- perf[[2]][c('model', 'batch', 'sbrier_multi_all_mean',
+                          'sbrier_multi_all_sd')]
+      perf$text <- text[t]
+      perf_l[[b]] <- perf
     }
     txt_l <- c(txt_l, perf_l)
   }
@@ -599,7 +639,7 @@ for (b in 1:length(batches)){
 
 
 #RFs
-#check for models that have already been completed & remove them from the grid
+#check for test set performance that has already been completed
 rf_hyperparams_full <- rf_hyperparams
 for (b in 1:length(batches)){
   batch_root <- paste0(rootdir, batches[b], '/')
@@ -611,11 +651,8 @@ for (b in 1:length(batches)){
     filter(!filename %in% list.files(rf_modeldir))%>%
     select(-'filename')
 }
-
-if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.csv')) {
-  rf_test_perf <- fread('/gwshare/frailty/output/figures_tables/RF_test_set_performance.csv')
-} else {
-  if ((nrow(rf_hyperparams) == 0) == FALSE) {
+#run test set performance for any remaining models
+if ((nrow(rf_hyperparams) == 0) == FALSE) {
   for (r in 1:nrow(rf_hyperparams)){
     #set directories
     batch_root <- paste0(rootdir, rf_hyperparams$batch[r], '/')
@@ -644,9 +681,57 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
     } else {
       cw_train_only <- NULL
     }
-    
-    # embeddings
-    if (rf_hyperparams$SVD[r] == 'embed'){
+    # load text features
+    # bioclinicalbert
+    if (rf_hyperparams$SVD[r] == 'bioclinicalbert'){
+      # x_train
+      train_embed <- fread(paste0(
+        batch_root, 'processed_data/full_set/full_bioclinicalbert.csv'),
+        skip = 1, drop = 1)
+      colnames(train_embed) <- paste0('d', seq(1, 768))
+      if ((nrow(train_df) == nrow(train_embed)) == FALSE)
+        stop("train bioclinicalbert does not match structured data")
+      x_train <- data.matrix(cbind(train_embed,
+                                   train_df[, ..pca_cols]))
+      # x_test
+      test_embed <- fread(paste0(
+        batch_root, 'processed_data/test_set/full_bioclinicalbert.csv'),
+        skip = 1, drop = 1)
+      colnames(test_embed) <- paste0('d', seq(1, 768))
+      if ((nrow(test_df) == nrow(test_embed)) == FALSE)
+        stop("test bioclinicalbert does not match structured data")
+      # remove extreme outliers from test PCA
+      test_pca <- test_df[, ..pca_cols]
+      test_pca[test_pca < -4] <- -4
+      test_pca[test_pca > 4] <- 4
+      x_test <- data.matrix(cbind(test_embed, test_pca))
+      
+      # roberta
+    } else if (rf_hyperparams$SVD[r] == 'roberta'){
+      # x_train
+      train_embed <- fread(paste0(
+        batch_root, 'processed_data/full_set/full_roberta.csv'),
+        skip = 1, drop = 1)
+      colnames(train_embed) <- paste0('d', seq(1, 768))
+      if ((nrow(train_df) == nrow(train_embed)) == FALSE)
+        stop("train roberta does not match structured data")
+      x_train <- data.matrix(cbind(train_embed,
+                                   train_df[, ..pca_cols]))
+      # x_test
+      test_embed <- fread(paste0(
+        batch_root, 'processed_data/test_set/full_roberta.csv'),
+        skip = 1, drop = 1)
+      colnames(test_embed) <- paste0('d', seq(1, 768))
+      if ((nrow(test_df) == nrow(test_embed)) == FALSE)
+        stop("test roberta does not match structured data")
+      # remove extreme outliers from test PCA
+      test_pca <- test_df[, ..pca_cols]
+      test_pca[test_pca < -4] <- -4
+      test_pca[test_pca > 4] <- 4
+      x_test <- data.matrix(cbind(test_embed, test_pca))
+      
+      # w2v embeddings
+    }else if (rf_hyperparams$SVD[r] == 'embed'){
       # x_train
       train_embed <- fread(paste0(
         batch_root, 'processed_data/full_set/full_embed_min_max_mean_SENT.csv'),
@@ -664,7 +749,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
         stop("test embeddings do not match structured data")
       emb_cols_test <- grep('min_|max_|mean_', colnames(test_embed), value = TRUE)
       if (identical(emb_cols, emb_cols_test) == FALSE) stop("train embed does not 
-        match test embed")
+      match test embed")
       # remove extreme outliers from test PCA
       test_pca <- test_df[, ..pca_cols]
       test_pca[test_pca < -4] <- -4
@@ -733,7 +818,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
                                    ifelse(.[[3]] == 1, 3, NA))))
     y_train_factor <- as.factor(y_train$factr)
     y_test <- test_df[, ..y_cols]
-      
+    
     if (file.exists(paste0(
       rf_predsdir, rf_hyperparams$batch[r], '_',
       rf_hyperparams$SVD[r], '_',
@@ -755,7 +840,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
                          case.weights = cw_train_only,
                          oob.error = FALSE,
                          importance = 'impurity')
-    
+      
       #save variable importance
       importance <- importance(frail_rf)
       i_names <- names(importance)
@@ -783,6 +868,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
              paste0(rf_predsdir, rf_hyperparams$batch[r], '_',
                     rf_hyperparams$SVD[r], '_',
                     rf_hyperparams$frail_lab[r], '_preds.csv'))
+      
     }
     #label each row
     hyper_grid <- data.frame(batch = rf_hyperparams$batch[r])
@@ -817,7 +903,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
     hyper_grid$sbrier_pos <- sbrier_pos$t0
     hyper_grid$sbrier_pos_5 <- sbrier_pos$basic[4]
     hyper_grid$sbrier_pos_95 <- sbrier_pos$basic[5]
-  
+    
     #Precision-recall area AUC with bootstrap CIs
     PR_AUC_neut <- boot(b_neut, PR_AUC_boot, R = boot_reps, parallel = 'multicore')
     PR_AUC_neut <- boot.ci(PR_AUC_neut, conf = 0.95, type = c('basic'))
@@ -857,38 +943,36 @@ if (file.exists('/gwshare/frailty/output/figures_tables/RF_test_set_performance.
                   rf_hyperparams$SVD[r], '_',
                   rf_hyperparams$frail_lab[r], '_performance.csv'))
   }}
-  
-  #summarize results
-  rf_hyperparams_full <- filter(rf_hyperparams_full, batch %in% batches)
-  md_l <- list()
-  for (w in 1:nrow(rf_hyperparams_full)){
-    batch_root <- paste0(rootdir, rf_hyperparams_full$batch[w], '/')
-    outdir <- paste0(batch_root, 'lin_trees_final_test/')
-    rf_modeldir <- paste0(outdir,'rf_models/')
-    md <- fread(paste0(rf_modeldir, rf_hyperparams_full$batch[w], '_',
-                       rf_hyperparams_full$SVD[w], '_',
-                       rf_hyperparams_full$frail_lab[w], '_performance.csv'))
-    md$model <- 'rf'
-    md_l[[w]] <- md
-  }
-  rf_test_perf <- rbindlist(md_l)
-  
-  cols <- c('model', 'batch', 'frail_lab',
-            grep('sbrier', colnames(rf_test_perf), value = TRUE),
-            grep('AUC', colnames(rf_test_perf), value = TRUE))
-  print(rf_test_perf[, ..cols])
-  
-  fwrite(rf_test_perf,
-         paste0('/gwshare/frailty/output/figures_tables/RF_test_set_performance.csv'))
-  
+
+#summarize results
+rf_hyperparams_full <- filter(rf_hyperparams_full, batch %in% batches)
+md_l <- list()
+for (w in 1:nrow(rf_hyperparams_full)){
+  batch_root <- paste0(rootdir, rf_hyperparams_full$batch[w], '/')
+  outdir <- paste0(batch_root, 'lin_trees_final_test/')
+  rf_modeldir <- paste0(outdir,'rf_models/')
+  md <- fread(paste0(rf_modeldir, rf_hyperparams_full$batch[w], '_',
+                     rf_hyperparams_full$SVD[w], '_',
+                     rf_hyperparams_full$frail_lab[w], '_performance.csv'))
+  md$model <- 'rf'
+  md_l[[w]] <- md
 }
+rf_test_perf <- rbindlist(md_l)
+
+cols <- c('model', 'batch', 'frail_lab',
+          grep('sbrier', colnames(rf_test_perf), value = TRUE),
+          grep('AUC', colnames(rf_test_perf), value = TRUE))
+print(rf_test_perf[, ..cols])
+
+fwrite(rf_test_perf,
+       paste0('/gwshare/frailty/output/figures_tables/RF_test_set_performance.csv'))
 
 
 
 
 
 # ELASTIC NET
-#check for models that have already been completed & remove them from the grid
+#check for test set performance that has already been completed
 enet_hyperparams_full <- enet_hyperparams
 for (b in 1:length(batches)){
   batch_root <- paste0(rootdir, batches[b], '/')
@@ -900,12 +984,8 @@ for (b in 1:length(batches)){
     filter(!filename %in% list.files(enet_modeldir))%>%
     select(-'filename')
 }
-
-if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performance.csv')) {
-  enet_test_perf <- fread('/gwshare/frailty/output/figures_tables/enet_test_set_performance.csv')
-} else {
-  #fit model with best hyperparams on full training set, then predict on test set
-  if ((nrow(enet_hyperparams) == 0) == FALSE) {
+#run test set performance for any remaining models
+if ((nrow(enet_hyperparams) == 0) == FALSE) {
   enet_error = foreach (r = 1:nrow(enet_hyperparams), .errorhandling = "pass") %dopar% {
     tc_error <- tryCatch(
       {
@@ -915,7 +995,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
         enet_modeldir <- paste0(outdir, 'enet_models/')
         enet_coefsdir <- paste0(outdir, 'enet_coefs/')
         enet_predsdir <- paste0(outdir, 'enet_preds/')
-      
+        
         # get matching training and test data & labels
         train_df <- fread(paste0(
           batch_root, 'processed_data/full_set/full_df.csv'))
@@ -924,61 +1004,110 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
           batch_root, 'processed_data/test_set/full_df.csv'))
         pca_cols_test <- grep('pca', colnames(test_df), value = TRUE)
         if (identical(pca_cols, pca_cols_test) == FALSE)
-        stop("train PCA does not match test PCA")
+          stop("train PCA does not match test PCA")
         
         # load caseweights (training only)
         if (enet_hyperparams$case_weights[r] == TRUE){
           cw_train_only <- fread(paste0(
             batch_root, 'processed_data/full_set/full_caseweights.csv'))[[paste0(enet_hyperparams$frail_lab[r], '_cw')]]
-        # check for matching
-        if ((nrow(cw_train_only) == nrow(train_df)) == FALSE)
-          stop("caseweights do not match training data")
+          # check for matching
+          if ((nrow(cw_train_only) == nrow(train_df)) == FALSE)
+            stop("caseweights do not match training data")
         } else {
           cw_train_only <- NULL
         }
         
-        # embeddings
-        if (enet_hyperparams$SVD[r] == 'embed'){
+        # load text features
+        # bioclinicalbert
+        if (enet_hyperparams$SVD[r] == 'bioclinicalbert'){
+          # x_train
+          train_embed <- fread(paste0(
+            batch_root, 'processed_data/full_set/full_bioclinicalbert.csv'),
+            skip = 1, drop = 1)
+          colnames(train_embed) <- paste0('d', seq(1, 768))
+          if ((nrow(train_df) == nrow(train_embed)) == FALSE)
+            stop("train bioclinicalbert does not match structured data")
+          x_train <- data.matrix(cbind(train_embed,
+                                       train_df[, ..pca_cols]))
+          # x_test
+          test_embed <- fread(paste0(
+            batch_root, 'processed_data/test_set/full_bioclinicalbert.csv'),
+            skip = 1, drop = 1)
+          colnames(test_embed) <- paste0('d', seq(1, 768))
+          if ((nrow(test_df) == nrow(test_embed)) == FALSE)
+            stop("test bioclinicalbert does not match structured data")
+          # remove extreme outliers from test PCA
+          test_pca <- test_df[, ..pca_cols]
+          test_pca[test_pca < -4] <- -4
+          test_pca[test_pca > 4] <- 4
+          x_test <- data.matrix(cbind(test_embed, test_pca))
+          
+          # roberta
+        } else if (enet_hyperparams$SVD[r] == 'roberta'){
+          # x_train
+          train_embed <- fread(paste0(
+            batch_root, 'processed_data/full_set/full_roberta.csv'),
+            skip = 1, drop = 1)
+          colnames(train_embed) <- paste0('d', seq(1, 768))
+          if ((nrow(train_df) == nrow(train_embed)) == FALSE)
+            stop("train roberta does not match structured data")
+          x_train <- data.matrix(cbind(train_embed,
+                                       train_df[, ..pca_cols]))
+          # x_test
+          test_embed <- fread(paste0(
+            batch_root, 'processed_data/test_set/full_roberta.csv'),
+            skip = 1, drop = 1)
+          colnames(test_embed) <- paste0('d', seq(1, 768))
+          if ((nrow(test_df) == nrow(test_embed)) == FALSE)
+            stop("test roberta does not match structured data")
+          # remove extreme outliers from test PCA
+          test_pca <- test_df[, ..pca_cols]
+          test_pca[test_pca < -4] <- -4
+          test_pca[test_pca > 4] <- 4
+          x_test <- data.matrix(cbind(test_embed, test_pca))
+          
+          # w2v embeddings
+        } else if (enet_hyperparams$SVD[r] == 'embed'){
           # x_train
           train_embed <- fread(paste0(
             batch_root, 'processed_data/full_set/full_embed_min_max_mean_SENT.csv'),
-                               drop = 1)
+            drop = 1)
           if (identical(train_df$sentence_id, train_embed$sentence_id) == FALSE)
             stop("train embeddings do not match structured data")
           emb_cols <- grep('min_|max_|mean_', colnames(train_embed), value = TRUE)
           x_train <- data.matrix(cbind(train_embed[, ..emb_cols],
-                                           train_df[, ..pca_cols]))
+                                       train_df[, ..pca_cols]))
           # x_test
           test_embed <- fread(paste0(
             batch_root, 'processed_data/test_set/full_embed_min_max_mean_SENT.csv'),
-                              drop = 1)
+            drop = 1)
           if (identical(test_df$sentence_id, test_embed$sentence_id) == FALSE)
             stop("test embeddings do not match structured data")
           emb_cols_test <- grep('min_|max_|mean_', colnames(test_embed), value = TRUE)
           if (identical(emb_cols, emb_cols_test) == FALSE) stop("train embed does not 
-        match test embed")
+      match test embed")
           # remove extreme outliers from test PCA
           test_pca <- test_df[, ..pca_cols]
           test_pca[test_pca < -4] <- -4
           test_pca[test_pca > 4] <- 4
           x_test <- data.matrix(cbind(test_embed[, ..emb_cols], test_pca))
           
-        # 300-d SVD
+          # 300-d SVD
         } else if (enet_hyperparams$SVD[r] == '300'){
           # x_train
           train_svd_300 <- fread(paste0(
             batch_root, 'processed_data/full_set/full_svd300.csv'),
-                               skip = 1, drop = 1)
+            skip = 1, drop = 1)
           colnames(train_svd_300) <- c('sentence_id', paste0('svd', seq(1:300)))
           if (identical(train_df$sentence_id, train_svd_300$sentence_id) == FALSE)
-          stop("train 300-d svd does not match structured data")
+            stop("train 300-d svd does not match structured data")
           svd_cols <- grep('svd', colnames(train_svd_300), value = TRUE)
           x_train <- data.matrix(cbind(train_svd_300[, ..svd_cols],
-                                           train_df[, ..pca_cols]))
+                                       train_df[, ..pca_cols]))
           # x_test
           test_svd_300 <- fread(paste0(
             batch_root, 'processed_data/test_set/full_svd300.csv'),
-                                skip = 1, drop = 1)
+            skip = 1, drop = 1)
           colnames(test_svd_300) <- c('sentence_id', paste0('svd', seq(1:300)))
           if (identical(test_df$sentence_id, test_svd_300$sentence_id) == FALSE)
             stop("test 300-d svd does not match structured data")
@@ -987,23 +1116,23 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
           test_pca[test_pca < -4] <- -4
           test_pca[test_pca > 4] <- 4
           x_test <- data.matrix(cbind(test_svd_300[, ..svd_cols], test_pca))
-        
-        # 1000-d SVD
+          
+          # 1000-d SVD
         } else if (enet_hyperparams$SVD[r] == '1000'){
           # x_train
           train_svd_1000 <- fread(paste0(
             batch_root, 'processed_data/full_set/full_svd1000.csv'),
-                                skip = 1, drop = 1)
+            skip = 1, drop = 1)
           colnames(train_svd_1000) <- c('sentence_id', paste0('svd', seq(1:1000)))
           if (identical(train_df$sentence_id, train_svd_1000$sentence_id) == FALSE)
-          stop("train 1000-d svd does not match structured data")
+            stop("train 1000-d svd does not match structured data")
           svd_cols <- grep('svd', colnames(train_svd_1000), value = TRUE)
           x_train <- data.matrix(cbind(train_svd_1000[, ..svd_cols],
-                                            train_df[, ..pca_cols]))
+                                       train_df[, ..pca_cols]))
           # x_test
           test_svd_1000 <- fread(paste0(
             batch_root, 'processed_data/test_set/full_svd1000.csv'),
-                                 skip = 1, drop = 1)
+            skip = 1, drop = 1)
           colnames(test_svd_1000) <- c('sentence_id', paste0('svd', seq(1:1000)))
           if (identical(test_df$sentence_id, test_svd_1000$sentence_id) == FALSE)
             stop("test 1000-d svd does not match structured data")
@@ -1013,7 +1142,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
           test_pca[test_pca > 4] <- 4
           x_test <- data.matrix(cbind(test_svd_1000[, ..svd_cols], test_pca))
         }
-      
+        
         #labels
         y_cols <- c(paste0(enet_hyperparams$frail_lab[r], '_neut'),
                     paste0(enet_hyperparams$frail_lab[r], '_pos'),
@@ -1021,7 +1150,7 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
         y_train <- data.matrix(train_df[, ..y_cols])
         y_test <- data.matrix(test_df[, ..y_cols])
         
-
+        
         # note: performs MUCH better if given ~20+ lambda values (some models
         # are very slow and struggle to converge with only 5 lambdas)
         lambda_seq <- c(10^seq(1, log10(enet_hyperparams$lambda[r]),
@@ -1037,7 +1166,6 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
             enet_hyperparams$frail_lab[r], '_preds.csv'))[, 1:3])
           
         } else {
-        
           #train model
           frail_logit <- glmnet(x_train, 
                                 y_train,
@@ -1158,36 +1286,34 @@ if (file.exists('/gwshare/frailty/output/figures_tables/enet_test_set_performanc
       error = function(cond) {
         return(
           paste0('error in: ', enet_hyperparams$batch[r], '_',
-                      enet_hyperparams$frail_lab[r]))
+                 enet_hyperparams$frail_lab[r]))
       })
     return(tc_error)
   }}
-  
-  fwrite(as.data.table(enet_error), 
-         paste0(rootdir, 'final_test_rf_enet_error.txt'))
-  
-  #summarize results
-  enet_hyperparams_full <- filter(enet_hyperparams_full, batch %in% batches)
-  md_l <- list()
-  for (w in 1:nrow(enet_hyperparams_full)){
-    batch_root <- paste0(rootdir, enet_hyperparams_full$batch[w], '/')
-    outdir <- paste0(batch_root, 'lin_trees_final_test/')
-    enet_modeldir <- paste0(outdir,'enet_models/')
-    md <- fread(paste0(enet_modeldir, enet_hyperparams_full$batch[w], '_',
-                       enet_hyperparams_full$SVD[w], '_',
-                       enet_hyperparams_full$frail_lab[w], '_performance.csv'))
-    md$model <- 'enet'
-    md_l[[w]] <- md
-  }
-  enet_test_perf <- rbindlist(md_l, fill = TRUE)
-  cols <- c('model', 'SVD', 'batch', 'frail_lab',
-            grep('sbrier', colnames(enet_test_perf), value = TRUE),
-            grep('AUC', colnames(enet_test_perf), value = TRUE))
-  print(enet_test_perf[, ..cols])
-  fwrite(enet_test_perf,
-         paste0('/gwshare/frailty/output/figures_tables/enet_test_set_performance.csv'))
-  
+
+fwrite(as.data.table(enet_error), 
+       paste0(rootdir, 'final_test_rf_enet_error.txt'))
+
+#summarize results
+enet_hyperparams_full <- filter(enet_hyperparams_full, batch %in% batches)
+md_l <- list()
+for (w in 1:nrow(enet_hyperparams_full)){
+  batch_root <- paste0(rootdir, enet_hyperparams_full$batch[w], '/')
+  outdir <- paste0(batch_root, 'lin_trees_final_test/')
+  enet_modeldir <- paste0(outdir,'enet_models/')
+  md <- fread(paste0(enet_modeldir, enet_hyperparams_full$batch[w], '_',
+                     enet_hyperparams_full$SVD[w], '_',
+                     enet_hyperparams_full$frail_lab[w], '_performance.csv'))
+  md$model <- 'enet'
+  md_l[[w]] <- md
 }
+enet_test_perf <- rbindlist(md_l, fill = TRUE)
+cols <- c('model', 'SVD', 'batch', 'frail_lab',
+          grep('sbrier', colnames(enet_test_perf), value = TRUE),
+          grep('AUC', colnames(enet_test_perf), value = TRUE))
+print(enet_test_perf[, ..cols])
+fwrite(enet_test_perf,
+       paste0('/gwshare/frailty/output/figures_tables/enet_test_set_performance.csv'))
 
 
 

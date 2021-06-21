@@ -58,17 +58,8 @@ dir.create(rf_clobberdir)
 
 
 # load module
-#set directories based on location
-locs = c("/Users/crandrew/projects/GW_PAIR_frailty_classifier/utils/rf_enet_functions.R",
-         '/gwshare/frailty/utils/rf_enet_functions.R',
-         './utils/rf_enet_functions.R',
-         '/Users/martijac/Documents/Frailty/frailty_classifier/utils/rf_enet_functions.R"/')
-for (loc in locs) {
-  if (file.exists(loc)) {
-    print('loading shared functions')
-    source(loc)
-  }
-}
+loc <- './utils/rf_enet_functions.R'
+source(loc)
 
 rf <- function(rep, fold, frail_lab, svd, ntree, mtry, sample_frac, case_weights, sample_frac_l){
   # fold = 2
