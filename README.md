@@ -67,9 +67,9 @@ The machines will loop through the hyperparameter grid in parallel.  There is a 
 
 Note that the code will try to send slack messages.  The easiset way to enable these is to change the default argument in `utils.misc.send_message_to_slack`
 
-## Fitting the final model and predicting unlabeled notes
+## Fitting the final model and predicting unlabeled notes for active learning
 
-For neural network models, this is done with `_08_AL_train.py`.  It only takes `<<batchstring>>` as an argument.  
+This is done with `_08_AL_train.py`.  It only takes `<<batchstring>>` as an argument.  
 
 ## Predicting unlabeled notes
 
@@ -81,6 +81,9 @@ Done with `_10_pull_best_notes.py`.  It only takes `<<batchstring>>` as an argum
 
 ## Testing
 Done with `_11_test.py` for neural network models and `_11_test_rf_enet.R` for random forest and elastic net models.
+
+Our best elastic net models can be loaded as R objects from `/example_model_objects`. For example:  
+`resp_imp_model <- readRDS('./example_model_objects/best_elastic_net_word2vec_Resp_imp_model.rds')`
 
 ## Notes on environment
 
